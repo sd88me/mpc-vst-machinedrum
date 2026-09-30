@@ -14,7 +14,7 @@ no downloadable build: it needs your own Machinedrum firmware, so you build the 
 
 **New in 0.2.1:** build fixes only. The build no longer needs Monomodule's art file (the LCD fonts come from your Machinedrum OS, and the
 randomise toggle icon is now drawn by this project), `mdProbe` is built for you, and the README has plain steps including a macOS setup.
-The skin's look is the same apart from two small digits and that icon.
+The skin's look is the same apart from two small digits and that icon. If you do have mpc-vst-monomodule's `vst/build/art.json` next to this repo (or `MNM_ART` pointing at it), the skin build uses it and gets the original toggle icon and digits.
 
 **New in 0.2.0:** the voices now render on two threads, which is the main reason a busy kit holds up better; the VOICES
 budget really cuts voices now (it did nothing before); TRX XT, CP, MA, CL and XC and EFM CY now play (they were silent);
