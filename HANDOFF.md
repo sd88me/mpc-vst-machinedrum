@@ -1487,3 +1487,9 @@ Open, in the order I would take them:
   (TRX CP/RS/CB/CH/OH/CY/MA, several P-I) differ by a fresh noise sequence and +-1.6 dB, the same as two normal consecutive hits do.
   Scratch tools for this were decay.cpp / rehit.cpp (not committed). **Next levers:** A/B 3 voice groups now that groups are cost-balanced;
   pipeline the OS tick (~190 us); cut each group's fixed idle-slot loop cost; recompiler quality (2.1x vs Monomachine's 3.8x).
+- **2026-09-30: silence release + 3 voice threads measured on the Force (user: "definitely a lot better", then "better" with 3 threads).**
+  Old build, after playing: 3 dead voices kept the engine at 3.07 ms per 2.9 ms block and ~390 underruns/s forever. With silence release
+  (2 threads): idle load drops back; VOICES 5, ROM off, 2.2-2.6 ms mean and underruns flat (1,998 -> 2,002 over ~2 min); VOICES 6-7 or ROM
+  on still overloaded (3.1-3.6 ms, groups 2.0-2.7 ms each). With 3 threads (`/tmp/md-groups` = 3): groups ~1.4-1.6 ms each, VOICES 6-8
+  with ROM on at 2.3-2.9 ms mean, underruns mostly flat (1,062 -> 1,100 over the last minute of play); one unexplained burst (51 -> 939)
+  at VOICES 5-6. **Default now 3 groups** (kDefaultGroups). VOICES default still 4: 6 looks safe now, pending the user's call.

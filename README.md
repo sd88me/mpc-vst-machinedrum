@@ -72,8 +72,9 @@ plugins read channels from the Module running in the same project:
   dynamix) is not emulated; the reverb and delay sends come out through the taps instead, so MPC's own effects do that job.
   A faithful version with the Machinedrum's master effects built in is planned for more powerful devices (Gen 2 and
   later): it costs about 13 M DSP instructions a second on top of the voices, too much for the current Force.
-- **CPU.** The voices render on two threads (two cores) and the track effects run on the same threads. About 4-5 voices can sound
-  at once on a Force with MPC busy: a voice costs roughly 0.3-0.9 ms of a 2.9 ms audio block depending on the machine (ROM, P-I
+- **CPU.** The voices render on three threads (three cores) and the track effects run on the same threads. A voice that has
+  died away (below -96 dBFS for 100 ms) stops costing anything until it is played again. About 6 voices can sound at once on a
+  Force with MPC busy (fewer with ROM machines): a voice costs roughly 0.3-0.9 ms of a 2.9 ms audio block depending on the machine (ROM, P-I
   and EFM cost the most) and on how busy MPC is. Beyond that the plugin crackles, so the voice budget (default 4) is the guard:
   it cuts the oldest sounding track when a new one would go past it. The engine threads run below MPC's own
   audio threads, so overload drops the plugin's own blocks (crackle) rather than MPC's audio or its screen.

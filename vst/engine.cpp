@@ -110,7 +110,7 @@ std::vector<int> rankCores()
 	return cores;
 }
 
-constexpr int kDefaultGroups = 2;	// DSP2 instances (voice threads); 1 = single thread
+constexpr int kDefaultGroups = 3;	// DSP2 instances (voice threads); 1 = single thread. 3 on the Force (4 cores) since the groups are cost-balanced: each ~40% lighter than with 2 (HANDOFF 2026-09-30)
 constexpr int kFrames = 128;					// the host's block size
 constexpr int kInner = kFrames / Engine::kBlock;	// 32-sample engine blocks per host block
 constexpr int kRing = 5, kAheadDefault = 3;	// blocks rendered ahead: 3 (8.7 ms) rides out the 7-8 ms stalls seen on the Force with 2 voice threads (2 = 5.8 ms glitched on a busy E12 kit); /tmp/md-ahead overrides
