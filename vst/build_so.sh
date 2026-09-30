@@ -8,7 +8,8 @@
 # build of it (see HANDOFF.md, "recompiler discovery pipeline" - tools/mdrecomp/mdrecomp_discover.cpp +
 # recomp_gen2.py).
 set -euo pipefail
-REC=$(realpath "$1"); MV=$(realpath "$2")
+rp() { (cd "$1" && pwd); }   # no realpath on older macOS
+REC=$(rp "$1"); MV=$(rp "$2")
 ROOT=$(cd "$(dirname "$0")/.." && pwd)   # repo root (this script lives in vst/)
 if [ ! -f "$ROOT/libs/dsp56300/source/dsp56kEmu/dsp.h" ] || [ ! -f "$ROOT/libs/gearmulator-md-mm/source/mc68k/CMakeLists.txt" ]; then
   echo "submodules missing -- run: git -C '$ROOT' submodule update --init --recursive" >&2
@@ -26,4 +27,5 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$ROOT":/r -v "$REC":/rec:ro -v "$MV":
   arm-linux-gnueabihf-strip -o /r/vst/build/machinedrum_one.so /r/vst/build/obj/machinedrum_one.so &&
   arm-linux-gnueabihf-strip -o /r/vst/build/machinedrum_tap.so /r/vst/build/obj/machinedrum_tap.so &&
   arm-linux-gnueabihf-strip -o /r/vst/build/machinedrum_tapfx.so /r/vst/build/obj/machinedrum_tapfx.so"
-md5sum "$ROOT/vst/build/machinedrum_one.so" "$ROOT/vst/build/machinedrum_tap.so" "$ROOT/vst/build/machinedrum_tapfx.so"
+# md5sum on Linux, md5 -r on macOS
+for f in machinedrum_one machinedrum_tap machinedrum_tapfx; do if command -v md5sum >/dev/null 2>&1; then md5sum "$ROOT/vst/build/$f.so"; else md5 -r "$ROOT/vst/build/$f.so"; fi; done
