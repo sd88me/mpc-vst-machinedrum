@@ -50,6 +50,14 @@ namespace md::engine
 		static int voiceCost(const uint8_t _machine) { return (_machine >= 128 && _machine < 160) || (_machine >= 176 && _machine < 192) ? 2 : 1; }
 		int maxActiveVoices() const { return m_maxActive; }
 
+		// Silence release: a sounding voice whose DSP output stays within +-_threshold (24-bit) for _blocks blocks in a row is
+		// freed as a budget cut is (back to the empty machine; it stops costing DSP time and leaves the voice budget). Once
+		// triggered, a voice otherwise costs its full DSP time for good, even after decaying to digital silence. 128 (-96 dBFS)
+		// is below one LSB of the plugin's 16-bit output. Not the MD's behaviour (it runs every slot always): off by default,
+		// so the bit-exact tests are unchanged. The next trigger starts the voice afresh.
+		void setSilenceRelease(int _threshold, int _blocks) { m_releaseThreshold = _threshold; m_releaseBlocks = _blocks; }
+		uint32_t silenceReleases() const { return m_releases; }	// voices freed this way so far (stats)
+
 		// Track level (kit LEV, 0-127; smoothed by the OS's level slew $100029e), mute, output routing
 		// (DSP1's per-track route word; 6 = the main outputs, the MD's default).
 		void setLevel(int _track, int _level);
@@ -108,5 +116,8 @@ namespace md::engine
 		std::array<bool, kTracks> m_silenceNext{};	// budget victims to silence on their next tick
 		std::array<float, kTracks> m_costEma{};	// DSP instructions per block a track costs while it sounds (moving average), for group balancing
 		std::vector<int> m_activeOrder;	// least- to most-recently-triggered
+		int m_releaseThreshold = -1, m_releaseBlocks = 0;	// silence release, off (see setSilenceRelease)
+		std::array<int, kTracks> m_quiet{};	// consecutive quiet blocks per sounding voice
+		uint32_t m_releases = 0;
 	};
 }

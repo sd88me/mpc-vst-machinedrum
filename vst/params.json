@@ -2190,7 +2190,7 @@
    "name": "Voice Budget",
    "min": 1,
    "max": 16,
-   "default": 4,
+   "default": 6,
    "display": "int"
   },
   {
@@ -4366,7 +4366,7 @@
     "OFF",
     "ON"
    ],
-   "default": 0
+   "default": 1
   }
  ],
  "sections": [

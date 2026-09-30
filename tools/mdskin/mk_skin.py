@@ -749,9 +749,11 @@ mcv.dots_h(0, MW - 1, GRID_Y); mcv.dots_v(TRACKS * MCW, GRID_Y, PAGE_LCD_H - 1);
 mx0, my0 = page_origin("SYN")
 gbg = TRACK_CHASSIS.copy()
 gbg.paste(mcv.image(), (mx0, my0))
-GLOBAL_CELLS = [P("VOICES", default=25, fmt=lambda raw: str(1 + int(round(raw * 15 / 127.0)))),
-                P("RND ALL", "toggle"), P("RND 1-8", "toggle"), P("RND 9-16", "toggle"), P("RND KIT", "toggle"), P("ROM", "toggle", default=0)] + [P("") for _ in range(2)]
-GLOBAL_KEYS = ["max_voices", "randomize_all", "randomize_1_8", "randomize_9_16", "randomize_kit", "rom_enabled", None, None]
+GLOBAL_CELLS = [P("VOICES", default=42, fmt=lambda raw: str(1 + int(round(raw * 15 / 127.0)))),
+                P("ROM", "toggle", default=127), P(""), P(""),
+                P("RND ALL", "toggle"), P("RND 1-8", "toggle"), P("RND 9-16", "toggle"), P("RND KIT", "toggle")]
+# top row: VOICES and ROM (the settings); bottom row: the four randomise toggles
+GLOBAL_KEYS = ["max_voices", "rom_enabled", None, None, "randomize_all", "randomize_1_8", "randomize_9_16", "randomize_kit"]
 gcv = page_canvas("ROUTE", GLOBAL_CELLS, "GLOBAL")
 gbg.paste(gcv.image(), page_origin("ROUTE"))
 gbg.paste(KITS_IMG, (kits_x, kits_y))
@@ -790,7 +792,7 @@ tkey = "mdToggleTouch"
 defs[tkey] = ss._local(tkey, [ss._action("Mouse Down", "Q-Link"), ss._action("Enter Pressed", "Toggle Switch")],
                        [ss._focus(TOUCH_W, TOUCH_H), ss._button("clear.png", "clear.png", 1, 1, TOUCH_W, TOUCH_H)])
 gx0, gy0 = page_origin("ROUTE")
-for k_ in range(1, 6):   # the four randomise toggles, then ROM on/off (the only one that stays set)
+for k_ in (1, 4, 5, 6, 7):   # ROM on/off (the only one that stays set), then the four randomise toggles
     p_, key_p = GLOBAL_CELLS[k_], GLOBAL_KEYS[k_]
     imgs = {}
     for state, raw in (("on", 127), ("off", 0)):
@@ -808,11 +810,12 @@ for k_ in range(1, 6):   # the four randomise toggles, then ROM on/off (the only
 pages, qmap = [], []
 comp_bg = {"version": 1, "colour": "ff%02x%02x%02x" % PAPER, "image": ""}
 gsets = [("MIXER", ["track%d_level" % c for c in range(TRACKS)]),
-         ("GLOBAL", ["max_voices", "randomize_all", "randomize_1_8", "randomize_9_16", "randomize_kit", "rom_enabled"])]
+         ("GLOBAL", GLOBAL_KEYS)]   # Q-Links in the same places as the cells
 for sp, (title, keys) in enumerate(gsets):   # GLOBAL is the first tab
     ql = {"Q-Link %d" % (q + 1): -1 for q in range(16)}
     for s_, k in enumerate(keys):
-        ql["Q-Link %d" % ss.qlink_for_slot(s_)] = PIDX[k]
+        if k:
+            ql["Q-Link %d" % ss.qlink_for_slot(s_)] = PIDX[k]
     pages.append({"version": 3, "tabName": "GLOBAL", "fnKeyIndex": 0, "fnKeySubIndex": sp, "qlinkBoundsData": ["0 0 0 0"],
                   "componentName": "MACHINEDRUM|GLOBAL", "initialSize": "0 0 %d %d" % (SKIN_W, SKIN_H), "scale": 1.0})
     qmap.append({"Tab": 1, "SubTab": sp + 1, "Bank Direction": "Column", "Q-Links": ql})

@@ -4,6 +4,7 @@
 //   MD_GROUPS=n   voices split over n DSP2 instances (must give the same hash)
 //   MD_SWEEP=1    plays every machine on a fresh engine and prints "SWEEP id name peak" (release gate: none of the offered ones silent)
 //   MD_BUDGET=n   voice budget n; prints the max/mean number of voices that rendered
+//   MD_RELEASE=n  silence release after n quiet blocks (HostModel::setSilenceRelease)
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
@@ -47,15 +48,19 @@ static void run(E& eng, int argc, char** argv)
 	}
 	int maxActive = 0; long sumActive = 0, nb = 0;
 	if(getenv("MD_BUDGET")) h.setMaxActiveVoices(atoi(getenv("MD_BUDGET")));
+	if(getenv("MD_RELEASE")) h.setSilenceRelease(128, atoi(getenv("MD_RELEASE")));	// silence release, hold in blocks
+	FILE* raw = getenv("MD_RAW") ? fopen(getenv("MD_RAW"), "wb") : nullptr;	// main L/R as int32, for comparing two runs
 	for(int b = 0; b < 44100 * 12 / 32; ++b)
 	{
 		if(b % 300 == 0) for(int k = 0; k < 4; ++k) h.trigger(rnd() % 16, 100);
 		eng.render(out);
 		if(b > 2000) { const int a = eng.voices().activeVoicesLastBlock(); maxActive = a > maxActive ? a : maxActive; sumActive += a; ++nb; }
+		if(raw) fwrite(out.mix.main.data(), sizeof(int32_t), 64, raw);
 		for(int f = 0; f < 32; ++f) for(int ch = 0; ch < 2; ++ch){ mix(out.mix.main[f][ch]); for(int q = 0; q < 6; ++q) mix(out.mix.frame[f][q]); mix(out.mix.rev[f][ch]); mix(out.mix.del[f][ch]); }
 	}
+	if(raw) fclose(raw);
 	printf("hash %016llx\n", (unsigned long long)hash);
-	if(getenv("MD_BUDGET")) printf("budget %s: max rendered voices %d, mean %.2f\n", getenv("MD_BUDGET"), maxActive, double(sumActive) / (nb ? nb : 1));
+	if(getenv("MD_BUDGET") || getenv("MD_RELEASE")) printf("budget %s release %s: max rendered voices %d, mean %.2f, released %u\n", getenv("MD_BUDGET") ? getenv("MD_BUDGET") : "-", getenv("MD_RELEASE") ? getenv("MD_RELEASE") : "-", maxActive, double(sumActive) / (nb ? nb : 1), h.silenceReleases());
 }
 int main(int argc, char** argv)
 {

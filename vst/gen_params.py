@@ -56,7 +56,7 @@ for t in range(16):
     sections.append(("TRACK %d" % (t + 1), keys))
 
 params.append({"key": "tempo", "name": "Tempo", "min": 30, "max": 300, "default": 120, "display": "int"})
-params.append({"key": "max_voices", "name": "Voice Budget", "min": 1, "max": 16, "default": 4, "display": "int"})
+params.append({"key": "max_voices", "name": "Voice Budget", "min": 1, "max": 16, "default": 6, "display": "int"})
 sections.append(("GLOBAL", ["tempo", "max_voices", "rom_enabled"]))
 
 # Machine picker "open" flags (HANDOFF.md, "Machine picker: duplicating Monomodule's own design").
@@ -108,7 +108,7 @@ for key, name in (("randomize_all", "Randomise Machines"), ("randomize_1_8", "Ra
 
 # ROM machines on/off (appended, like every later param, to keep the indices of saved projects). Off: tracks on a ROM
 # machine stay silent (engine.cpp swaps in the empty machine; the track keeps its ROM setting for when it is back on).
-params.append({"key": "rom_enabled", "name": "ROM Machines", "options": ["OFF", "ON"], "default": 0})
+params.append({"key": "rom_enabled", "name": "ROM Machines", "options": ["OFF", "ON"], "default": 1})
 
 json.dump({"name": "Machinedrum Module", "params": params,
            "sections": [{"label": l, "keys": k} for l, k in sections]},

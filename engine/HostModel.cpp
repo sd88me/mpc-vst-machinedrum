@@ -119,6 +119,7 @@ namespace md::engine
 				m_silenceNext[victim] = true;	// written by the victim's next updateVoice (a write here would be overwritten by it)
 			}
 			m_activeOrder.push_back(_track);
+			m_quiet[static_cast<size_t>(_track)] = 0;
 		}
 		if constexpr(std::is_same_v<TVoices, ParallelVoiceEngine>)
 		{
@@ -290,6 +291,24 @@ namespace md::engine
 				const auto x = static_cast<float>(m_voices.voiceInstructions(t));
 				if(x > 500.f)
 					m_costEma[static_cast<size_t>(t)] = m_costEma[static_cast<size_t>(t)] > 0 ? 0.95f * m_costEma[static_cast<size_t>(t)] + 0.05f * x : x;
+			}
+		if(ok && m_releaseThreshold >= 0)
+			for(size_t i = 0; i < m_activeOrder.size();)
+			{
+				const int t = m_activeOrder[i];
+				const auto& v = _out[static_cast<size_t>(t)];
+				const bool quiet = !m_trigger[t] && std::all_of(v.begin(), v.end(), [&](const int32_t s) { return s <= m_releaseThreshold && s >= -m_releaseThreshold; });
+				auto& q = m_quiet[static_cast<size_t>(t)];
+				q = quiet ? q + 1 : 0;
+				if(q >= m_releaseBlocks)
+				{
+					q = 0;
+					m_activeOrder.erase(m_activeOrder.begin() + static_cast<std::ptrdiff_t>(i));
+					m_silenceNext[t] = true;	// applied by its next updateVoice, as a budget cut
+					++m_releases;
+					continue;
+				}
+				++i;
 			}
 		return ok;
 	}
