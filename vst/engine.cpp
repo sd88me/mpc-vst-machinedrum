@@ -380,8 +380,8 @@ struct Inst
 		for(auto& p : param) p.store(0);
 		for(auto& t : synUntouched) for(auto& u : t) u.store(true);
 		param[kSlotTempo].store(120);
-		param[kSlotRomEnabled].store(0);
-		param[kSlotMaxVoices].store(4);	// the VOICES knob's default (gen_params.py): a cost budget, ROM voices count double
+		param[kSlotRomEnabled].store(1);
+		param[kSlotMaxVoices].store(6);	// the VOICES knob's default (gen_params.py): a cost budget, ROM voices count double
 		// Matches gen_params.py's declared defaults: the host normally pushes these via set_param right
 		// after create(), but this is what plays if render() is called before that (or from a host that
 		// doesn't restore params on creation).

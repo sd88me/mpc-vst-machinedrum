@@ -749,8 +749,8 @@ mcv.dots_h(0, MW - 1, GRID_Y); mcv.dots_v(TRACKS * MCW, GRID_Y, PAGE_LCD_H - 1);
 mx0, my0 = page_origin("SYN")
 gbg = TRACK_CHASSIS.copy()
 gbg.paste(mcv.image(), (mx0, my0))
-GLOBAL_CELLS = [P("VOICES", default=25, fmt=lambda raw: str(1 + int(round(raw * 15 / 127.0)))),
-                P("ROM", "toggle", default=0), P(""), P(""),
+GLOBAL_CELLS = [P("VOICES", default=42, fmt=lambda raw: str(1 + int(round(raw * 15 / 127.0)))),
+                P("ROM", "toggle", default=127), P(""), P(""),
                 P("RND ALL", "toggle"), P("RND 1-8", "toggle"), P("RND 9-16", "toggle"), P("RND KIT", "toggle")]
 # top row: VOICES and ROM (the settings); bottom row: the four randomise toggles
 GLOBAL_KEYS = ["max_voices", "rom_enabled", None, None, "randomize_all", "randomize_1_8", "randomize_9_16", "randomize_kit"]

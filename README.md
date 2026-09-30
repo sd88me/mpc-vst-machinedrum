@@ -6,9 +6,14 @@ from one plugin instance, using the Machinedrum's own DSP code and its own machi
 
 <img width="640" height="400" alt="image" src="https://github.com/user-attachments/assets/30d1c99b-333c-4b98-b9e5-2c3339ef0c29" />
 
-**v0.3.0.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
+**v0.3.1.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
 no downloadable build: it needs your own Machinedrum firmware, so you build the installer yourself with one script (see
 [Building](#building)). The Machinedrum's master effects are not built in: the reverb and delay sends come out through the new taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
+
+**New in 0.3.1:** much less crackle when you play it live. A drum that has died away (below -96 dBFS for 100 ms) now stops using CPU
+until it is played again; before, every track you had hit kept costing its full CPU time. The voices render on three threads
+instead of two. New instances start at VOICES 6 with ROM machines on (projects you saved keep their own settings). The GLOBAL page
+now has VOICES and ROM on the top row and the four randomise toggles below.
 
 **New in 0.3.0:** **Machinedrum Tap** and **Machinedrum Tap FX**: extra plugins that put any tracks, and the reverb and delay sends, on their own MPC tracks, submixes or return tracks, so MPC's mixer and effects can process them. Tracks and sends can be mixed freely on one tap. Timing against the main output was measured on a Force (sample-aligned). The Module itself is unchanged, and its output is bit-identical when no tap is in use.
 
@@ -39,12 +44,13 @@ needs your own Machinedrum OS 1.63 file and a flash image (see [What you need](#
   `.syx` you drop in (see [Kits](#kits)). A new instance starts on the first kit.
 - **GLOBAL tab:** a 16-track level mixer, the voice budget, randomise (machines on all, tracks 1-8 or tracks 9-16,
   or a random kit) and the bank and kit selectors.
-- **ROM on/off switch** (GLOBAL tab, off by default). Off, tracks on a ROM (sample) machine stay silent and the randomiser leaves ROM
+- **ROM on/off switch** (GLOBAL tab, on by default). Off, tracks on a ROM (sample) machine stay silent and the randomiser leaves ROM
   machines out; each track keeps its ROM setting for when you switch back. ROM machines are the most expensive on the
   Force's CPU, so this is the quickest way to make a busy kit safe.
-- **Voice budget, default 4.** The VOICES knob on GLOBAL is a CPU budget, not a plain voice count. Most machines cost
+- **Voice budget, default 6.** The VOICES knob on GLOBAL is a CPU budget, not a plain voice count. Most machines cost
   1 unit and the ROM (sample) machines cost 2, matching what they cost the Force's CPU. When a trigger would go past the
-  budget, the oldest sounding track is cut, tail included. Heavy kits (TRX, EFM) play cleanly at 4 on a busy Force; sparse
+  budget, the oldest sounding track is cut, tail included. A track stops counting once its sound has died away. Kits with ROM machines play
+  cleanly at 6 on a busy Force (measured with 3 threads); sparse
   patterns or lighter machines can go higher, so raise it until you hear crackle and back off one.
 - **Tempo follows MPC's**, so the LFOs stay in time with the project.
 - **The skin** is drawn from the Machinedrum's own LCD (fonts, dials, page layout), generated at build time from
@@ -75,7 +81,7 @@ plugins read channels from the Module running in the same project:
 - **CPU.** The voices render on three threads (three cores) and the track effects run on the same threads. A voice that has
   died away (below -96 dBFS for 100 ms) stops costing anything until it is played again. About 6 voices can sound at once on a
   Force with MPC busy (fewer with ROM machines): a voice costs roughly 0.3-0.9 ms of a 2.9 ms audio block depending on the machine (ROM, P-I
-  and EFM cost the most) and on how busy MPC is. Beyond that the plugin crackles, so the voice budget (default 4) is the guard:
+  and EFM cost the most) and on how busy MPC is. Beyond that the plugin crackles, so the voice budget (default 6) is the guard:
   it cuts the oldest sounding track when a new one would go past it. The engine threads run below MPC's own
   audio threads, so overload drops the plugin's own blocks (crackle) rather than MPC's audio or its screen.
 - **First load is slower** than later ones (the skin is large: MPC reads and decodes it from the card).
@@ -155,7 +161,7 @@ must never be published as a release (a catalog entry for it links to this repo 
 download). The zip is still catalog-conformant in format: `mpc-plugin.json` (id `machinedrum-module`, license
 `AGPL-3.0-only`, source repo) is generated, and the build runs mpc-vst-plugins' `catalog_check.py --catalog` as its last step.
 The plugin locates its data next to the `.so` (`MODULE_SUBDIR`), not at a fixed path. Device testing is recorded in
-`tested.json` (v0.3.0: Akai Force, MPC OS 3.9.1; the taps are not yet part of the installer zip: build them with `vst/build_so.sh`, which now builds all three plugins, and copy `machinedrum_tap.so`, `machinedrum_tapfx.so` and their skins by hand).
+`tested.json` (v0.3.1: Akai Force, MPC OS 3.9.1; the taps are not yet part of the installer zip: build them with `vst/build_so.sh`, which now builds all three plugins, and copy `machinedrum_tap.so`, `machinedrum_tapfx.so` and their skins by hand).
 
 ## How it works
 
