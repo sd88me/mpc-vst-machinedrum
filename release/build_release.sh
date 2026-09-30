@@ -99,6 +99,7 @@ vst/build_so.sh "$WORK/recomp" "$MV"
 echo "== 7/7 installer"
 # the plugin reads your OS file from its data dir under this exact name, so the installer carries it (your own file, per-user zip)
 rm -rf vst/build/payload && mkdir -p vst/build/payload && cp -r vst/build/factory vst/build/payload/factory && cp "$OS" vst/build/payload/Elektron_SPS1-1UW_OS1.63.syx
+python3 "$MV/tools/gen_vst.py" vst/vst.json >/dev/null   # its pluginlist-entry.xml (custom skin: no skin from gen_vst)
 python3 "$MV/tools/release.py" --so vst/build/machinedrum_one.so \
   --skin "vst/build/skin/sd88me - VST - Machinedrum Module" --entry vst/build/pluginlist-entry.xml \
   --version "$VERSION" --extra vst/build/payload:vst/machinedrum \
