@@ -582,6 +582,16 @@ void Inst::run()
 			}
 		});
 
+		// Silence release (HostModel::setSilenceRelease): a voice quiet below -96 dBFS for 138 blocks (100 ms) stops costing DSP time.
+		// /tmp/md-release overrides the hold in blocks (0 = off), for A/B on the device.
+		int releaseBlocks = 138;
+		if(std::FILE* rf = std::fopen("/tmp/md-release", "r"))
+		{
+			int v = 0;
+			if(std::fscanf(rf, "%d", &v) == 1) releaseBlocks = std::max(0, v);
+			std::fclose(rf);
+		}
+		if(releaseBlocks > 0) h.setSilenceRelease(128, releaseBlocks);
 		int ahead = kAheadDefault;	// blocks rendered ahead of the host: /tmp/md-ahead (1-3) overrides, for A/B on the device
 		if(std::FILE* af = std::fopen("/tmp/md-ahead", "r"))
 		{
@@ -796,7 +806,7 @@ void Inst::run()
 					statT = t1;
 					if(FILE* f = std::fopen(("/tmp/md-stats." + std::to_string(getpid())).c_str(), "a"))
 					{
-						std::fprintf(f, "underruns=%u naps=%u worst_us=%.0f mean_us=%.0f worst_gap_us=%.0f active=%d rom=%d budget=%d tick=%.0f dsp=%.0f fx=%.0f mix=%.0f\n", underruns.load(), dutyNaps.load(), worstUs, sumUs / std::max(1, nUs), worstGap, maxActive, param[kSlotRomEnabled].load(), param[kSlotMaxVoices].load(), (h.tickUs - pTick) / std::max(1, nUs), (h.dspUs - pDsp) / std::max(1, nUs), (eng.fxUs - pFx) / std::max(1, nUs), (eng.mixUs - pMix) / std::max(1, nUs));
+						std::fprintf(f, "underruns=%u released=%u naps=%u worst_us=%.0f mean_us=%.0f worst_gap_us=%.0f active=%d rom=%d budget=%d tick=%.0f dsp=%.0f fx=%.0f mix=%.0f\n", underruns.load(), h.silenceReleases(), dutyNaps.load(), worstUs, sumUs / std::max(1, nUs), worstGap, maxActive, param[kSlotRomEnabled].load(), param[kSlotMaxVoices].load(), (h.tickUs - pTick) / std::max(1, nUs), (h.dspUs - pDsp) / std::max(1, nUs), (eng.fxUs - pFx) / std::max(1, nUs), (eng.mixUs - pMix) / std::max(1, nUs));
 						auto& vg = eng.voices();
 						std::fprintf(f, "  groups:");
 						for(int g = 0; g < vg.groupCount(); ++g)
