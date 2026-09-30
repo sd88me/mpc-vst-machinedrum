@@ -27,7 +27,7 @@ The sound comes from the Machinedrum's own code, not a re-creation of it:
 - **The track effects and the mix are a bit-exact C++ translation** of the Machinedrum's mixer DSP: AMD, EQ, both filters, SRR,
   distortion, VOL, PAN and the reverb/delay sends (millions of samples compared with the DSP's own code, identical).
 - **16 tracks, one instance.** MIDI notes 36-51 play tracks 1-16 (the Machinedrum's own note-to-track map).
-- **The machines:** GND, TRX (808-style), EFM, E12, P-I and the ROM sample machines.
+- **The machines:** GND, TRX, EFM, E12, P-I and the ROM sample machines. The others have been dropped.
 - **Every parameter page of the hardware**, per track:
   - SYN: the eight synth knobs, with the machine's own labels, which change live with the machine.
   - AMP/EFX: AMD, AMF, EQF, EQG, FLTF, FLTW, FLTQ, SRR.
@@ -45,7 +45,7 @@ A first-generation Force has four slow ARM cores shared with MPC itself, so some
 - **No master effects.** The Machinedrum's master section (rhythm echo, gate box/reverb, EQ, dynamix) is not included. The
   reverb and delay sends come out through the taps (below) so MPC's own effects can do that job.
 - **Taps: each track or send on its own MPC track** (added; see below). The Machinedrum's individual outputs become separate
-  MPC tracks, submixes or return tracks.
+  MPC tracks, submixes or return tracks to be processed by MPC OS insert effects.
 - **Voice budget, default 6** (added). The VOICES knob on GLOBAL is a CPU budget, not a plain voice count. Most machines cost
   1 unit and the ROM (sample) machines cost 2, matching what they cost the Force's CPU. When a trigger would go past the
   budget, the oldest sounding track is cut, tail included. The real Machinedrum always plays all 16 tracks.
