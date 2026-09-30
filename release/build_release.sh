@@ -9,7 +9,7 @@
 #   -m  mpc-vst-plugins checkout (default: $MPC_VST_DIR, ../mpc-vst, else cloned to ~/.cache); its main has the wrapper's
 #       "dynamic_name"/"dynamic_display" support this plugin needs, and the catalog checker
 # Other input: MDPROBE (a ready-built mdProbe; if not set and not built, tools/mdtrace/build_mdprobe.sh builds it first).
-# Needs Docker (images md-armhf-builder and mpc-vst-html-art are built on first use). Output: dist/Machinedrum-Module-<version>-mpc-armv7.zip.
+# Needs Docker (the md-armhf-builder image is built on first use; python:3.11-slim is pulled). Output: dist/Machinedrum-Module-<version>-mpc-armv7.zip.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # absolute path without GNU realpath (macOS has no `realpath -m`, older macOS no realpath at all); a missing file stays as given
