@@ -31,10 +31,19 @@ needs your own Machinedrum OS 1.63 file and a flash image (see [What you need](#
 
 ## Features
 
+### Faithful to the Machinedrum
+
+The sound comes from the Machinedrum's own code, not a re-creation of it:
+
+- **The voices are the Machinedrum's own DSP program**, run in the dsp56300 emulator (the same emulator as gearmulator-md-mm,
+  here with a static recompiler for ARM). Checked sample for sample against gearmulator-md-mm, which boots the whole
+  Machinedrum; the build refuses to make a plugin if the recompiled DSP differs from the plain emulator by a single sample.
+- **The machines' parameter maths is the OS's own code**: each machine's coefficient function, the parameter smoothing and the
+  per-track LFO run from your OS file in a 68k emulator, and produce exactly the words the real ColdFire sends to the voice DSP.
+- **The track effects and the mix are a bit-exact C++ translation** of the Machinedrum's mixer DSP: AMD, EQ, both filters, SRR,
+  distortion, VOL, PAN and the reverb/delay sends (millions of samples compared with the DSP's own code, identical).
 - **16 tracks, one instance.** MIDI notes 36-51 play tracks 1-16 (the Machinedrum's own note-to-track map).
-  Each track keeps the Machinedrum's own voice, effects and routing.
-- **The machines:** GND, TRX (808-style), EFM, E12, P-I and the ROM sample machines. RAM, INP and MID/CTR machines
-  are not offered (no sampling, no audio input and no MIDI output here); a kit that uses one shows a blank bar.
+- **The machines:** GND, TRX (808-style), EFM, E12, P-I and the ROM sample machines.
 - **Every parameter page of the hardware**, per track:
   - SYN: the eight synth knobs, with the machine's own labels, which change live with the machine.
   - AMP/EFX: AMD, AMF, EQF, EQG, FLTF, FLTW, FLTQ, SRR.
@@ -42,19 +51,33 @@ needs your own Machinedrum OS 1.63 file and a flash image (see [What you need](#
   - LFO: the Machinedrum's per-track LFO, with its destination shown by name.
 - **Kits.** The 16 factory kits (extracted from your own flash image at build time), plus any Machinedrum kit
   `.syx` you drop in (see [Kits](#kits)). A new instance starts on the first kit.
-- **GLOBAL tab:** a 16-track level mixer, the voice budget, randomise (machines on all, tracks 1-8 or tracks 9-16,
-  or a random kit) and the bank and kit selectors.
-- **ROM on/off switch** (GLOBAL tab, on by default). Off, tracks on a ROM (sample) machine stay silent and the randomiser leaves ROM
-  machines out; each track keeps its ROM setting for when you switch back. ROM machines are the most expensive on the
-  Force's CPU, so this is the quickest way to make a busy kit safe.
-- **Voice budget, default 6.** The VOICES knob on GLOBAL is a CPU budget, not a plain voice count. Most machines cost
-  1 unit and the ROM (sample) machines cost 2, matching what they cost the Force's CPU. When a trigger would go past the
-  budget, the oldest sounding track is cut, tail included. A track stops counting once its sound has died away. Kits with ROM machines play
-  cleanly at 6 on a busy Force (measured with 3 threads); sparse
-  patterns or lighter machines can go higher, so raise it until you hear crackle and back off one.
-- **Tempo follows MPC's**, so the LFOs stay in time with the project.
 - **The skin** is drawn from the Machinedrum's own LCD (fonts, dials, page layout), generated at build time from
   your own firmware, inside a thin hardware-style bezel. Nothing captured from the firmware is stored in the repo.
+
+### Different from the Machinedrum, for MPC (tuned for the Gen 1 Force)
+
+A first-generation Force has four slow ARM cores shared with MPC itself, so some things are added, left out or changed:
+
+- **No master effects.** The Machinedrum's master section (rhythm echo, gate box/reverb, EQ, dynamix) is not included. The
+  reverb and delay sends come out through the taps (below) so MPC's own effects can do that job.
+- **Taps: each track or send on its own MPC track** (added; see below). The Machinedrum's individual outputs become separate
+  MPC tracks, submixes or return tracks.
+- **Voice budget, default 6** (added). The VOICES knob on GLOBAL is a CPU budget, not a plain voice count. Most machines cost
+  1 unit and the ROM (sample) machines cost 2, matching what they cost the Force's CPU. When a trigger would go past the
+  budget, the oldest sounding track is cut, tail included. The real Machinedrum always plays all 16 tracks.
+- **Silence release** (added). A track whose sound has died away (below -96 dBFS for 100 ms, under the plugin's 16-bit
+  output) stops using CPU until it is played again, and stops counting against the budget. A hit after that sounds the
+  same as a normal retrigger (noise-based machines start a fresh noise sequence, as any two hits differ anyway).
+- **The voices render on three threads** (the real Machinedrum has one voice DSP). Each thread runs its own copy of the
+  voice DSP for some of the tracks, balanced by what they cost.
+- **ROM on/off switch** (GLOBAL, on by default). Off, tracks on a ROM machine stay silent and the randomiser leaves ROM
+  machines out; each track keeps its ROM setting. The quickest way to make a busy kit safe.
+- **Randomise** (GLOBAL): machines on all tracks, tracks 1-8, tracks 9-16, or a random kit.
+- **GLOBAL tab:** a 16-track level mixer, VOICES, ROM, randomise, and the bank and kit selectors.
+- **Tempo follows MPC's**, so the LFOs stay in time with the project.
+- **8.7 ms of added latency:** the engine renders 3 blocks ahead, which rides out the stalls MPC's own audio threads cause.
+- **Not offered:** RAM, INP and MID/CTR machines (no sampling, no audio input and no MIDI output here); a kit that uses one
+  shows a blank bar. No sequencer: MPC plays the notes.
 
 ### Taps: each track or send on its own MPC track
 
@@ -72,24 +95,28 @@ plugins read channels from the Module running in the same project:
 - Needs one Machinedrum Module in the project; a tap is silent without it. Install `machinedrum_one.so`, `machinedrum_tap.so`
   and `machinedrum_tapfx.so` in the same folder.
 
-### Not there yet (known limits)
+### Known limits
 
-- **Master effects:** this version bakes in none. The Machinedrum's own master section (rhythm echo, gate box/reverb, EQ,
-  dynamix) is not emulated; the reverb and delay sends come out through the taps instead, so MPC's own effects do that job.
-  A faithful version with the Machinedrum's master effects built in is planned for more powerful devices (Gen 2 and
-  later): it costs about 13 M DSP instructions a second on top of the voices, too much for the current Force.
-- **CPU.** The voices render on three threads (three cores) and the track effects run on the same threads. A voice that has
-  died away (below -96 dBFS for 100 ms) stops costing anything until it is played again. About 6 voices can sound at once on a
-  Force with MPC busy (fewer with ROM machines): a voice costs roughly 0.3-0.9 ms of a 2.9 ms audio block depending on the machine (ROM, P-I
-  and EFM cost the most) and on how busy MPC is. Beyond that the plugin crackles, so the voice budget (default 6) is the guard:
-  it cuts the oldest sounding track when a new one would go past it. The engine threads run below MPC's own
-  audio threads, so overload drops the plugin's own blocks (crackle) rather than MPC's audio or its screen.
+- **CPU.** About 6 voices can sound at once on a busy Force (fewer with ROM machines): a voice costs roughly 0.3-0.9 ms of a
+  2.9 ms audio block depending on the machine (ROM, P-I and EFM cost the most) and on how busy MPC is. Beyond that the plugin
+  crackles; the voice budget is the guard. The engine threads run below MPC's own audio threads, so overload drops the
+  plugin's own blocks (crackle) rather than MPC's audio or its screen.
 - **First load is slower** than later ones (the skin is large: MPC reads and decodes it from the card).
 - **ROM machines** are silent unless the sample data was extracted at build time (it is, if you build with your
   flash image). ROM33-48 are empty on the factory image.
-- **Latency:** the engine renders 3 blocks (8.7 ms) ahead, which rides out the stalls MPC's own audio threads cause on a busy kit; 2 (5.8 ms) is lower but crackled on the Force.
-- Bank and kit are chosen with the arrows for now; a picker list like the machine one is planned for the next
-  version.
+- **The installer zip ships the Module only;** the two tap plugins are copied by hand for now.
+
+### Roadmap
+
+- **Faithful build for faster devices (Gen 2 and later):** the Machinedrum's master effects built in (about 13 M DSP
+  instructions a second more than the voices), and no voice budget.
+- **More voices on Gen 1:** hide the OS tick behind the voice rendering (about 190 us of each 2.9 ms block), cut each voice
+  thread's fixed cost, and better recompiled DSP code (2.1x the plain emulator today; 3.8x was reached for the Monomachine).
+- **Installer and catalog entry that include the taps.**
+- **Bank and kit picker list** like the machine one (today: arrows).
+- **Open checks:** ROM machine output is not yet verified bit-exact against the emulated Machinedrum, and TRX SD renders
+  differently in this project's dsp56300 fork than in gearmulator-md-mm's after two blocks (which one matches the hardware is
+  not known yet).
 
 ## What you need
 
