@@ -1,7 +1,7 @@
 // mdrender: Machinedrum Module's engine on a small demo pattern, written as a 24-bit stereo WAV (the dry main
 // mix; no master effects).
 // usage: mdrender OS.syx OUT.wav [SECONDS] [BPM]
-#include "../../engine/Engine.h"
+#include "../../engine/MdEngine.h"
 #include "../mdfw/Firmware.h"
 #include <chrono>
 #include <cstdio>

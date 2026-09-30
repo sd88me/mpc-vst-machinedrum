@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <string>
 #include <chrono>
-#include "Engine.h"
+#include "MdEngine.h"
 #include "Firmware.h"
 #include "dsp56kEmu/dsp.h"
 static void loadRom(md::engine::VoiceEngine& v, const char* path)
