@@ -10,25 +10,6 @@ from one plugin instance, using the Machinedrum's own DSP code and its own machi
 no downloadable build: it needs your own Machinedrum firmware, so you build the installer yourself with one script (see
 [Building](#building)). The Machinedrum's master effects are not built in: the reverb and delay sends come out through the new taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
 
-**New in 0.3.2:** the two tap plugins now have their own installer zips, made by the same build as the Module's, and
-`-d` installs all three. Each plugin lives in its own folder; a tap finds the Module wherever it is installed.
-
-**New in 0.3.1:** much less crackle when you play it live. A drum that has died away (below -96 dBFS for 100 ms) now stops using CPU
-until it is played again; before, every track you had hit kept costing its full CPU time. The voices render on three threads
-instead of two. New instances start at VOICES 6 with ROM machines on (projects you saved keep their own settings). The GLOBAL page
-now has VOICES and ROM on the top row and the four randomise toggles below.
-
-**New in 0.3.0:** **Machinedrum Tap** and **Machinedrum Tap FX**: extra plugins that put any tracks, and the reverb and delay sends, on their own MPC tracks, submixes or return tracks, so MPC's mixer and effects can process them. Tracks and sends can be mixed freely on one tap. Timing against the main output was measured on a Force (sample-aligned). The Module itself is unchanged, and its output is bit-identical when no tap is in use.
-
-**New in 0.2.1:** build fixes only. The build no longer needs Monomodule's art file (the LCD fonts come from your Machinedrum OS, and the
-randomise toggle icon is now drawn by this project), `mdProbe` is built for you, and the README has plain steps including a macOS setup.
-The skin's look is the same apart from two small digits and that icon. If you do have mpc-vst-monomodule's `vst/build/art.json` next to this repo (or `MNM_ART` pointing at it), the skin build uses it and gets the original toggle icon and digits.
-
-**New in 0.2.0:** the voices now render on two threads, which is the main reason a busy kit holds up better; the VOICES
-budget really cuts voices now (it did nothing before); TRX XT, CP, MA, CL and XC and EFM CY now play (they were silent);
-ROM machines are off until you switch them on; new instances start at VOICES 4 with an 8.7 ms buffer. Every machine the plugin
-offers is checked to make sound as part of the build.
-
 Not affiliated with Elektron. Nothing of Elektron's is in this repository or distributed from it; the plugin
 needs your own Machinedrum OS 1.63 file and a flash image (see [What you need](#what-you-need)).
 
@@ -98,7 +79,24 @@ plugins read channels from the Module running in the same project:
 - Needs one Machinedrum Module in the project; a tap is silent without it. The build makes an installer zip for each tap
   next to the Module's (see [Building](#building)).
 
-### Known limits
+**New in 0.3.2:** the two tap plugins now have their own installer zips, made by the same build as the Module's, and
+`-d` installs all three. Each plugin lives in its own folder; a tap finds the Module wherever it is installed.
+
+**New in 0.3.1:** much less crackle when you play it live. A drum that has died away (below -96 dBFS for 100 ms) now stops using CPU
+until it is played again; before, every track you had hit kept costing its full CPU time. The voices render on three threads
+instead of two. New instances start at VOICES 6 with ROM machines on (projects you saved keep their own settings). The GLOBAL page
+now has VOICES and ROM on the top row and the four randomise toggles below.
+
+**New in 0.3.0:** **Machinedrum Tap** and **Machinedrum Tap FX**: extra plugins that put any tracks, and the reverb and delay sends, on their own MPC tracks, submixes or return tracks, so MPC's mixer and effects can process them. Tracks and sends can be mixed freely on one tap. Timing against the main output was measured on a Force (sample-aligned). The Module itself is unchanged, and its output is bit-identical when no tap is in use.
+
+**New in 0.2.1:** build fixes only. The build no longer needs Monomodule's art file (the LCD fonts come from your Machinedrum OS, and the
+randomise toggle icon is now drawn by this project), `mdProbe` is built for you, and the README has plain steps including a macOS setup.
+The skin's look is the same apart from two small digits and that icon. If you do have mpc-vst-monomodule's `vst/build/art.json` next to this repo (or `MNM_ART` pointing at it), the skin build uses it and gets the original toggle icon and digits.
+
+**New in 0.2.0:** the voices now render on two threads, which is the main reason a busy kit holds up better; the VOICES
+budget really cuts voices now (it did nothing before); TRX XT, CP, MA, CL and XC and EFM CY now play (they were silent);
+ROM machines are off until you switch them on; new instances start at VOICES 4 with an 8.7 ms buffer. Every machine the plugin
+offers is checked to make sound as part of the build.### Known limits
 
 - **CPU.** About 6 voices can sound at once on a busy Force (fewer with ROM machines): a voice costs roughly 0.3-0.9 ms of a
   2.9 ms audio block depending on the machine (ROM, P-I and EFM cost the most) and on how busy MPC is. Beyond that the plugin
