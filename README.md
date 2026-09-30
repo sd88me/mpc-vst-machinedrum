@@ -6,9 +6,12 @@ from one plugin instance, using the Machinedrum's own DSP code and its own machi
 
 <img width="640" height="400" alt="image" src="https://github.com/user-attachments/assets/30d1c99b-333c-4b98-b9e5-2c3339ef0c29" />
 
-**v0.3.1.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
+**v0.3.2.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
 no downloadable build: it needs your own Machinedrum firmware, so you build the installer yourself with one script (see
 [Building](#building)). The Machinedrum's master effects are not built in: the reverb and delay sends come out through the new taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
+
+**New in 0.3.2:** the two tap plugins now have their own installer zips, made by the same build as the Module's, and
+`-d` installs all three. Each plugin lives in its own folder; a tap finds the Module wherever it is installed.
 
 **New in 0.3.1:** much less crackle when you play it live. A drum that has died away (below -96 dBFS for 100 ms) now stops using CPU
 until it is played again; before, every track you had hit kept costing its full CPU time. The voices render on three threads
@@ -92,8 +95,8 @@ plugins read channels from the Module running in the same project:
   reverb and delay sends (the track's REV and DEL knobs), which the send taps carry.
 - Use them to give each drum its own MPC track, submix and insert effects, or to put the sends on a return track and run
   them through MPC's own reverb and delay. Taps are sample-aligned with the Module (measured on a Force) and cost almost no CPU.
-- Needs one Machinedrum Module in the project; a tap is silent without it. Install `machinedrum_one.so`, `machinedrum_tap.so`
-  and `machinedrum_tapfx.so` in the same folder.
+- Needs one Machinedrum Module in the project; a tap is silent without it. The build makes an installer zip for each tap
+  next to the Module's (see [Building](#building)).
 
 ### Known limits
 
@@ -104,7 +107,6 @@ plugins read channels from the Module running in the same project:
 - **First load is slower** than later ones (the skin is large: MPC reads and decodes it from the card).
 - **ROM machines** are silent unless the sample data was extracted at build time (it is, if you build with your
   flash image). ROM33-48 are empty on the factory image.
-- **The installer zip ships the Module only;** the two tap plugins are copied by hand for now.
 
 ### Roadmap
 
@@ -112,7 +114,6 @@ plugins read channels from the Module running in the same project:
   instructions a second more than the voices), and no voice budget.
 - **More voices on Gen 1:** hide the OS tick behind the voice rendering (about 190 us of each 2.9 ms block), cut each voice
   thread's fixed cost, and better recompiled DSP code (2.1x the plain emulator today; 3.8x was reached for the Monomachine).
-- **Installer and catalog entry that include the taps.**
 - **Bank and kit picker list** like the machine one (today: arrows).
 - **Open checks:** ROM machine output is not yet verified bit-exact against the emulated Machinedrum, and TRX SD renders
   differently in this project's dsp56300 fork than in gearmulator-md-mm's after two blocks (which one matches the hardware is
@@ -157,12 +158,13 @@ cd mpc-vst-machinedrum
 release/build_release.sh "/path/to/Elektron_SPS1-1UW_OS1.63.syx" "/path/to/flash image.bin"
 ```
 
-That's the whole build. The result is `dist/Machinedrum-Module-<version>-mpc-armv7.zip`. Put the two file paths in quotes.
+That's the whole build. The result is three installer zips in `dist/`: `Machinedrum-Module-<version>-mpc-armv7.zip` and one each
+for the two taps, `Machinedrum-Tap-...` and `Machinedrum-Tap-FX-...` (install the ones you want; the taps need the Module). Put the two file paths in quotes.
 To install it on the Force from the same command, add `-d <device-ip>` (see below), or copy the zip over yourself,
 unzip it on the device and run `install.sh` as root. Installing stops and restarts MPC, so save your project first and run it
 with the device idle.
 
-Options: `-v <version>` (default from `git describe`), `-d <device-ip>` (copy the zip over and run its installer),
+Options: `-v <version>` (default from `git describe`), `-d <device-ip>` (copy all three zips over and run their installers; MPC restarts once per zip),
 `-m <mpc-vst-plugins checkout>` (default: fetched automatically, or `../mpc-vst` if it exists). `MDPROBE=<path>` uses a
 ready-built `mdProbe`; otherwise `tools/mdtrace/build_mdprobe.sh` builds it the first time (you can also run that by hand).
 
@@ -188,7 +190,7 @@ must never be published as a release (a catalog entry for it links to this repo 
 download). The zip is still catalog-conformant in format: `mpc-plugin.json` (id `machinedrum-module`, license
 `AGPL-3.0-only`, source repo) is generated, and the build runs mpc-vst-plugins' `catalog_check.py --catalog` as its last step.
 The plugin locates its data next to the `.so` (`MODULE_SUBDIR`), not at a fixed path. Device testing is recorded in
-`tested.json` (v0.3.1: Akai Force, MPC OS 3.9.1; the taps are not yet part of the installer zip: build them with `vst/build_so.sh`, which now builds all three plugins, and copy `machinedrum_tap.so`, `machinedrum_tapfx.so` and their skins by hand).
+`tested.json` (v0.3.2: Akai Force, MPC OS 3.9.1).
 
 ## How it works
 

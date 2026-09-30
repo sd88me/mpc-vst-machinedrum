@@ -9,7 +9,7 @@
 #   -m  mpc-vst-plugins checkout (default: $MPC_VST_DIR, ../mpc-vst, else cloned to ~/.cache); its main has the wrapper's
 #       "dynamic_name"/"dynamic_display" support this plugin needs, and the catalog checker
 # Other input: MDPROBE (a ready-built mdProbe; if not set and not built, tools/mdtrace/build_mdprobe.sh builds it first).
-# Needs Docker (the md-armhf-builder image is built on first use; python:3.11-slim is pulled). Output: dist/Machinedrum-Module-<version>-mpc-armv7.zip.
+# Needs Docker (the md-armhf-builder image is built on first use; python:3.11-slim is pulled). Output: dist/Machinedrum-Module-, Machinedrum-Tap- and Machinedrum-Tap-FX-<version>-mpc-armv7.zip (install all three with -d).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # absolute path without GNU realpath (macOS has no `realpath -m`, older macOS no realpath at all); a missing file stays as given
@@ -109,8 +109,25 @@ ZIP=$(ls dist/Machinedrum-Module-"$VERSION"-*.zip); ls -l "$ZIP"
 # catalog conformance (mpc-vst-plugins docs/CATALOG_SPEC.md): the manifest, layout, checksums, ELF/glibc limits
 python3 "$MV/tools/catalog_check.py" "$ZIP" --catalog --expect-id machinedrum-module --expect-repo sd88me/mpc-vst-machinedrum
 
+# The taps: one zip each (release.py packages one plugin per zip). No firmware in them; they read the Module in the same project.
+ZIPS="$ZIP"
+for t in "tap:machinedrum_tap:Machinedrum Tap:machinedrum-tap:instrument" "tapfx:machinedrum_tapfx:Machinedrum Tap FX:machinedrum-tap-fx:effect"; do
+  IFS=: read -r dir so name id kind <<<"$t"
+  python3 "$MV/tools/gen_vst.py" "vst/$dir/vst.json" >/dev/null   # its pluginlist-entry.xml (custom skin: no skin from gen_vst)
+  python3 "$MV/tools/release.py" --so "vst/build/$so.so" --skin "vst/$dir/build/skin/sd88me - VST - $name" --entry "vst/$dir/build/pluginlist-entry.xml" \
+    --version "$VERSION" --id "$id" --repo sd88me/mpc-vst-machinedrum --license AGPL-3.0-only \
+    --requires "Machinedrum Module (same version) in the same project" \
+    --about "$name: puts Machinedrum Module tracks and its reverb/delay sends on their own MPC track ($kind)" -o dist
+  Z=$(ls dist/"${name// /-}"-"$VERSION"-*.zip); ls -l "$Z"
+  python3 "$MV/tools/catalog_check.py" "$Z" --catalog --expect-id "$id" --expect-repo sd88me/mpc-vst-machinedrum
+  ZIPS="$ZIPS $Z"
+done
+
 if [ -n "$DEVICE" ]; then
-  echo "== installing on $DEVICE (stops and restarts MPC)"
-  ssh "root@$DEVICE" 'cat > /tmp/machinedrum-release.zip' < "$ZIP"
-  ssh "root@$DEVICE" "cd /tmp && rm -rf Machinedrum-Module-$VERSION* && unzip -o -q machinedrum-release.zip && cd Machinedrum-Module-$VERSION* && sh install.sh -y"
+  echo "== installing on $DEVICE (stops and restarts MPC once per zip)"
+  for Z in $ZIPS; do
+    d=$(basename "$Z" -mpc-armv7.zip)
+    ssh "root@$DEVICE" 'cat > /tmp/machinedrum-release.zip' < "$Z"
+    ssh "root@$DEVICE" "cd /tmp && rm -rf '$d' && unzip -o -q machinedrum-release.zip && cd '$d' && sh install.sh -y"
+  done
 fi
