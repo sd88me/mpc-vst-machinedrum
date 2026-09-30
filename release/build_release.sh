@@ -14,6 +14,8 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # absolute path without GNU realpath (macOS has no `realpath -m`, older macOS no realpath at all); a missing file stays as given
 rp() { if [ -d "$1" ]; then (cd "$1" && pwd); elif [ -e "$1" ]; then echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; else echo "$1"; fi; }
+# q: run a build command quietly into build-release/build.log; if it fails, say which one and show the end of the log
+q() { "$@" >>"$ROOT/build-release/build.log" 2>&1 || { echo "FAILED: $*" >&2; echo "--- last 30 lines of build-release/build.log ---" >&2; tail -n 30 "$ROOT/build-release/build.log" >&2; echo "--- (send this, the step number and 'uname -m' with your report) ---" >&2; exit 1; }; }
 usage() { sed -n '2,15p' "$0"; exit 2; }
 [ $# -ge 2 ] || usage
 OS=$(rp "$1"); FLASH=$(rp "$2"); shift 2
@@ -36,21 +38,21 @@ for f in "$OS" "$FLASH" "$PROBE" "$MV/tools/release.py" "$MV/tools/gen_vst.py"; 
 grep -q "dynamic_name" "$MV/wrapper/vst2_wrap.c" || { echo "$MV's wrapper has no dynamic_name support: use mpc-vst-plugins main (or later)" >&2; exit 1; }
 cd "$ROOT"
 [ -f libs/dsp56300/source/dsp56kEmu/dsp.h ] || git submodule update --init --recursive
-WORK=$ROOT/build-release; mkdir -p "$WORK" vst/build dist
+WORK=$ROOT/build-release; mkdir -p "$WORK" vst/build dist; : > "$WORK/build.log"
 echo "Machinedrum Module $VERSION  (plugins checkout: $MV)"
 
 echo "== 1/7 x86 tools (mdsamples, mdmachine)"
 # On the plain interpreter (no JIT): these tools only read memory, and the JIT (x86-64/arm64 hosts, e.g. an Apple Silicon Mac) can
 # crash while VoiceEngine initialises where the interpreter does not. Same dir as the tools' output: build-vst-x86/.
-cmake -S . -B build-vst-x86 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-DDSP56K_NO_JIT_RUNTIME >/dev/null
-ninja -C build-vst-x86 mdsamples mdmachine mdartdump >/dev/null
+q cmake -Wno-dev -S . -B build-vst-x86 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-DDSP56K_NO_JIT_RUNTIME
+q ninja -C build-vst-x86 mdsamples mdmachine mdartdump
 
 echo "== 2/7 factory kits and ROM samples (from the flash image, by booting the emulated MD)"
 python3 tools/mdkits/make_factory.py "$PROBE" build-vst-x86/mdsamples "$FLASH" "$OS" vst/build/factory
 
 echo "== 3/7 recompiled voice DSP (traced from your OS file and the ROM samples; not shipped as source)"
-cmake -S . -B "$WORK/discovery" -G Ninja -DCMAKE_BUILD_TYPE=Release -DMD_DISCOVERY=ON >/dev/null
-ninja -C "$WORK/discovery" mdrecomp-discover >/dev/null
+q cmake -Wno-dev -S . -B "$WORK/discovery" -G Ninja -DCMAKE_BUILD_TYPE=Release -DMD_DISCOVERY=ON
+q ninja -C "$WORK/discovery" mdrecomp-discover
 mkdir -p "$WORK/recomp"
 if ! "$WORK/discovery/mdrecomp-discover" "$OS" "$WORK/recomp/disc.txt" vst/build/factory/ROM_SAMPLES.bin > "$WORK/recomp/discover.log" 2>&1; then
   echo "step 3 failed: the tracing tool stopped. Its last output:" >&2; tail -n 20 "$WORK/recomp/discover.log" >&2
@@ -79,8 +81,8 @@ python3 libs/dsp56300/tools/arm32jit_prototype/recomp/recomp_gen2.py "$WORK/reco
 echo "== 4/7 bit-exactness gate: the recompiled voice DSP must give the same audio as the plain interpreter"
 for v in interp recomp; do
   flags="-DDSP56K_NO_JIT_RUNTIME"; [ $v = recomp ] && flags="$flags -DDSP56K_RECOMP -I$WORK/recomp"
-  cmake -S . -B "$WORK/gate-$v" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_FLAGS=$flags" >/dev/null
-  ninja -C "$WORK/gate-$v" md-hash >/dev/null
+  q cmake -Wno-dev -S . -B "$WORK/gate-$v" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_FLAGS=$flags"
+  q ninja -C "$WORK/gate-$v" md-hash
 done
 H_INTERP=$("$WORK/gate-interp/md-hash" "$OS" vst/build/factory/ROM_SAMPLES.bin 2>/dev/null | grep '^hash')
 H_RECOMP=$("$WORK/gate-recomp/md-hash" "$OS" vst/build/factory/ROM_SAMPLES.bin 2>/dev/null | grep '^hash')
