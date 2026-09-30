@@ -22,26 +22,36 @@ namespace {
 
 using mdtap::Shared;
 
+Shared* fromHandle(void* h)
+{
+	if(!h) return nullptr;
+	auto fn = reinterpret_cast<Shared* (*)()>(dlsym(h, "md_tap_shared"));
+	Shared* s = fn ? fn() : nullptr;
+	return s && s->magic == Shared::kMagic ? s : nullptr;
+}
+
+// The Module's shared state, if MPC has loaded machinedrum_one.so (RTLD_NOLOAD: never loads it ourselves, only finds the copy
+// whose statics the Module instances use). Each plugin is installed in its own Synths folder, so the Module's path isn't known:
+// by its soname first, then by the path MPC loaded it from (/proc/self/maps).
 Shared* findShared()
 {
 	static Shared* s = nullptr;
-	static bool tried = false;
 	if(s) return s;
-	Dl_info di;
-	if(!dladdr(reinterpret_cast<void*>(&findShared), &di) || !di.dli_fname) return nullptr;
-	std::string dir = di.dli_fname;
-	dir = dir.substr(0, dir.find_last_of('/'));
-	// The primary is a different plugin file, normally next to this one (/sdcard/vst) or in a plugin folder.
-	for(const std::string& path : {dir + "/machinedrum_one.so", std::string("/sdcard/vst/machinedrum_one.so")})
+	if((s = fromHandle(dlopen("machinedrum_one.so", RTLD_NOLOAD | RTLD_LAZY)))) return s;
+	if(FILE* f = std::fopen("/proc/self/maps", "r"))
 	{
-		void* h = dlopen(path.c_str(), RTLD_NOLOAD | RTLD_LAZY);	// only if MPC has already loaded it: shares its statics
-		if(!h) continue;
-		auto fn = reinterpret_cast<mdtap::Shared* (*)()>(dlsym(h, "md_tap_shared"));
-		if(fn && (s = fn()) && s->magic == Shared::kMagic) return s;
-		s = nullptr;
+		char line[1024];
+		while(!s && std::fgets(line, sizeof line, f))
+		{
+			const char* p = std::strchr(line, '/');
+			if(!p || !std::strstr(p, "/machinedrum_one.so")) continue;
+			std::string path(p);
+			while(!path.empty() && (path.back() == '\n' || path.back() == ' ')) path.pop_back();
+			s = fromHandle(dlopen(path.c_str(), RTLD_NOLOAD | RTLD_LAZY));
+		}
+		std::fclose(f);
 	}
-	(void)tried;
-	return nullptr;
+	return s;
 }
 
 constexpr int64_t kPeriodUs = 2902;	// 128 frames at 44.1 kHz

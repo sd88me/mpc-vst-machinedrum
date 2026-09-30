@@ -69,8 +69,8 @@ plugins read channels from the Module running in the same project:
   reverb and delay sends (the track's REV and DEL knobs), which the send taps carry.
 - Use them to give each drum its own MPC track, submix and insert effects, or to put the sends on a return track and run
   them through MPC's own reverb and delay. Taps are sample-aligned with the Module (measured on a Force) and cost almost no CPU.
-- Needs one Machinedrum Module in the project; a tap is silent without it. Install `machinedrum_one.so`, `machinedrum_tap.so`
-  and `machinedrum_tapfx.so` in the same folder.
+- Needs one Machinedrum Module in the project; a tap is silent without it. The build makes an installer zip for each tap
+  next to the Module's (see [Building](#building)).
 
 ### Not there yet (known limits)
 
@@ -130,12 +130,13 @@ cd mpc-vst-machinedrum
 release/build_release.sh "/path/to/Elektron_SPS1-1UW_OS1.63.syx" "/path/to/flash image.bin"
 ```
 
-That's the whole build. The result is `dist/Machinedrum-Module-<version>-mpc-armv7.zip`. Put the two file paths in quotes.
+That's the whole build. The result is three installer zips in `dist/`: `Machinedrum-Module-<version>-mpc-armv7.zip` and one each
+for the two taps, `Machinedrum-Tap-...` and `Machinedrum-Tap-FX-...` (install the ones you want; the taps need the Module). Put the two file paths in quotes.
 To install it on the Force from the same command, add `-d <device-ip>` (see below), or copy the zip over yourself,
 unzip it on the device and run `install.sh` as root. Installing stops and restarts MPC, so save your project first and run it
 with the device idle.
 
-Options: `-v <version>` (default from `git describe`), `-d <device-ip>` (copy the zip over and run its installer),
+Options: `-v <version>` (default from `git describe`), `-d <device-ip>` (copy all three zips over and run their installers; MPC restarts once per zip),
 `-m <mpc-vst-plugins checkout>` (default: fetched automatically, or `../mpc-vst` if it exists). `MDPROBE=<path>` uses a
 ready-built `mdProbe`; otherwise `tools/mdtrace/build_mdprobe.sh` builds it the first time (you can also run that by hand).
 
@@ -161,7 +162,7 @@ must never be published as a release (a catalog entry for it links to this repo 
 download). The zip is still catalog-conformant in format: `mpc-plugin.json` (id `machinedrum-module`, license
 `AGPL-3.0-only`, source repo) is generated, and the build runs mpc-vst-plugins' `catalog_check.py --catalog` as its last step.
 The plugin locates its data next to the `.so` (`MODULE_SUBDIR`), not at a fixed path. Device testing is recorded in
-`tested.json` (v0.3.1: Akai Force, MPC OS 3.9.1; the taps are not yet part of the installer zip: build them with `vst/build_so.sh`, which now builds all three plugins, and copy `machinedrum_tap.so`, `machinedrum_tapfx.so` and their skins by hand).
+`tested.json` (v0.3.1: Akai Force, MPC OS 3.9.1).
 
 ## How it works
 

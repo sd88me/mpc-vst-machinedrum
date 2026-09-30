@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the skin folder (vst/build/skin/) from the user's own OS files, with tools/mdskin/mk_skin.py (a port of
+# Builds the skin folders (vst/build/skin/, and the two taps' in vst/tap/build/skin/ and vst/tapfx/build/skin/) from the user's own OS files, with tools/mdskin/mk_skin.py (a port of
 # mpc-vst-monomodule's own skin generator). Needs Docker (a stock python image, for Pillow) and an x86 build
 # of this repo (build-vst-x86/, for mdmachine and mdartdump).
 #   build_skin.sh <MD OS.syx> [mpc-vst checkout] [skin=... ink=... paper=...]
@@ -20,4 +20,7 @@ if [ -f "$MNM_ART" ]; then cp "$MNM_ART" "$ROOT/vst/build/art.json"; echo "skin 
 rm -rf "$ROOT/vst/build/skin"
 # Pillow in a stock python image (no browser needed: this skin is drawn with Pillow only), so nothing has to be built or pulled from elsewhere
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e MPC_VST_TOOLS=/mv/tools -v "$ROOT":/r -v "$MV":/mv:ro -w /r python:3.11-slim sh -c \
-  "pip install -q --no-warn-script-location --target /tmp/p pillow >/dev/null 2>&1; PYTHONPATH=/tmp/p python3 tools/mdskin/mk_skin.py vst/build/art.json vst/build/machines.txt vst/params.json vst/build/skin ${*:3}"
+  "pip install -q --no-warn-script-location --target /tmp/p pillow >/dev/null 2>&1; PYTHONPATH=/tmp/p python3 tools/mdskin/mk_skin.py vst/build/art.json vst/build/machines.txt vst/params.json vst/build/skin ${*:3} &&
+   rm -rf vst/tap/build/skin vst/tapfx/build/skin &&
+   PYTHONPATH=/tmp/p python3 tools/mdskin/mk_tap_skin.py vst/build/art.json vst/tap/params.json vst/tap/build/skin tap ${*:3} &&
+   PYTHONPATH=/tmp/p python3 tools/mdskin/mk_tap_skin.py vst/build/art.json vst/tapfx/params.json vst/tapfx/build/skin fx ${*:3}"
