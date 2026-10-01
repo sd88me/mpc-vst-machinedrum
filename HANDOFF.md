@@ -1516,3 +1516,5 @@ Open, in the order I would take them:
   - Related: `0x2494840` = plugin-drum or CV-drum (shared code). False lead: `0xf90038` (32/8/64 = timing divisions, not pads).
   - Plan: a small LD_PRELOAD module (like force_shadow) that checks the Build ID, patches these in memory at startup
     (`mprotect`), and does nothing on any other build. The firmware file is not modified.
+  - **Plan for the next session: `docs/HANDOFF-mpc-drum-pads.md`** (an on-disk patch applied on the device, offered as an advanced build option; the in-memory
+    preload is the alternative).
