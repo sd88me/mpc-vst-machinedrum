@@ -11,8 +11,8 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 asm() { arm-linux-gnueabihf-as -march=armv7-a "$1.S" -o "$T/$1.o"
         arm-linux-gnueabihf-ld -Ttext="$2" --no-dynamic-linker -e _start "$T/$1.o" -o "$T/$1.elf" 2>/dev/null
         arm-linux-gnueabihf-objcopy -O binary "$T/$1.elf" "$T/$1.bin"; }
-asm cave 0x4a7b330; asm helper 0x2494954; asm colours 0x6872900; asm colours_jump 0x2494bb4; asm store 0x24fe2e4
-[ "$(stat -c%s "$T/cave.bin")" -le 80 ] && [ "$(stat -c%s "$T/colours.bin")" -le 1904 ] && [ "$(stat -c%s "$T/helper.bin")" = 16 ] || { echo "size"; exit 1; }
+asm cave 0x4a7b330; asm helper 0x2494954; asm colours 0x6872900; asm colours_jump 0x2494bb4
+[ "$(stat -c%s "$T/cave.bin")" -le 80 ] && [ "$(stat -c%s "$T/helper.bin")" = 16 ] || { echo "size"; exit 1; }
 rd() { dd if="$STOCK" bs=1 skip=$((0x$1)) count=$2 2>/dev/null | xxd -p | tr -d '\n'; }
 CAVE=$(xxd -p "$T/cave.bin" | tr -d "\n"); while [ ${#CAVE} -lt 160 ]; do CAVE=${CAVE}00; done
 { echo "# MPC OS 3.9.1.2 drum-layout patch: <hex offset> <new bytes>  (no Akai bytes; the device saves its own originals)"
@@ -20,7 +20,6 @@ CAVE=$(xxd -p "$T/cave.bin" | tr -d "\n"); while [ ${#CAVE} -lt 160 ]; do CAVE=$
   echo "2494954 $(xxd -p "$T/helper.bin" | tr -d '\n')"
   echo "4a7b330 $CAVE"
   echo "2494bb4 $(xxd -p "$T/colours_jump.bin" | tr -d '\n')"
-  echo "24fe2e4 $(xxd -p "$T/store.bin" | tr -d '\n')"
   echo "6872900 $(xxd -p "$T/colours.bin" | tr -d '\n')"
   for a in 18ff260 18ffbd8 18ffc84 1900e04 1900e98 19016fc; do
     [ "$(rd $a 4)" = 0810a013 ] || { echo "site $a unexpected"; exit 1; }

@@ -197,14 +197,16 @@ what it names; finished work is reused. `HANDOFF.md` has every step's details.
 
 Without this, MPC gives Machinedrum Module a melodic (keyboard) pad layout; play tracks 1-16 with notes 36-51. MPC gives the
 drum-pad layout only to its own DrumSynth plugin, with 8 pads. `release/mpc_patch/` is an opt-in patch that gives
-Machinedrum Module the drum layout with 16 pads, all lit, pad *n* playing track *n*.
+Machinedrum Module the drum layout with 16 pads, all lit red (close to the Machinedrum's LCD), pad *n* playing track *n*.
 
 **Read this first:**
 - It **modifies the factory MPC OS** (`/usr/bin/MPC`) on your device. Use it at your own risk.
 - It works on **MPC OS 3.9.1.2 only**. It checks the exact file (md5) and refuses anything else without changing it.
 - **A firmware update replaces the file and removes the patch.** Re-run it after updating; it will refuse until this
   project supports the new version.
-- Side effect: Akai's DrumSynth Multi also shows 16 lit pads (only 1-8 make sound).
+- Side effect: Akai's DrumSynth Multi also gets 16 red pads (only 1-8 make sound). The patch colours every plugin drum
+  program the same; telling plugins apart at colour time needs the program's identity, which isn't reachable from the
+  colour code (see the handoff).
 - Undo: `sh uninstall.sh` puts the original bytes back (it falls back to the full backup if needed).
 
 Nothing of Akai's is in this repo: the patch file holds only our own bytes, their offsets and md5s, and your device

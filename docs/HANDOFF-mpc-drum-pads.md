@@ -2,7 +2,7 @@
 
 Status (2026-10-01): **done and tested on the Force (MPC OS 3.9.1.2), plugin 0.3.4.** `release/mpc_patch/` (build `-p`).
 Machinedrum Module gets the drum layout, all 16 pads lit, pad n plays track n; Monomodule stays melodic; Akai's
-DrumSynth Multi keeps its layout but shows 16 lit pads (1-8 sound). Patched md5 `ba64e2d49966a48275432b2a95b5ba8c`.
+DrumSynth Multi keeps its layout but shows 16 lit pads (1-8 sound). All 16 pads are lit **red** (one colour). Patched md5 `10a7d0bb4e5fb66ffaa6b2c6a001eef2`.
 See "Result" at the end for what changed from the plan below.
 
 ## Goal
@@ -204,6 +204,24 @@ What shipped differs from the plan above in three places:
 
 Upgrading a patched device to a new patch version: uninstall with the *old* patch file (its patched md5), then install
 the new one. `/tmp` on the Force does not survive restarts, so keep the old file elsewhere (or take it from git).
+
+## Pad colours (built: all red; per-plugin not reachable)
+
+The lights follow each pad's colour. A new plugin drum program only colours pads 0-7 (the lambda at `0x2494b94` walks the
+8-entry table at `0x4e3fb68` and calls `0x2462e70(ProgramPads*, pad, rgb)`). Region C2 replaces that loop (jump at
+`0x2494bb4` -> `0x6872900` in the zero tail of the R+X segment's last page) with a 16-pass loop that sets every pad to
+one red (`0x7f0000`). This runs for **every** plugin drum program, so Akai's DrumSynth Multi also gets 16 red pads.
+
+**Per-plugin colour was attempted and shelved.** The idea: the name check returns an ID (`0x101` for Machinedrum), the
+caller stores it with `str` so byte 3100 stays the drum flag and byte 3101 marks Machinedrum, and the colour loop reads
+the mark. It did not work: the colour lambda only has `ProgramPads` ([r5,#4]), and reading the program's flag/mark at a
+fixed offset from it (`+1756`/`+1757`) returns 0 on the path that actually colours new tracks (entry `0x24fa018`, a tail
+call `b 0x2494964`). So the `ProgramPads` the colour code sees is not inline at `program+5440` for that path, and no
+program-relative marker reaches it. Confirmed on the Force with two diagnostics: forcing the loop unconditionally made
+both plugins all-orange (the loop and its target are correct), and reading the known-set drum-flag byte at `+1756` left
+both unchanged (the program fields are not reachable from `ProgramPads` here). A global/sentinel in `.data` is unreliable
+across colour refreshes. A real fix needs either the colour program's own identity field, or marking inside the
+`ProgramPads` object itself (unknown free offset) -- left for later.
 
 ## Next: per-plugin setup (not built)
 
