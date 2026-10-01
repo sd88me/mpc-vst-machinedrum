@@ -36,6 +36,13 @@ if [ ! -e "$PROBE" ] && [ -z "${MDPROBE:-}" ]; then echo "== mdProbe not built y
 [ -e "$PROBE" ] || { echo "missing: $PROBE (mdProbe: build it with tools/mdtrace/build_mdprobe.sh, or point MDPROBE at it)" >&2; exit 1; }
 for f in "$OS" "$FLASH" "$PROBE" "$MV/tools/release.py" "$MV/tools/gen_vst.py"; do [ -e "$f" ] || { echo "missing: $f" >&2; exit 1; }; done
 grep -q "dynamic_name" "$MV/wrapper/vst2_wrap.c" || { echo "$MV's wrapper has no dynamic_name support: use mpc-vst-plugins main (or later)" >&2; exit 1; }
+# Docker is needed from step 5 (skin) on: check now, not after the 30 minutes of steps 1-4
+command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || {
+  echo "Docker isn't available. Start Docker Desktop and wait until it says it is running, then run this again." >&2
+  echo "  Windows (WSL): Docker Desktop > Settings > Resources > WSL integration > turn on your Ubuntu, then Apply & restart;" >&2
+  echo "                 then close and reopen the Ubuntu window. Test it with:  docker run --rm hello-world" >&2
+  echo "  Linux: sudo apt install docker.io, then sudo usermod -aG docker \$USER and log out and in again." >&2
+  exit 1; }
 cd "$ROOT"
 [ -f libs/dsp56300/source/dsp56kEmu/dsp.h ] || git submodule update --init --recursive
 WORK=$ROOT/build-release; mkdir -p "$WORK" vst/build dist; : > "$WORK/build.log"
@@ -51,6 +58,7 @@ echo "== 2/7 factory kits and ROM samples (from the flash image, by booting the 
 python3 tools/mdkits/make_factory.py "$PROBE" build-vst-x86/mdsamples "$FLASH" "$OS" vst/build/factory
 
 echo "== 3/7 recompiled voice DSP (traced from your OS file and the ROM samples; not shipped as source)"
+echo "   this step is quiet and takes 10-25 minutes: it has not stopped"
 q cmake -Wno-dev -S . -B "$WORK/discovery" -G Ninja -DCMAKE_BUILD_TYPE=Release -DMD_DISCOVERY=ON
 q ninja -C "$WORK/discovery" mdrecomp-discover
 mkdir -p "$WORK/recomp"
