@@ -3,5 +3,6 @@
   {"version": "0.2.0", "device": "Akai Force", "firmware": "MPC OS 3.9.1", "date": "2026-09-29"},
   {"version": "0.3.0", "device": "Akai Force", "firmware": "MPC OS 3.9.1", "date": "2026-09-30"},
   {"version": "0.3.1", "device": "Akai Force", "firmware": "MPC OS 3.9.1", "date": "2026-09-30"},
-  {"version": "0.3.2", "device": "Akai Force", "firmware": "MPC OS 3.9.1", "date": "2026-09-30"}
+  {"version": "0.3.2", "device": "Akai Force", "firmware": "MPC OS 3.9.1", "date": "2026-09-30"},
+  {"version": "0.3.3", "device": "Akai Force", "firmware": "MPC OS 3.9.1", "date": "2026-10-01"}
 ]

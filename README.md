@@ -79,6 +79,8 @@ plugins read channels from the Module running in the same project:
 - Needs one Machinedrum Module in the project; a tap is silent without it. The build makes an installer zip for each tap
   next to the Module's (see [Building](#building)).
 
+**New in 0.3.3:** the flash image is now optional. Build with just your OS `.syx` and you get every machine except the ROM sample machines (their tracks stay silent) and no factory kits; give the script the flash image as well for those. The sound of a full build is unchanged.
+
 **New in 0.3.2:** the two tap plugins now have their own installer zips, made by the same build as the Module's, and
 `-d` installs all three. Each plugin lives in its own folder; a tap finds the Module wherever it is installed.
 
