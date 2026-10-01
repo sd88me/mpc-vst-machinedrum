@@ -20,14 +20,14 @@ REG=$BK/orig-regions.txt
 apply() { # $1 = new: write the patch; orig: write back the originals saved in $REG
   if [ "$1" = new ]; then L=$(grep -v '^[#sp]' "$PATCH"); else [ -f "$REG" ] || return 1; L=$(cat "$REG"); fi
   echo "$L" | while read o h; do
-    { while [ -n "$h" ]; do r=${h#??}; c=${h%"$r"}; printf "\\$(printf %03o $((0x$c)))"; h=$r; done; } | dd of=$F bs=1 seek=$((0x$o)) conv=notrunc 2>/dev/null; done; }
+    { while [ -n "$h" ]; do r=${h#??}; c=${h%"$r"}; printf "\\$(printf %03o $((0x$c)))"; h=$r; done; } | dd bs=1 seek=$((0x$o)) 1<>$F 2>/dev/null; done; }
 save_orig() { : > $REG; grep -v '^[#sp]' "$PATCH" | while read o h; do
-    echo "$o $(dd if=$F bs=1 skip=$((0x$o)) count=$((${#h}/2)) 2>/dev/null | od -An -tx1 -v | tr -d ' \n')" >> $REG; done; }
-finish() { sync; mount -o remount,ro /; systemctl start acvs; sleep 5; pidof MPC >/dev/null && echo "MPC is running" || echo "WARNING: MPC not running; run uninstall.sh"; }
+    echo "$o $(dd if=$F bs=1 skip=$((0x$o)) count=$((${#h}/2)) 2>/dev/null | od -b -v | awk '{for(i=2;i<=NF;i++)printf "%02x",substr($i,1,1)*64+substr($i,2,1)*8+substr($i,3,1)}')" >> $REG; done; }
+finish() { sync; mount -o remount,ro,bind $MNT; mount -o remount,ro /; umount $MNT; systemctl start acvs; sleep 5; pidof MPC >/dev/null && echo "MPC is running" || echo "WARNING: MPC not running; run uninstall.sh"; }
 if [ "$MODE" = uninstall ]; then
   [ "$CUR" = "$STOCK" ] && { echo "already stock"; exit 0; }
   [ "$CUR" = "$PATCHED" ] || die "MPC is neither stock nor our patched build (md5 $CUR); not touching it"
-  systemctl stop acvs; mount -o remount,rw / || die "remount rw"
+  systemctl stop acvs; mount -o remount,rw / && mount -o remount,rw,bind $MNT || die "remount rw"
   apply orig; [ "$(md5 $F)" = "$STOCK" ] || { echo "restoring from full backup"; cat $BK/MPC-3.9.1.2.orig > $F; }
   [ "$(md5 $F)" = "$STOCK" ] && echo "restored stock MPC" || echo "ERROR: md5 not stock; copy $BK/MPC-3.9.1.2.orig over /usr/bin/MPC"
   finish; exit 0
@@ -40,7 +40,7 @@ printf "Type PATCH to continue: "; read a; [ "$a" = PATCH ] || die "cancelled"
 mkdir -p $BK && cat $F > $BK/MPC-3.9.1.2.orig && [ "$(md5 $BK/MPC-3.9.1.2.orig)" = "$STOCK" ] || die "backup to $BK failed"
 save_orig; [ -s $REG ] || die "could not save original bytes"
 echo "backup: $BK/MPC-3.9.1.2.orig and $REG"
-systemctl stop acvs; mount -o remount,rw / || { systemctl start acvs; die "remount rw"; }
+systemctl stop acvs; mount -o remount,rw / && mount -o remount,rw,bind $MNT || { systemctl start acvs; die "remount rw"; }
 apply new
 if [ "$(md5 $F)" = "$PATCHED" ]; then echo "patched OK"; else
   echo "ERROR: md5 mismatch after patch; restoring"; apply orig
