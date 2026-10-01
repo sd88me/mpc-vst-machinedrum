@@ -1493,3 +1493,14 @@ Open, in the order I would take them:
   on still overloaded (3.1-3.6 ms, groups 2.0-2.7 ms each). With 3 threads (`/tmp/md-groups` = 3): groups ~1.4-1.6 ms each, VOICES 6-8
   with ROM on at 2.3-2.9 ms mean, underruns mostly flat (1,062 -> 1,100 over the last minute of play); one unexplained burst (51 -> 939)
   at VOICES 5-6. **Default now 3 groups** (kDefaultGroups). VOICES default still 4: 6 looks safe now, pending the user's call.
+- **2026-10-01: drum-pad layout for a plugin track, traced in the MPC binary (3.9.1.2): not reachable for a 16-track drum plugin. Closed.**
+  `PluginProgram` (vtable 0x692fbac) overrides the base `Program` virtuals at slot 7 (drum-style pads; base = program type 0 or 2) and
+  slot 6 (chromatic; base = keygroup/plugin/MIDI/CV) with a flag set when the plugin instance loads: `description.name == "DrumSynth:Multi"`
+  (setter 0x24fe2dc, helper 0x2494954). The description is the one JUCE fills from the live plugin, so the name that counts is the VST's own
+  `effGetEffectName`. The MPC.settings `name` alone did nothing, and neither did `category`. Tested on the Force by byte-patching
+  PLUG_NAME in the .so: the track gets the drum layout, but only **8 pads, sending notes 0-7** (pads 9-16 send nothing), the same as
+  Akai's 8-voice DrumSynth Multi. The browser lists it as "DrumSynth:Multi", and the skin is looked up as `<vendor> - VST - DrumSynthMulti`
+  (colon dropped). No other lever: plugin folder files (`plugin-meta.xml`, `version.xml`, `Presets/*.xpl`) carry identity/state only,
+  MPC sends VSTs only stock JUCE canDo/opcodes, and the `AudioPluginInstanceExtended*` interfaces are C++ (built-in plugins only, none
+  about pads). A Drum track routed to the plugin through MPC's JUCE virtual MIDI ports (`aconnect` loopback) would work, but needs the
+  connection remade at each MPC start. User: neither the 8-pad edition nor the loopback is worth it.
