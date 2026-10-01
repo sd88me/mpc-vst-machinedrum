@@ -183,6 +183,7 @@ with the device idle.
 Options: `-v <version>` (default from `git describe`), `-d <device-ip>` (copy all three zips over and run their installers; MPC restarts once per zip),
 `-m <mpc-vst-plugins checkout>` (default: fetched automatically, or `../mpc-vst` if it exists). `MDPROBE=<path>` uses a
 ready-built `mdProbe`; otherwise `tools/mdtrace/build_mdprobe.sh` builds it the first time (you can also run that by hand).
+`-p` is the advanced MPC OS patch below (off by default).
 
 The script builds, in order: the x86 helper tools, the factory kits and ROM samples (by booting the emulated MD from your flash
 image), the recompiled voice DSP (traced from your OS file), a **bit-exactness gate** (the recompiled DSP must give the same
@@ -191,6 +192,33 @@ built for the device), the skin, the ARM plugin, and the installer zip.
 
 **If something goes wrong:** the script stops at the first error and says which step (`== 3/7 ...`). Run it again after fixing
 what it names; finished work is reused. `HANDOFF.md` has every step's details.
+
+### Advanced (optional): 16 drum pads, by patching MPC OS
+
+Without this, MPC gives Machinedrum Module a melodic (keyboard) pad layout; play tracks 1-16 with notes 36-51. MPC gives the
+drum-pad layout only to its own DrumSynth plugin, with 8 pads. `release/mpc_patch/` is an opt-in patch that gives
+Machinedrum Module the drum layout with 16 pads, all lit, pad *n* playing track *n*.
+
+**Read this first:**
+- It **modifies the factory MPC OS** (`/usr/bin/MPC`) on your device. Use it at your own risk.
+- It works on **MPC OS 3.9.1.2 only**. It checks the exact file (md5) and refuses anything else without changing it.
+- **A firmware update replaces the file and removes the patch.** Re-run it after updating; it will refuse until this
+  project supports the new version.
+- Side effect: Akai's DrumSynth Multi also shows 16 lit pads (only 1-8 make sound).
+- Undo: `sh uninstall.sh` puts the original bytes back (it falls back to the full backup if needed).
+
+Nothing of Akai's is in this repo: the patch file holds only our own bytes, their offsets and md5s, and your device
+patches its own copy. Before writing, `install.sh` backs up the original to `/sdcard/MPC-backup/` (112 MB) along with
+the original bytes it changes, stops MPC, writes about 180 bytes, checks the result, and restarts MPC. If the check
+fails, it restores the original at once.
+
+To use it: build with `-p` (and `-d <device-ip>` to run it on the device; you type `PATCH` to confirm), or copy
+`dist/mpc-os-patch/` to the Force and run `sh install.sh` as root. Then add Machinedrum Module on a **new** track (pad
+colours are set when the track is created).
+
+If MPC doesn't start after patching, SSH still works: run `sh uninstall.sh`, or copy
+`/sdcard/MPC-backup/MPC-3.9.1.2.orig` over `/usr/bin/MPC` with the root filesystem remounted read-write.
+Details: [docs/HANDOFF-mpc-drum-pads.md](docs/HANDOFF-mpc-drum-pads.md).
 
 ## Kits
 

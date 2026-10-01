@@ -1518,3 +1518,6 @@ Open, in the order I would take them:
     (`mprotect`), and does nothing on any other build. The firmware file is not modified.
   - **Plan for the next session: `docs/HANDOFF-mpc-drum-pads.md`** (an on-disk patch applied on the device, offered as an advanced build option; the in-memory
     preload is the alternative).
+- **2026-10-01: 16-pad patch done and tested** (plugin 0.3.4, MPC OS 3.9.1.2, patched md5 `ba64e2d4...`). The lights needed a
+  third region (pad colours: only pads 0-7 get a colour). Details and the next step (per-plugin IDs/palettes):
+  `docs/HANDOFF-mpc-drum-pads.md`, "Result".

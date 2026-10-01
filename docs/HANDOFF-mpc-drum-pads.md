@@ -1,8 +1,9 @@
 # Handoff: 16 drum pads for Machinedrum Module (MPC OS patch, advanced option)
 
-Status (2026-10-01): **analysis done, nothing built yet.** This file is the plan for the next session. The addresses and
-byte values below were read from the Force's `/usr/bin/MPC` and checked. The patch code itself has not been written or
-run.
+Status (2026-10-01): **done and tested on the Force (MPC OS 3.9.1.2), plugin 0.3.4.** `release/mpc_patch/` (build `-p`).
+Machinedrum Module gets the drum layout, all 16 pads lit, pad n plays track n; Monomodule stays melodic; Akai's
+DrumSynth Multi keeps its layout but shows 16 lit pads (1-8 sound). Patched md5 `ba64e2d49966a48275432b2a95b5ba8c`.
+See "Result" at the end for what changed from the plan below.
 
 ## Goal
 
@@ -180,3 +181,36 @@ target; mention it in the README as a possible later option.
 - Ask before restarting MPC. Stage deploys. Never overwrite a loaded binary in place (stop acvs first).
 - Nothing firmware-derived is committed or shipped. That includes the stock MPC binary and any patched copy. The
   patch file holds only our bytes, offsets and md5s.
+
+## Result (2026-10-01)
+
+What shipped differs from the plan above in three places:
+
+1. **The six `8 -> 16` sites set the pad count but not the lights.** With only A and B, pads 9-16 played (notes 8-15)
+   but stayed dark. The lights follow each pad's colour, and a new plugin drum program only colours pads 0-7: the lambda
+   at `0x2494b94` walks an 8-entry table at `0x4e3fb68` (`{pad, pad, rgb}` x 8; Akai's DrumSynth palette) and calls
+   `0x2462e70(ProgramPads*, pad, rgb)`. Pads 8-15 keep colour 0, which shows as unlit. Found by diffing two saved
+   projects (`.xpj` is gzipped JSON: `programPads.pads.valueN`), not by the disassembly hunts (dead ends: the
+   `{8,1}` pairs in the load function are member-function pointers; "DrumSynth 1-8" is a parameter-page table; the
+   Force 64/16 grid code; "Empty pads: normal" changes nothing).
+   **Fix (C2):** `0x2494bb4` jumps to a 16-pass loop at `0x6872900` (pad i gets `table[i & 7].rgb`) and returns to
+   `0x2494be0`. `0x6872900` is in the zero tail of the R+X LOAD segment's last page: file data ends `0x687288c`, the
+   page is mapped to `0x6873000` (about 1.9 KB free; the next segment's file offset is `0x68731a0`).
+2. **BusyBox on the Force:** `dd` has no `conv=notrunc` and truncates `of=` after the last byte written, so `install.sh`
+   writes with `dd bs=1 seek=N 1<>file` (stdout, opened read-write without truncation). `od` has no `-A`/`-t`: bytes are
+   read with `od -b` and converted in awk. The bind mount of `/` needs its own `remount,rw,bind`.
+3. **No Akai bytes in the patch file:** the device saves its own originals (`/sdcard/MPC-backup/orig-regions.txt`) next to
+   the full 112 MB backup; uninstall writes those back.
+
+Upgrading a patched device to a new patch version: uninstall with the *old* patch file (its patched md5), then install
+the new one. `/tmp` on the Force does not survive restarts, so keep the old file elsewhere (or take it from git).
+
+## Next: per-plugin setup (not built)
+
+- **Plugin ID instead of a bool:** the cave returns a small ID (1 DrumSynth, 2 Machinedrum, ...) stored in the drum byte
+  `[prog,#3100]`. Check every getter treats non-zero as drum (slot 7 returns the byte; slot 6 returns its inverse: make
+  sure it is `!= 0`, not `^ 1`).
+- **Per-plugin palette and pad count:** the colour loop reads the ID and picks a 16-colour table (DrumSynth: the original 8,
+  so Akai's plugin goes back to 8 lit pads). Open question: the lambda gets `r5` with `[r5,#4]` = ProgramPads; find how
+  to reach the program (and its ID) from there.
+- **A name table** in the 1.9 KB page tail (name, ID, pads, palette) so future sd88me drum plugins are one row each.
