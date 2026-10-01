@@ -113,7 +113,6 @@ offers is checked to make sound as part of the build.### Known limits
 - **More voices on Gen 1:** hide the OS tick behind the voice rendering (about 190 us of each 2.9 ms block), cut each voice
   thread's fixed cost, and better recompiled DSP code (2.1x the plain emulator today; 3.8x was reached for the Monomachine).
 - **Bank and kit picker list** like the machine one (today: arrows).
-- **Build without a flash image:** make `build_release.sh` take the OS `.syx` alone (ROM machines silent, no factory kits), so the flash dump is genuinely optional.
 - **Open checks:** ROM machine output is not yet verified bit-exact against the emulated Machinedrum, and TRX SD renders
   differently in this project's dsp56300 fork than in gearmulator-md-mm's after two blocks (which one matches the hardware is
   not known yet).
@@ -133,9 +132,9 @@ offers is checked to make sound as part of the build.### Known limits
   | Your own kit `.syx` files | yes | yes (the non-ROM machines in them play) |
   | Tracks and the plugin | all work the same | all work the same |
 
-  **Status:** the flash image is optional in design, but `release/build_release.sh` still requires it today (a build
-  without it is on the roadmap). The ROM machines also cost twice the CPU of the others, so a flash-less build is a
-  lighter one.
+  Build without it by leaving the second argument off: `release/build_release.sh "<OS .syx>"` (tested on a Force: the
+  non-ROM machines play, ROM machine tracks stay silent). The ROM machines also cost twice the CPU of the others, so a
+  flash-less build is a lighter one.
 - A computer to build on (macOS or Linux; Windows through WSL) with **Docker** running, plus `git`, `cmake`, `ninja` and
   `python3`. That's all: the build fetches everything else itself (the shared VST wrapper, the emulator sources, the
   `mdProbe` tool) and reads the LCD fonts from your Machinedrum OS file, so no other Elektron file is needed.
@@ -166,7 +165,7 @@ the `git clone` below. The Force is only where the finished plugin is installed.
 ```bash
 git clone --recursive https://github.com/sd88me/mpc-vst-machinedrum.git
 cd mpc-vst-machinedrum
-release/build_release.sh "/path/to/Elektron_SPS1-1UW_OS1.63.syx" "/path/to/flash image.bin"
+release/build_release.sh "/path/to/Elektron_SPS1-1UW_OS1.63.syx" "/path/to/flash image.bin"   # the flash image is optional
 ```
 
 That's the whole build. The result is three installer zips in `dist/`: `Machinedrum-Module-<version>-mpc-armv7.zip` and one each

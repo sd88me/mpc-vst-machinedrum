@@ -350,6 +350,7 @@ constexpr uint32_t kRomDirectory = 0x147e00;	// 4 words per sample slot: start, 
 struct Inst
 {
 	std::string osPath, dataDir;
+	bool romAvail = false;	// the ROM sample memory was loaded: without it the ROM machines are kept off (their code was not even traced)
 	bool romSlot[48] = {};	// which ROM sample slots hold a sample (set once the sample memory is loaded)
 	std::atomic<int> param[kNumSlots];
 	std::atomic<bool> synUntouched[kTracks][kNumSyn];
@@ -519,8 +520,11 @@ void Inst::run()
 		auto& h = eng.host();
 		// ROM machines: their samples, if the installer put the extracted sample memory in place
 		if(loadSamples(eng.voices(), dataDir + "/factory/ROM_SAMPLES.bin") > 0)
+		{
+			romAvail = true;
 			for(int k = 0; k < 48; ++k)
 				romSlot[k] = eng.voices().readP(kRomDirectory + 4 * static_cast<uint32_t>(k) + 1) != 0;	// its length
+		}
 		for(const auto& m : eng.os().machines())
 		{
 			machines.valid[m.id] = true;
@@ -678,7 +682,7 @@ void Inst::run()
 				{
 					// ROM machines off: the track plays the empty machine instead (its own setting is kept). The SYN values are
 					// re-applied over the swapped machine's defaults, so switching back finds them as they were.
-					const bool romOff = param[kSlotRomEnabled].load(std::memory_order_relaxed) == 0;
+					const bool romOff = !romAvail || param[kSlotRomEnabled].load(std::memory_order_relaxed) == 0;
 					const int eff = romOff && romSlotOf(m) >= 0 ? 0 : m;
 					if(eff != appliedEff[t])
 					{

@@ -2,8 +2,10 @@
 # Builds Machinedrum Module's installer zip from YOUR OWN Machinedrum files (nothing of Elektron's is in this repo, and the
 # result contains firmware-derived code and data, so it is for your own devices only - never share or publish it).
 #
-#   release/build_release.sh <OS .syx> <flash .bin> [-v version] [-d device-ip] [-m mpc-vst-plugins checkout]
+#   release/build_release.sh <OS .syx> [flash .bin] [-v version] [-d device-ip] [-m mpc-vst-plugins checkout]
 #
+#   The flash image is optional: with it you get the ROM sample machines and the 16 factory kits; without it, every other machine
+#   and any kit .syx you add (the ROM machines stay silent, there are no factory kits).
 #   -v  version string (default: from `git describe`, e.g. 0.1.0)
 #   -d  after building, copy the zip to the Force and run its installer (stops and restarts MPC: save your project first)
 #   -m  mpc-vst-plugins checkout (default: $MPC_VST_DIR, ../mpc-vst, else cloned to ~/.cache); its main has the wrapper's
@@ -16,9 +18,10 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 rp() { if [ -d "$1" ]; then (cd "$1" && pwd); elif [ -e "$1" ]; then echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; else echo "$1"; fi; }
 # q: run a build command quietly into build-release/build.log; if it fails, say which one and show the end of the log
 q() { "$@" >>"$ROOT/build-release/build.log" 2>&1 || { echo "FAILED: $*" >&2; echo "--- last 30 lines of build-release/build.log ---" >&2; tail -n 30 "$ROOT/build-release/build.log" >&2; echo "--- (send this, the step number and 'uname -m' with your report) ---" >&2; exit 1; }; }
-usage() { sed -n '2,15p' "$0"; exit 2; }
-[ $# -ge 2 ] || usage
-OS=$(rp "$1"); FLASH=$(rp "$2"); shift 2
+usage() { sed -n '2,18p' "$0"; exit 2; }
+[ $# -ge 1 ] || usage
+OS=$(rp "$1"); shift
+FLASH=""; if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then FLASH=$(rp "$1"); shift; fi
 VERSION=""; DEVICE=""; MV="${MPC_VST_DIR:-}"
 while getopts "v:d:m:h" o; do case $o in v) VERSION=$OPTARG;; d) DEVICE=$OPTARG;; m) MV=$OPTARG;; *) usage;; esac; done
 if [ -z "$VERSION" ]; then VERSION=$(git -C "$ROOT" describe --tags --always 2>/dev/null | sed -E 's/^v//; s/^([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/'); fi   # commits after a tag: still X.Y.Z (the catalog check needs it); pass -v to name a release
@@ -34,7 +37,7 @@ MV=$(rp "$MV")
 PROBE=$(rp "${MDPROBE:-$ROOT/libs/gearmulator-md-mm/build/source/elektron/md/mdLibTest/mdProbe}")
 if [ ! -e "$PROBE" ] && [ -z "${MDPROBE:-}" ]; then echo "== mdProbe not built yet: building it (first run only, a few minutes)"; "$ROOT/tools/mdtrace/build_mdprobe.sh"; fi
 [ -e "$PROBE" ] || { echo "missing: $PROBE (mdProbe: build it with tools/mdtrace/build_mdprobe.sh, or point MDPROBE at it)" >&2; exit 1; }
-for f in "$OS" "$FLASH" "$PROBE" "$MV/tools/release.py" "$MV/tools/gen_vst.py"; do [ -e "$f" ] || { echo "missing: $f" >&2; exit 1; }; done
+for f in "$OS" ${FLASH:+"$FLASH"} "$PROBE" "$MV/tools/release.py" "$MV/tools/gen_vst.py"; do [ -e "$f" ] || { echo "missing: $f" >&2; exit 1; }; done
 grep -q "dynamic_name" "$MV/wrapper/vst2_wrap.c" || { echo "$MV's wrapper has no dynamic_name support: use mpc-vst-plugins main (or later)" >&2; exit 1; }
 # Docker is needed from step 5 (skin) on: check now, not after the 30 minutes of steps 1-4
 command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || {
@@ -54,15 +57,21 @@ echo "== 1/7 x86 tools (mdsamples, mdmachine)"
 q cmake -Wno-dev -S . -B build-vst-x86 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-DDSP56K_NO_JIT_RUNTIME
 q ninja -C build-vst-x86 mdsamples mdmachine mdartdump
 
-echo "== 2/7 factory kits and ROM samples (from the flash image, by booting the emulated MD)"
-python3 tools/mdkits/make_factory.py "$PROBE" build-vst-x86/mdsamples "$FLASH" "$OS" vst/build/factory
+if [ -n "$FLASH" ]; then
+  echo "== 2/7 factory kits and ROM samples (from the flash image, by booting the emulated MD)"
+  python3 tools/mdkits/make_factory.py "$PROBE" build-vst-x86/mdsamples "$FLASH" "$OS" vst/build/factory
+  ROMS=(vst/build/factory/ROM_SAMPLES.bin)
+else
+  echo "== 2/7 no flash image given: building without the ROM sample machines and the factory kits"
+  rm -rf vst/build/factory; mkdir -p vst/build/factory; ROMS=()
+fi
 
 echo "== 3/7 recompiled voice DSP (traced from your OS file and the ROM samples; not shipped as source)"
 echo "   this step is quiet and takes 10-25 minutes: it has not stopped"
 q cmake -Wno-dev -S . -B "$WORK/discovery" -G Ninja -DCMAKE_BUILD_TYPE=Release -DMD_DISCOVERY=ON
 q ninja -C "$WORK/discovery" mdrecomp-discover
 mkdir -p "$WORK/recomp"
-if ! "$WORK/discovery/mdrecomp-discover" "$OS" "$WORK/recomp/disc.txt" vst/build/factory/ROM_SAMPLES.bin > "$WORK/recomp/discover.log" 2>&1; then
+if ! "$WORK/discovery/mdrecomp-discover" "$OS" "$WORK/recomp/disc.txt" ${ROMS[@]+"${ROMS[@]}"} > "$WORK/recomp/discover.log" 2>&1; then
   echo "step 3 failed: the tracing tool stopped. Its last output:" >&2; tail -n 20 "$WORK/recomp/discover.log" >&2
   echo "(send this, and the result of 'uname -m', with your report)" >&2; exit 1
 fi
@@ -92,11 +101,12 @@ for v in interp recomp; do
   q cmake -Wno-dev -S . -B "$WORK/gate-$v" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_FLAGS=$flags"
   q ninja -C "$WORK/gate-$v" md-hash
 done
-H_INTERP=$("$WORK/gate-interp/md-hash" "$OS" vst/build/factory/ROM_SAMPLES.bin 2>/dev/null | grep '^hash')
-H_RECOMP=$("$WORK/gate-recomp/md-hash" "$OS" vst/build/factory/ROM_SAMPLES.bin 2>/dev/null | grep '^hash')
+H_INTERP=$("$WORK/gate-interp/md-hash" "$OS" ${ROMS[@]+"${ROMS[@]}"} 2>/dev/null | grep '^hash')
+H_RECOMP=$("$WORK/gate-recomp/md-hash" "$OS" ${ROMS[@]+"${ROMS[@]}"} 2>/dev/null | grep '^hash')
 echo "   interpreter: $H_INTERP"; echo "   recompiled:  $H_RECOMP"
+ROMGATE='!($3 ~ /^ROM/ && substr($3,4)+0 > 32)'; [ -n "$FLASH" ] || ROMGATE='$3 !~ /^ROM/'   # no flash image: no ROM machine is expected to sound
 # Every machine the plugin offers must make sound (TRX XT/CP/MA/CL/XC were silent until their function was given the trigger flag).
-SILENT=$(MD_SWEEP=1 "$WORK/gate-recomp/md-hash" "$OS" vst/build/factory/ROM_SAMPLES.bin 2>/dev/null | awk '/^SWEEP/ && $5+0 < 100 && $3 !~ /^(GND--|INP|MID|CTR|RAM)/ && !($3 ~ /^ROM/ && substr($3,4)+0 > 32) {print $3}' | tr '\n' ' ')
+SILENT=$(MD_SWEEP=1 "$WORK/gate-recomp/md-hash" "$OS" ${ROMS[@]+"${ROMS[@]}"} 2>/dev/null | awk '/^SWEEP/ && $5+0 < 100 && $3 !~ /^(GND--|INP|MID|CTR|RAM)/ && '"$ROMGATE"' {print $3}' | tr '\n' ' ')
 [ -z "$SILENT" ] || { echo "GATE FAILED: these offered machines make no sound: $SILENT" >&2; exit 1; }
 [ -n "$H_INTERP" ] && [ "$H_INTERP" = "$H_RECOMP" ] || { echo "GATE FAILED: the recompiled build does not match the interpreter - not building for the device" >&2; exit 1; }
 
@@ -114,7 +124,7 @@ python3 "$MV/tools/release.py" --so vst/build/machinedrum_one.so \
   --skin "vst/build/skin/sd88me - VST - Machinedrum Module" --entry vst/build/pluginlist-entry.xml \
   --version "$VERSION" --extra vst/build/payload:vst/machinedrum \
   --id machinedrum-module --repo sd88me/mpc-vst-machinedrum --license AGPL-3.0-only \
-  --requires "Your own Machinedrum OS 1.63 file and flash image: this zip is built from them, contains Elektron-derived data and is for your own devices only" \
+  --requires "Your own Machinedrum OS 1.63 file (and, for the ROM machines and factory kits, flash image): this zip is built from them, contains Elektron-derived data and is for your own devices only" \
   --about "Machinedrum Module: the Elektron Machinedrum UW sound engine as an MPC OS instrument (built from your own firmware)" -o dist
 ZIP=$(ls dist/Machinedrum-Module-"$VERSION"-*.zip); ls -l "$ZIP"
 # catalog conformance (mpc-vst-plugins docs/CATALOG_SPEC.md): the manifest, layout, checksums, ELF/glibc limits
