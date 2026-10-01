@@ -11,7 +11,7 @@ no downloadable build: it needs your own Machinedrum firmware, so you build the 
 [Building](#building)). The Machinedrum's master effects are not built in: the reverb and delay sends come out through the new taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
 
 Not affiliated with Elektron. Nothing of Elektron's is in this repository or distributed from it; the plugin
-needs your own Machinedrum OS 1.63 file and a flash image (see [What you need](#what-you-need)).
+needs your own Machinedrum OS 1.63 file, and ideally a flash image for the ROM machines and factory kits (see [What you need](#what-you-need)).
 
 ## Features
 
@@ -113,6 +113,7 @@ offers is checked to make sound as part of the build.### Known limits
 - **More voices on Gen 1:** hide the OS tick behind the voice rendering (about 190 us of each 2.9 ms block), cut each voice
   thread's fixed cost, and better recompiled DSP code (2.1x the plain emulator today; 3.8x was reached for the Monomachine).
 - **Bank and kit picker list** like the machine one (today: arrows).
+- **Build without a flash image:** make `build_release.sh` take the OS `.syx` alone (ROM machines silent, no factory kits), so the flash dump is genuinely optional.
 - **Open checks:** ROM machine output is not yet verified bit-exact against the emulated Machinedrum, and TRX SD renders
   differently in this project's dsp56300 fork than in gearmulator-md-mm's after two blocks (which one matches the hardware is
   not known yet).
@@ -121,8 +122,20 @@ offers is checked to make sound as part of the build.### Known limits
 
 - An MPC OS standalone device (developed on a Force; other MPC OS devices use the same plugin host).
 - **Your own Machinedrum OS 1.63 `.syx`** (`Elektron_SPS1-1UW_OS1.63.syx`). This is the sound engine.
-- **Your own full flash image** of a Machinedrum UW (8 MB `.bin`), used once at build time for the factory kits and
-  the ROM sample memory. Without it you still get every non-ROM machine and any kit `.syx` you add.
+- **Your own full flash image** of a Machinedrum UW (8 MB `.bin`), used once at build time. It holds the ROM machines'
+  samples and the source of the factory kits; the OS `.syx` has neither. What it adds, and what you lose without it:
+
+  | | With the flash image | Without it |
+  |---|---|---|
+  | GND, TRX, EFM, E12, P-I machines | yes | yes |
+  | ROM sample machines (kicks, snares, hats, cymbals, claps and so on) | yes | silent |
+  | The 16 factory kits | yes | none (start from an empty kit, or load kit `.syx` files) |
+  | Your own kit `.syx` files | yes | yes (the non-ROM machines in them play) |
+  | Tracks and the plugin | all work the same | all work the same |
+
+  **Status:** the flash image is optional in design, but `release/build_release.sh` still requires it today (a build
+  without it is on the roadmap). The ROM machines also cost twice the CPU of the others, so a flash-less build is a
+  lighter one.
 - A computer to build on (macOS or Linux; Windows through WSL) with **Docker** running, plus `git`, `cmake`, `ninja` and
   `python3`. That's all: the build fetches everything else itself (the shared VST wrapper, the emulator sources, the
   `mdProbe` tool) and reads the LCD fonts from your Machinedrum OS file, so no other Elektron file is needed.
