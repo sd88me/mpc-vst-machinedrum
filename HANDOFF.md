@@ -1504,3 +1504,15 @@ Open, in the order I would take them:
   MPC sends VSTs only stock JUCE canDo/opcodes, and the `AudioPluginInstanceExtended*` interfaces are C++ (built-in plugins only, none
   about pads). A Drum track routed to the plugin through MPC's JUCE virtual MIDI ports (`aconnect` loopback) would work, but needs the
   connection remade at each MPC start. User: neither the 8-pad edition nor the loopback is worth it.
+- **2026-10-01 (later): drum pads reopened as an MPC runtime patch; the 8-pad limit found.** MPC 3.9.1.2, `/usr/bin/MPC` Build ID
+  `b3a38f398cea4814618320b2251d9dd07580e393` (ARM mode, PIE but loaded with file offset == vaddr for .text).
+  - **Drum flag:** set once per plugin load at `0x24fe2dc` (`bl 0x2494954` -> `strb r0,[r4,#3100]`). `0x2494954` is a 16-byte helper,
+    `juce::String == "DrumSynth:Multi"` (`e59f1004 e08f1001 ea925022` + literal), and that call is its only caller. Replacing its body
+    with `ldr pc,[pc,#-4]; .word fn` sends the check to our own `bool fn(const juce::String*)` (juce::String = one pointer to UTF-8).
+  - **Pad count:** `0x14d2734(padModel, n)` sets the pad count (+224). Six sites choose it as
+    `modeFlag ? 16 : (isPluginDrum(program) ? 8 : 128)`. `isPluginDrum` = `0x24948ec` (type 3 and slot 6 false). The 8 is
+    `movne r1,#8` = `13a01008` at `0x18ff260 0x18ffbd8 0x18ffc84 0x1900e04 0x1900e98 0x19016fc`; `13a01010` gives 16.
+    In drum mode, pad n sends note n-1 (measured: pads 1-8 -> notes 0-7), so the plugin must take notes 0-15 as tracks 1-16.
+  - Related: `0x2494840` = plugin-drum or CV-drum (shared code). False lead: `0xf90038` (32/8/64 = timing divisions, not pads).
+  - Plan: a small LD_PRELOAD module (like force_shadow) that checks the Build ID, patches these in memory at startup
+    (`mprotect`), and does nothing on any other build. The firmware file is not modified.
