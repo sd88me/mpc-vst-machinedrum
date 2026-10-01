@@ -492,6 +492,58 @@ struct Inst
 			if(param[i].load(std::memory_order_relaxed) != snap[i]) return name + " *";
 		return name;
 	}
+	// The whole instance for the host's project/program/plugin-preset chunk: "v1|<every slot>|<snap>|<kitIdx>|<bank>".
+	// The host-tempo slot is live host state, not part of a sound, so it is written as 0 and never restored.
+	std::string saveState() const
+	{
+		std::string o = "v1|";
+		for(int i = 0; i < kNumSlots; ++i) { if(i) o += ','; o += std::to_string(i == kSlotHostBpm ? 0 : param[i].load(std::memory_order_relaxed)); }
+		o += '|';
+		for(int i = 0; i < kSlotTempo; ++i) { if(i) o += ','; o += std::to_string(snap[i]); }
+		o += '|' + std::to_string(kitIdx) + '|' + bankName;
+		return o;
+	}
+	// Returns false (and changes nothing) if the chunk is malformed. Values are stored straight into the slots (not through
+	// setMachine, which would reset SYN1-8 to the machine's defaults), and every SYN is marked touched so the DSP thread
+	// keeps the restored values when it applies the machine.
+	bool loadState(const char* _str)
+	{
+		if(std::strncmp(_str, "v1|", 3)) return false;
+		const char* c = _str + 3;
+		std::vector<int> vals(kNumSlots), sn(kSlotTempo);
+		auto parse = [&c](std::vector<int>& dst) {
+			for(size_t i = 0; i < dst.size(); ++i)
+			{
+				char* e;
+				dst[i] = static_cast<int>(std::strtol(c, &e, 10));
+				if(e == c) return false;
+				c = e;
+				if(*c == ',') ++c;
+			}
+			return true;
+		};
+		if(!parse(vals) || *c++ != '|' || !parse(sn) || *c++ != '|') return false;
+		char* e;
+		const int idx = static_cast<int>(std::strtol(c, &e, 10));
+		if(e == c || *e != '|') return false;
+		for(int t = 0; t < kTracks; ++t)
+		{
+			const int base = kSlotTrack + t * kSlotsPerTrack;
+			vals[base] = std::clamp(vals[base], 0, 191);
+			for(int i = 1; i < kSlotsPerTrack; ++i) vals[base + i] = std::clamp(vals[base + i], 0, 127);
+			for(int i = 0; i < kNumLfo; ++i) vals[base + kSlotLfo + i] = std::min(vals[base + kSlotLfo + i], kLfoMax[i]);
+		}
+		vals[kSlotTempo] = std::clamp(vals[kSlotTempo], 30, 300);
+		vals[kSlotMaxVoices] = std::clamp(vals[kSlotMaxVoices], 1, kTracks);
+		vals[kSlotRomEnabled] = vals[kSlotRomEnabled] ? 1 : 0;
+		bankName = e + 1;
+		for(int t = 0; t < kTracks; ++t) for(int i = 0; i < kNumSyn; ++i) synUntouched[t][i].store(false);
+		for(int i = 0; i < kNumSlots; ++i) if(i != kSlotHostBpm) param[i].store(vals[i], std::memory_order_relaxed);
+		for(int i = 0; i < kSlotTempo; ++i) snap[i] = sn[i];
+		kitIdx = idx;
+		defaultKitDone = true;	// a restored sound must not be replaced by the "fresh instance" default kit
+		return true;
+	}
 	void randomiseMachines(int _first, int _last)
 	{
 		std::vector<int> pool;
@@ -914,6 +966,7 @@ void eSet(void* p, const char* key, const char* val)
 		if(on && !list.empty()) in->loadKit(std::rand() % static_cast<int>(list.size()));
 		return;
 	}
+	if(!std::strcmp(key, "state")) { in->loadState(val); return; }
 	const int slot = slotOf(key);
 	if(slot < 0) return;
 	const int v = std::atoi(val);
@@ -933,6 +986,7 @@ int eGet(void* p, const char* key, char* buf, int bufLen)
 {
 	auto* in = static_cast<Inst*>(p);
 	in->maybeDefaultKit();
+	if(!std::strcmp(key, "state")) return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", in->saveState().c_str()) > 0;
 	if(!std::strcmp(key, "kit_name")) return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", in->kitLabel().c_str()) > 0;
 	if(!std::strcmp(key, "bank_name")) return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", in->bankLabel().c_str()) > 0;
 	if(!std::strncmp(key, "kit_", 4) || !std::strncmp(key, "bank_", 5) || !std::strncmp(key, "randomize_", 10))
