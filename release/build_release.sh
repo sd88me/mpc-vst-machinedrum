@@ -2,7 +2,7 @@
 # Builds Machinedrum Module's installer zip from YOUR OWN Machinedrum files (nothing of Elektron's is in this repo, and the
 # result contains firmware-derived code and data, so it is for your own devices only - never share or publish it).
 #
-#   release/build_release.sh <OS .syx> [flash .bin] [-v version] [-d device-ip] [-m mpc-vst-plugins checkout]
+#   release/build_release.sh <OS .syx> [flash .bin] [-v version] [-d device-ip] [-m mpc-vst-plugins checkout] [-p]
 #
 #   The flash image is optional: with it you get the ROM sample machines and the 16 factory kits; without it, every other machine
 #   and any kit .syx you add (the ROM machines stay silent, there are no factory kits).
@@ -10,6 +10,9 @@
 #   -d  after building, copy the zip to the Force and run its installer (stops and restarts MPC: save your project first)
 #   -m  mpc-vst-plugins checkout (default: $MPC_VST_DIR, ../mpc-vst, else cloned to ~/.cache); its main has the wrapper's
 #       "dynamic_name"/"dynamic_display" support this plugin needs, and the catalog checker
+#   -p  ADVANCED, off by default: also stage dist/mpc-os-patch/, an on-device patch of the factory MPC OS (3.9.1.2 only) that gives the
+#       plugin the 16-pad drum layout. It modifies /usr/bin/MPC, a firmware update removes it, uninstall.sh undoes it. With -d it is
+#       run on the device after the plugin install (asks you to type PATCH). See docs/HANDOFF-mpc-drum-pads.md.
 # Other input: MDPROBE (a ready-built mdProbe; if not set and not built, tools/mdtrace/build_mdprobe.sh builds it first).
 # Needs Docker (the md-armhf-builder image is built on first use; python:3.11-slim is pulled). Output: dist/Machinedrum-Module-, Machinedrum-Tap- and Machinedrum-Tap-FX-<version>-mpc-armv7.zip (install all three with -d).
 set -euo pipefail
@@ -22,8 +25,8 @@ usage() { sed -n '2,18p' "$0"; exit 2; }
 [ $# -ge 1 ] || usage
 OS=$(rp "$1"); shift
 FLASH=""; if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then FLASH=$(rp "$1"); shift; fi
-VERSION=""; DEVICE=""; MV="${MPC_VST_DIR:-}"
-while getopts "v:d:m:h" o; do case $o in v) VERSION=$OPTARG;; d) DEVICE=$OPTARG;; m) MV=$OPTARG;; *) usage;; esac; done
+VERSION=""; DEVICE=""; MV="${MPC_VST_DIR:-}"; PATCHOS=0
+while getopts "v:d:m:ph" o; do case $o in p) PATCHOS=1;; v) VERSION=$OPTARG;; d) DEVICE=$OPTARG;; m) MV=$OPTARG;; *) usage;; esac; done
 if [ -z "$VERSION" ]; then VERSION=$(git -C "$ROOT" describe --tags --always 2>/dev/null | sed -E 's/^v//; s/^([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/'); fi   # commits after a tag: still X.Y.Z (the catalog check needs it); pass -v to name a release
 case "$VERSION" in [0-9]*) ;; *) VERSION="0.0.0-dev.$VERSION";; esac
 if [ -z "$MV" ]; then
@@ -151,4 +154,13 @@ if [ -n "$DEVICE" ]; then
     ssh "root@$DEVICE" 'cat > /tmp/machinedrum-release.zip' < "$Z"
     ssh "root@$DEVICE" "cd /tmp && rm -rf '$d' && unzip -o -q machinedrum-release.zip && cd '$d' && sh install.sh -y"
   done
+fi
+if [ "$PATCHOS" = 1 ]; then
+  echo "== advanced: MPC OS drum-pad patch (3.9.1.2 only; modifies the factory /usr/bin/MPC; a firmware update removes it)"
+  rm -rf dist/mpc-os-patch; mkdir -p dist/mpc-os-patch; cp release/mpc_patch/install.sh release/mpc_patch/uninstall.sh release/mpc_patch/mpc-3.9.1.2.patch dist/mpc-os-patch/
+  echo "staged: dist/mpc-os-patch/ (copy to the Force and run: sh install.sh; undo: sh uninstall.sh)"
+  if [ -n "$DEVICE" ]; then
+    ssh "root@$DEVICE" 'rm -rf /tmp/mpc-os-patch && mkdir /tmp/mpc-os-patch' && scp -q dist/mpc-os-patch/* "root@$DEVICE:/tmp/mpc-os-patch/"
+    ssh -t "root@$DEVICE" 'sh /tmp/mpc-os-patch/install.sh'
+  fi
 fi

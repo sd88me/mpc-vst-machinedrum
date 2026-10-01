@@ -26,7 +26,7 @@ The sound comes from the Machinedrum's own code, not a re-creation of it:
   per-track LFO run from your OS file in a 68k emulator, and produce exactly the words the real ColdFire sends to the voice DSP.
 - **The track effects and the mix are a bit-exact C++ translation** of the Machinedrum's mixer DSP: AMD, EQ, both filters, SRR,
   distortion, VOL, PAN and the reverb/delay sends (millions of samples compared with the DSP's own code, identical).
-- **16 tracks, one instance.** MIDI notes 36-51 play tracks 1-16 (the Machinedrum's own note-to-track map).
+- **16 tracks, one instance.** MIDI notes 36-51 play tracks 1-16 (the Machinedrum's own note-to-track map); notes 0-15 also play tracks 1-16 (what the optional MPC OS drum-pad patch sends).
 - **The machines:** GND, TRX, EFM, E12, P-I and the ROM sample machines. The others have been dropped.
 - **Every parameter page of the hardware**, per track:
   - SYN: the eight synth knobs, with the machine's own labels, which change live with the machine.

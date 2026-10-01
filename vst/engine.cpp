@@ -883,7 +883,8 @@ void eMidi(void* p, const uint8_t* msg, int len)
 	const uint8_t status = msg[0] & 0xf0;
 	if(status == 0x90 && msg[2] > 0)	// note on
 	{
-		const int track = static_cast<int>(msg[1]) - kBaseNote;
+		int track = static_cast<int>(msg[1]) - kBaseNote;
+		if(msg[1] < kTracks) track = msg[1];	// the MPC OS drum-pad patch sends pad n as note n-1 (notes 0-15)
 		if(track < 0 || track >= kTracks) return;
 		const uint32_t w = in->nWrite.load(std::memory_order_relaxed);
 		in->notes[w & 255] = {static_cast<uint8_t>(track), msg[2]};
