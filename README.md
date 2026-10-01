@@ -6,7 +6,7 @@ from one plugin instance, using the Machinedrum's own DSP code and its own machi
 
 <img width="640" height="400" alt="image" src="https://github.com/user-attachments/assets/30d1c99b-333c-4b98-b9e5-2c3339ef0c29" />
 
-**v0.3.2.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
+**v0.3.4.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
 no downloadable build: it needs your own Machinedrum firmware, so you build the installer yourself with one script (see
 [Building](#building)). The Machinedrum's master effects are not built in: the reverb and delay sends come out through the new taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
 
@@ -78,6 +78,10 @@ plugins read channels from the Module running in the same project:
   them through MPC's own reverb and delay. Taps are sample-aligned with the Module (measured on a Force) and cost almost no CPU.
 - Needs one Machinedrum Module in the project; a tap is silent without it. The build makes an installer zip for each tap
   next to the Module's (see [Building](#building)).
+
+**New in 0.3.4:** saving and reloading now keeps your kit. A saved MPC project, program or plugin preset used to come back empty, because
+the plugin never handed MPC its state. It now stores all 16 tracks (machines and every knob), the kit and bank selection, so a reload
+restores the sound exactly.
 
 **New in 0.3.3:** the flash image is now optional. Build with just your OS `.syx` and you get every machine except the ROM sample machines (their tracks stay silent) and no factory kits; give the script the flash image as well for those. The sound of a full build is unchanged.
 
