@@ -12,7 +12,7 @@ _start:
         bne   2f
         cmp   r3, #0
         bne   1b
-        mov   r0, #1
+        movw  r0, #0x101        @ Machinedrum: byte 3100 = 1 (drum), byte 3101 = 1 (mark; see store.S)
         bx    lr
 2:      ldr   r1, L1
         add   r1, pc, r1
