@@ -1,5 +1,5 @@
 # Cross-compile toolchain file for the Force (Cortex-A17, armhf). Used by vst/build_so.sh inside the
-# md-armhf-builder image (see tools/Dockerfile.armhf-builder).
+# md-armhf-builder-glibc231 image (see tools/Dockerfile.armhf-builder).
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR arm)
 set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)

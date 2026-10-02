@@ -14,7 +14,7 @@
 #       plugin the 16-pad drum layout. It modifies /usr/bin/MPC, a firmware update removes it, uninstall.sh undoes it. With -d it is
 #       run on the device after the plugin install (asks you to type PATCH). See docs/HANDOFF-mpc-drum-pads.md.
 # Other input: MDPROBE (a ready-built mdProbe; if not set and not built, tools/mdtrace/build_mdprobe.sh builds it first).
-# Needs Docker (the md-armhf-builder image is built on first use; python:3.11-slim is pulled). Output: dist/Machinemodule-, Machinemodule-Tap- and Machinemodule-Tap-FX-<version>-mpc-armv7.zip (install all three with -d).
+# Needs Docker (the md-armhf-builder-glibc231 image is built on first use; python:3.11-slim is pulled). Output: dist/Machinemodule-, Machinemodule-Tap- and Machinemodule-Tap-FX-<version>-mpc-armv7.zip (install all three with -d).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # absolute path without GNU realpath (macOS has no `realpath -m`, older macOS no realpath at all); a missing file stays as given
