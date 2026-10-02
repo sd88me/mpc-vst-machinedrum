@@ -1,13 +1,13 @@
-# Handoff: 16 drum pads for Machinedrum Module (MPC OS patch, advanced option)
+# Handoff: 16 drum pads for Machinemodule (MPC OS patch, advanced option)
 
 Status (2026-10-01): **done and tested on the Force (MPC OS 3.9.1.2), plugin 0.3.4.** `release/mpc_patch/` (build `-p`).
-Machinedrum Module gets the drum layout, all 16 pads lit, pad n plays track n; Monomodule stays melodic; Akai's
-DrumSynth Multi keeps its layout but shows 16 lit pads (1-8 sound). All 16 pads are lit **red** (one colour). Patched md5 `10a7d0bb4e5fb66ffaa6b2c6a001eef2`.
+Machinemodule gets the drum layout, all 16 pads lit, pad n plays track n; Monomodule stays melodic; Akai's
+DrumSynth Multi keeps its layout but shows 16 lit pads (1-8 sound). All 16 pads are lit **red** (one colour). Patched md5 `9141b485dbabad805f443399c6645f41`.
 See "Result" at the end for what changed from the plan below.
 
 ## Goal
 
-When Machinedrum Module is loaded on a track, MPC should show the **16-pad drum layout** (one pad per Machinedrum track,
+When Machinemodule is loaded on a track, MPC should show the **16-pad drum layout** (one pad per Machinedrum track,
 drum view in the sequencer) instead of the melodic one. The plugin keeps its own name, skin and sound.
 
 This ships as an **advanced, opt-in option** of the build/deploy. Users must be told plainly:
@@ -71,7 +71,7 @@ cave:   adr   r1, name
         bne   2f
         cmp   r3, #0
         bne   1b
-        mov   r0, #1             @ "Machinedrum Module" -> drum layout
+        mov   r0, #1             @ "Machinemodule" -> drum layout
         bx    lr
 2:      ldr   r1, L1             @ not ours: the original check, as a tail call
         add   r1, pc, r1         @ r1 = 0x4ab2760 "DrumSynth:Multi"
@@ -79,7 +79,7 @@ cave:   adr   r1, name
         add   pc, pc, ip         @ -> 0x9289ec  bool juce::String::operator==(const char*)  (r0 still the String*, lr intact)
 L1:     .word 0x4ab2760 - (pc of the add + 8)
 L2:     .word 0x9289ec  - (pc of the add + 8)
-name:   .asciz "Machinedrum Module"
+name:   .asciz "Machinemodule"
 ```
 Budget: 13 instructions (52 bytes) + 2 literals (8) + 19 bytes of string = **79 of 80 bytes**. Build it with
 `arm-linux-gnueabihf-as` (link at `0x4a7b330` so the literals resolve), then check it with objdump against the real
@@ -155,7 +155,7 @@ target; mention it in the README as a possible later option.
 1. Offline first: apply the patch to a scratch copy of the device's MPC with a host-side script. Check the stock and
    patched md5s. Disassemble every patched region with `arm-linux-gnueabihf-objdump` and read it back.
 2. Device: run `install.sh`. Check:
-   - **Machinedrum Module on a new track:** drum layout, 16 pads lit, pads 1-16 play tracks 1-16. Add a
+   - **Machinemodule on a new track:** drum layout, 16 pads lit, pads 1-16 play tracks 1-16. Add a
      `/tmp/md-notes-on` style note log while testing; it was used for the measurement above, then reverted.
    - **Akai's DrumSynth Multi:** still gets the drum layout, with 16 pads.
    - **Another VST** (e.g. Monomodule): still melodic.

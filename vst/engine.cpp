@@ -1,4 +1,4 @@
-// mpc_engine() (mpc-vst-plugins wrapper/engine.h) for Machinedrum Module: all 16 voices from one instance, a
+// mpc_engine() (mpc-vst-plugins wrapper/engine.h) for Machinemodule: all 16 voices from one instance, a
 // MIDI note-number drum map (note - kBaseNote = track, clamped 0-15; velocity -> trigger velocity). See
 // HANDOFF.md, "Design goal: all voices in one plugin instance".
 //

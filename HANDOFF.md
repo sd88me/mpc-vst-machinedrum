@@ -1187,8 +1187,8 @@ from it.
     asks the DSP for "<key>_display"), drawn by MPC's native value label. The LFO page replaces the
     per-track LEV column (LEV stays on the GLOBAL mixer and the track's Q-Links).
 
-- **2026-09-28: kits, randomise, GLOBAL first, picker trimmed; renamed Machinedrum Module.**
-  - Renamed to **Machinedrum Module** (UID `MdOn` and `machinedrum_one.so` kept, so saved projects still load).
+- **2026-09-28: kits, randomise, GLOBAL first, picker trimmed; renamed Machinemodule.**
+  - Renamed to **Machinemodule** (UID `MdOn` and `machinedrum_one.so` kept, so saved projects still load).
     Skin: one big LCD (colours sampled from a photo of the real one: 5e0c0c on ff4836) inside a thin
     glossy bezel on a brushed faceplate. GLOBAL is the first tab (MIXER, GLOBAL, KITS pages).
   - Machine picker: MID/CTR (no audio), INP (no audio input) and RAM (no sampling) are no longer
@@ -1223,7 +1223,7 @@ from it.
   fills ROM01-32; ROM33-48 are empty (silent there too). Not yet checked: bit-exactness of ROM output
   against the emulated MD.
 
-- **2026-09-29: CPU work on the Force, ROM machines fixed, GLOBAL fixes. Machinedrum Module 0.4.x, deployed to the device.**
+- **2026-09-29: CPU work on the Force, ROM machines fixed, GLOBAL fixes. Machinemodule 0.4.x, deployed to the device.**
   - **Bank/kit steppers did nothing**: on the GLOBAL tab the kit/bank components were listed *before* the full-page
     Background image, so the opaque background covered them and took their clicks (later components draw and take
     clicks on top). Fixed in `mk_skin.py` (Background first). Track pages already had it the right way round.
@@ -1305,7 +1305,7 @@ from it.
   is the one-command build (mirrors Monomodule's `release/release.sh`): x86 tools -> factory kits + ROM samples -> recompiled DSP
   (discovery is now a CMake option, `-DMD_DISCOVERY=ON`, in `build-release/`) -> **bit-exactness gate** (x86 interpreter vs
   recompiled `md-hash`, with the ROM samples; aborts on mismatch) -> skin -> ARM plugin -> installer zip in `dist/`; `-d` copies
-  it to the Force and runs `install.sh -y`. First full run built `dist/Machinedrum-Module-0.1.0-mpc-armv7.zip` (2.2 MB, 339
+  it to the Force and runs `install.sh -y`. First full run built `dist/Machinemodule-0.1.0-mpc-armv7.zip` (2.2 MB, 339
   files). Default VOICES is now **5** (measured safe; 8 crackles). LCD background now sits `lcd_margin` (28 px) outside the page
   panels (`mk_skin.py`: `ALU_H` derived from `OX + PAGES_X0`). Dependency to resolve before anyone else can build: the plugin
   needs the wrapper's `dynamic_name`/`dynamic_display`, on the unmerged mpc-vst-plugins branch `claude/dynamic-param-names`; the
@@ -1315,7 +1315,7 @@ from it.
   section 5, CLAUDE.md): releases must carry `mpc-plugin.json` (`release.py --id --repo --license --requires`) and pass
   `tools/catalog_check.py <zip> --catalog --expect-id --expect-repo`; engines must locate data next to the `.so`
   (`MODULE_SUBDIR`, `wrapper/plugin_dir.h`), never a fixed `/sdcard`. Done here: `vst.json` defines `MODULE_SUBDIR "machinedrum"`
-  (MODULE_DIR kept as the fallback), `build_release.sh` passes `--id machinedrum-module --repo sd88me/mpc-vst-machinedrum --license
+  (MODULE_DIR kept as the fallback), `build_release.sh` passes `--id machinemodule --repo sd88me/mpc-vst-machinedrum --license
   AGPL-3.0-only --requires ...` and runs `catalog_check` as its last step. **Policy conflict, needs the user/maintainer:** the catalog
   only lists zips with no closed binaries or copyrighted ROMs; ours contains firmware-derived code and data (recompiled DSP, ROM
   samples, the OS file) so it must never be a public GitHub release and cannot be listed as a download (same for Monomodule).
@@ -1406,7 +1406,7 @@ Open, in the order I would take them:
   Everything below is committed locally except this note.
 - **Deployed on the Force (192.168.1.44)**: `machinedrum_one.so` md5 `fa1876b2781de4bb48d37a9fd6975aed` (VOICES default 4) (built by the full
   `release/build_release.sh`, gates passed: recompiled == interpreter, every offered machine sounds) and the rebuilt skin in
-  `/sdcard/Synths/sd88me - VST - Machinedrum Module` (ROM toggle now shows OFF). Re-insert the plugin in MPC to load both; the skin
+  `/sdcard/Synths/sd88me - VST - Machinemodule` (ROM toggle now shows OFF). Re-insert the plugin in MPC to load both; the skin
   needs an MPC restart to be re-read if the GLOBAL tab still shows ROM ON. **Not yet listened to** on the device after the
   silent-machine fix: play TRX XT/CP/MA/CL/XC, then re-test the busy TRX pattern at budget 4-5.
 - Defaults now: VOICES 4 (user-tested: 4 clean, 5 glitchy on the busy TRX pattern), ROM off, 2 voice threads (track FX on the same threads), ring lead 3 blocks (ring is 5 slots), duty cap 0.95.
@@ -1415,7 +1415,7 @@ Open, in the order I would take them:
 - What this session found (details in the entries above): the voice budget never cut anything (two bugs, fixed); TRX
   XT/CP/MA/CL/XC were silent (trigger flag, fixed); MPC's AudioWorker1 makes core 1 busy so cores are ranked by load; the 70% duty
   cap caused glitches; two threads help but capacity is still ~4-5 TRX/EFM voices (600-900 us per voice on a busy Force).
-- `dist/Machinedrum-Module-0.1.0-7-g884948d-mpc-armv7.zip` was built before the version fix below (its version string is not X.Y.Z
+- `dist/Machinemodule-0.1.0-7-g884948d-mpc-armv7.zip` was built before the version fix below (its version string is not X.Y.Z
   so the catalog check refused it): rerun `release/build_release.sh <OS.syx> <flash.bin>` (about 25 min, one core mostly: it compiles the
   1.1 MB generated DSP file several times) to get a conformant zip; the script now derives X.Y.Z from `git describe`.
 - Open, in order: (1) listen-test the fix; (2) cut the per-voice DSP cost (the recompiled DSP) - the only route to more polyphony;
@@ -1423,7 +1423,7 @@ Open, in the order I would take them:
   (5) master FX; (6) push `claude/v0.2-roadmap` and open a PR when happy (the v0.1.0 tag predates all of this).
 - 2026-09-29 late: user confirmed TRX XT/CP/MA/CL/XC now play and sound right; VOICES default changed 5 -> 4.
   **Pending:** the rebuilt skin (VOICES knob shows 4) is in `vst/build/skin` but could not be copied: the Force went unreachable
-  (No route to host). Deploy with: `cd vst/build/skin && tar -czf - "sd88me - VST - Machinedrum Module" | ssh root@192.168.1.44
+  (No route to host). Deploy with: `cd vst/build/skin && tar -czf - "sd88me - VST - Machinemodule" | ssh root@192.168.1.44
   'cd /sdcard/Synths && tar -xzf -'` (then restart MPC to re-read the skin). Only the knob's first-paint image differs.
 
 - **2026-09-30: master FX cost measured; recommendation is to emulate, not translate.** `MixerRef::runMaster` ($342->$971, rhythm
@@ -1449,7 +1449,7 @@ Open, in the order I would take them:
   fixed order: a shared engine must be producer/consumer (the existing engine thread + ring already is), taps read their own read
   pointer, never drive the engine from a callback. Design sketch: primary instance (lowest live id, hands over on close) owns engine +
   MIDI; tap instances pick a source (track 1-16 mono-as-stereo, reverb send, delay send, main) and read it from the shared ring.
-- **2026-09-30: "Machinedrum Tap" works on the Force (user-tested: routing a track to its own MPC track).** Built, not yet committed:
+- **2026-09-30: "Machinemodule Tap" works on the Force (user-tested: routing a track to its own MPC track).** Built, not yet committed:
   `vst/tap_shared.h` (state shared in-process), `vst/tap/` (tap_engine.cpp, vst.json uid `MdTp`, params.json: one `source` choice:
   Off, Track 1-16, Reverb send, Delay send), primary changes in `vst/engine.cpp` (first Inst to claim `g_tap.owner` publishes each track's
   mono signal = `Mixer::solo` (sample x VOL << 4, no pan) plus rev/del stereo into an 8-slot ring per 128-frame block; a track with a

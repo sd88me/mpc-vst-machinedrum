@@ -1,4 +1,4 @@
-// State shared between "Machinedrum Module" (the primary: owns the engine) and "Machinedrum Tap" instances, which live in
+// State shared between "Machinemodule" (the primary: owns the engine) and "Machinemodule Tap" instances, which live in
 // the same MPC process. The tap library finds it through md_tap_shared(), exported by machinedrum_one.so (dlopen RTLD_NOLOAD).
 // One track or send per tap, mono for tracks, so MPC's own mixer, submixes and send effects can process each one.
 #pragma once

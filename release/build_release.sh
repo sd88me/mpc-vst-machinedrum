@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Machinedrum Module's installer zip from YOUR OWN Machinedrum files (nothing of Elektron's is in this repo, and the
+# Builds Machinemodule's installer zip from YOUR OWN Machinedrum files (nothing of Elektron's is in this repo, and the
 # result contains firmware-derived code and data, so it is for your own devices only - never share or publish it).
 #
 #   release/build_release.sh <OS .syx> [flash .bin] [-v version] [-d device-ip] [-m mpc-vst-plugins checkout] [-p]
@@ -14,7 +14,7 @@
 #       plugin the 16-pad drum layout. It modifies /usr/bin/MPC, a firmware update removes it, uninstall.sh undoes it. With -d it is
 #       run on the device after the plugin install (asks you to type PATCH). See docs/HANDOFF-mpc-drum-pads.md.
 # Other input: MDPROBE (a ready-built mdProbe; if not set and not built, tools/mdtrace/build_mdprobe.sh builds it first).
-# Needs Docker (the md-armhf-builder image is built on first use; python:3.11-slim is pulled). Output: dist/Machinedrum-Module-, Machinedrum-Tap- and Machinedrum-Tap-FX-<version>-mpc-armv7.zip (install all three with -d).
+# Needs Docker (the md-armhf-builder image is built on first use; python:3.11-slim is pulled). Output: dist/Machinemodule-, Machinemodule-Tap- and Machinemodule-Tap-FX-<version>-mpc-armv7.zip (install all three with -d).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # absolute path without GNU realpath (macOS has no `realpath -m`, older macOS no realpath at all); a missing file stays as given
@@ -52,7 +52,7 @@ command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || {
 cd "$ROOT"
 [ -f libs/dsp56300/source/dsp56kEmu/dsp.h ] || git submodule update --init --recursive
 WORK=$ROOT/build-release; mkdir -p "$WORK" vst/build dist; : > "$WORK/build.log"
-echo "Machinedrum Module $VERSION  (plugins checkout: $MV)"
+echo "Machinemodule $VERSION  (plugins checkout: $MV)"
 
 echo "== 1/7 x86 tools (mdsamples, mdmachine)"
 # On the plain interpreter (no JIT): these tools only read memory, and the JIT (x86-64/arm64 hosts, e.g. an Apple Silicon Mac) can
@@ -124,24 +124,24 @@ echo "== 7/7 installer"
 rm -rf vst/build/payload && mkdir -p vst/build/payload && cp -r vst/build/factory vst/build/payload/factory && cp "$OS" vst/build/payload/Elektron_SPS1-1UW_OS1.63.syx
 python3 "$MV/tools/gen_vst.py" vst/vst.json >/dev/null   # its pluginlist-entry.xml (custom skin: no skin from gen_vst)
 python3 "$MV/tools/release.py" --so vst/build/machinedrum_one.so \
-  --skin "vst/build/skin/sd88me - VST - Machinedrum Module" --entry vst/build/pluginlist-entry.xml \
+  --skin "vst/build/skin/sd88me - VST - Machinemodule" --entry vst/build/pluginlist-entry.xml \
   --version "$VERSION" --extra vst/build/payload:vst/machinedrum \
-  --id machinedrum-module --repo sd88me/mpc-vst-machinedrum --license AGPL-3.0-only \
+  --id machinemodule --repo sd88me/mpc-vst-machinedrum --license AGPL-3.0-only \
   --requires "Your own Machinedrum OS 1.63 file (and, for the ROM machines and factory kits, flash image): this zip is built from them, contains Elektron-derived data and is for your own devices only" \
-  --about "Machinedrum Module: the Elektron Machinedrum UW sound engine as an MPC OS instrument (built from your own firmware)" -o dist
-ZIP=$(ls dist/Machinedrum-Module-"$VERSION"-*.zip); ls -l "$ZIP"
+  --about "Machinemodule: the Elektron Machinedrum UW sound engine as an MPC OS instrument (built from your own firmware)" -o dist
+ZIP=$(ls dist/Machinemodule-"$VERSION"-*.zip); ls -l "$ZIP"
 # catalog conformance (mpc-vst-plugins docs/CATALOG_SPEC.md): the manifest, layout, checksums, ELF/glibc limits
-python3 "$MV/tools/catalog_check.py" "$ZIP" --catalog --expect-id machinedrum-module --expect-repo sd88me/mpc-vst-machinedrum
+python3 "$MV/tools/catalog_check.py" "$ZIP" --catalog --expect-id machinemodule --expect-repo sd88me/mpc-vst-machinedrum
 
 # The taps: one zip each (release.py packages one plugin per zip). No firmware in them; they read the Module in the same project.
 ZIPS="$ZIP"
-for t in "tap:machinedrum_tap:Machinedrum Tap:machinedrum-tap:instrument" "tapfx:machinedrum_tapfx:Machinedrum Tap FX:machinedrum-tap-fx:effect"; do
+for t in "tap:machinedrum_tap:Machinemodule Tap:machinemodule-tap:instrument" "tapfx:machinedrum_tapfx:Machinemodule Tap FX:machinemodule-tap-fx:effect"; do
   IFS=: read -r dir so name id kind <<<"$t"
   python3 "$MV/tools/gen_vst.py" "vst/$dir/vst.json" >/dev/null   # its pluginlist-entry.xml (custom skin: no skin from gen_vst)
   python3 "$MV/tools/release.py" --so "vst/build/$so.so" --skin "vst/$dir/build/skin/sd88me - VST - $name" --entry "vst/$dir/build/pluginlist-entry.xml" \
     --version "$VERSION" --id "$id" --repo sd88me/mpc-vst-machinedrum --license AGPL-3.0-only \
-    --requires "Machinedrum Module (same version) in the same project" \
-    --about "$name: puts Machinedrum Module tracks and its reverb/delay sends on their own MPC track ($kind)" -o dist
+    --requires "Machinemodule (same version) in the same project" \
+    --about "$name: puts Machinemodule tracks and its reverb/delay sends on their own MPC track ($kind)" -o dist
   Z=$(ls dist/"${name// /-}"-"$VERSION"-*.zip); ls -l "$Z"
   python3 "$MV/tools/catalog_check.py" "$Z" --catalog --expect-id "$id" --expect-repo sd88me/mpc-vst-machinedrum
   ZIPS="$ZIPS $Z"

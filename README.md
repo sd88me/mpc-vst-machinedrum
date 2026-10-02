@@ -1,4 +1,4 @@
-# Machinedrum Module for MPC OS
+# Machinemodule for MPC OS
 
 The Elektron Machinedrum SPS-1 UW sound engine as a native VST2 instrument for Akai MPC OS standalone devices
 (built and tested on the Force), with its own touchscreen skin and Q-Link support. All 16 Machinedrum tracks play
@@ -68,7 +68,7 @@ A first-generation Force has four slow ARM cores shared with MPC itself, so some
 MPC gives a VST2 instrument only one stereo pair of outputs, so the Module cannot offer 16 outputs. Instead, two small extra
 plugins read channels from the Module running in the same project:
 
-- **Machinedrum Tap** (an instrument) and **Machinedrum Tap FX** (an effect, for a return or FX track). Each has an on/off
+- **Machinemodule Tap** (an instrument) and **Machinemodule Tap FX** (an effect, for a return or FX track). Each has an on/off
   cell for every track (mono, after the track's effects and VOL, before its pan), for the reverb send and for the delay send.
   Turn on as many as you like: the tap outputs their sum, so one MPC track or submix can carry any set of Machinedrum channels.
   Tap FX also has THRU, which adds whatever the track receives.
@@ -76,7 +76,7 @@ plugins read channels from the Module running in the same project:
   reverb and delay sends (the track's REV and DEL knobs), which the send taps carry.
 - Use them to give each drum its own MPC track, submix and insert effects, or to put the sends on a return track and run
   them through MPC's own reverb and delay. Taps are sample-aligned with the Module (measured on a Force) and cost almost no CPU.
-- Needs one Machinedrum Module in the project; a tap is silent without it. The build makes an installer zip for each tap
+- Needs one Machinemodule in the project; a tap is silent without it. The build makes an installer zip for each tap
   next to the Module's (see [Building](#building)).
 
 **New in 0.3.4:** saving and reloading now keeps your kit. A saved MPC project, program or plugin preset used to come back empty, because
@@ -93,7 +93,7 @@ until it is played again; before, every track you had hit kept costing its full 
 instead of two. New instances start at VOICES 6 with ROM machines on (projects you saved keep their own settings). The GLOBAL page
 now has VOICES and ROM on the top row and the four randomise toggles below.
 
-**New in 0.3.0:** **Machinedrum Tap** and **Machinedrum Tap FX**: extra plugins that put any tracks, and the reverb and delay sends, on their own MPC tracks, submixes or return tracks, so MPC's mixer and effects can process them. Tracks and sends can be mixed freely on one tap. Timing against the main output was measured on a Force (sample-aligned). The Module itself is unchanged, and its output is bit-identical when no tap is in use.
+**New in 0.3.0:** **Machinemodule Tap** and **Machinemodule Tap FX**: extra plugins that put any tracks, and the reverb and delay sends, on their own MPC tracks, submixes or return tracks, so MPC's mixer and effects can process them. Tracks and sends can be mixed freely on one tap. Timing against the main output was measured on a Force (sample-aligned). The Module itself is unchanged, and its output is bit-identical when no tap is in use.
 
 **New in 0.2.1:** build fixes only. The build no longer needs Monomodule's art file (the LCD fonts come from your Machinedrum OS, and the
 randomise toggle icon is now drawn by this project), `mdProbe` is built for you, and the README has plain steps including a macOS setup.
@@ -174,8 +174,8 @@ cd mpc-vst-machinedrum
 release/build_release.sh "/path/to/Elektron_SPS1-1UW_OS1.63.syx" "/path/to/flash image.bin"   # the flash image is optional
 ```
 
-That's the whole build. The result is three installer zips in `dist/`: `Machinedrum-Module-<version>-mpc-armv7.zip` and one each
-for the two taps, `Machinedrum-Tap-...` and `Machinedrum-Tap-FX-...` (install the ones you want; the taps need the Module). Put the two file paths in quotes.
+That's the whole build. The result is three installer zips in `dist/`: `Machinemodule-<version>-mpc-armv7.zip` and one each
+for the two taps, `Machinemodule-Tap-...` and `Machinemodule-Tap-FX-...` (install the ones you want; the taps need the Module). Put the two file paths in quotes.
 To install it on the Force from the same command, add `-d <device-ip>` (see below), or copy the zip over yourself,
 unzip it on the device and run `install.sh` as root. Installing stops and restarts MPC, so save your project first and run it
 with the device idle.
@@ -195,9 +195,9 @@ what it names; finished work is reused. `HANDOFF.md` has every step's details.
 
 ### Advanced (optional): 16 drum pads, by patching MPC OS
 
-Without this, MPC gives Machinedrum Module a melodic (keyboard) pad layout; play tracks 1-16 with notes 36-51. MPC gives the
+Without this, MPC gives Machinemodule a melodic (keyboard) pad layout; play tracks 1-16 with notes 36-51. MPC gives the
 drum-pad layout only to its own DrumSynth plugin, with 8 pads. `release/mpc_patch/` is an opt-in patch that gives
-Machinedrum Module the drum layout with 16 pads, all lit red (close to the Machinedrum's LCD), pad *n* playing track *n*.
+Machinemodule the drum layout with 16 pads, all lit red (close to the Machinedrum's LCD), pad *n* playing track *n*.
 
 **Read this first:**
 - It **modifies the factory MPC OS** (`/usr/bin/MPC`) on your device. Use it at your own risk.
@@ -215,7 +215,7 @@ the original bytes it changes, stops MPC, writes about 180 bytes, checks the res
 fails, it restores the original at once.
 
 To use it: build with `-p` (and `-d <device-ip>` to run it on the device; you type `PATCH` to confirm), or copy
-`dist/mpc-os-patch/` to the Force and run `sh install.sh` as root. Then add Machinedrum Module on a **new** track (pad
+`dist/mpc-os-patch/` to the Force and run `sh install.sh` as root. Then add Machinemodule on a **new** track (pad
 colours are set when the track is created).
 
 If MPC doesn't start after patching, SSH still works: run `sh uninstall.sh`, or copy
@@ -233,7 +233,7 @@ Master-effect settings inside a kit are ignored for now.
 
 This is a **build-it-yourself** plugin: the installer zip contains firmware-derived code and data, so it is built per user and
 must never be published as a release (a catalog entry for it links to this repo and its build instructions, not to a
-download). The zip is still catalog-conformant in format: `mpc-plugin.json` (id `machinedrum-module`, license
+download). The zip is still catalog-conformant in format: `mpc-plugin.json` (id `machinemodule`, license
 `AGPL-3.0-only`, source repo) is generated, and the build runs mpc-vst-plugins' `catalog_check.py --catalog` as its last step.
 The plugin locates its data next to the `.so` (`MODULE_SUBDIR`), not at a fixed path. Device testing is recorded in
 `tested.json` (v0.3.2: Akai Force, MPC OS 3.9.1).

@@ -1,4 +1,4 @@
-// mdsamples: the ROM machines' sample memory, for Machinedrum Module. The UW's ROM slots play samples the MD copies
+// mdsamples: the ROM machines' sample memory, for Machinemodule. The UW's ROM slots play samples the MD copies
 // from its sample flash into the voice DSP's (DSP2's) external memory at boot - memory this port's engine, which only
 // loads the OS's own DSP program, never gets. This tool takes a dump of the emulated MD's DSP2 P memory after boot
 // (tools/mdtrace/mdProbe dspdump:1:0:800000:FILE) and keeps the words that differ from what VoiceEngine loads itself,

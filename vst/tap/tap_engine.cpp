@@ -1,6 +1,6 @@
-// mpc_engine() for "Machinedrum Tap": one Machinedrum track (mono) or send (stereo), read from the shared state of the
-// "Machinedrum Module" instance in the same MPC process (vst/tap_shared.h), so MPC's own mixer, submixes and send effects
-// can process it. A tap has no engine of its own: it only reads. Silence until a Machinedrum Module exists.
+// mpc_engine() for "Machinemodule Tap": one Machinedrum track (mono) or send (stereo), read from the shared state of the
+// "Machinemodule" instance in the same MPC process (vst/tap_shared.h), so MPC's own mixer, submixes and send effects
+// can process it. A tap has no engine of its own: it only reads. Silence until a Machinemodule exists.
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -180,7 +180,7 @@ void fill(Tap* t, int16_t* out, int frames)
 
 void eRender(void* p, int16_t* out, int frames) { fill(static_cast<Tap*>(p), out, frames); }
 
-// The effect build ("Machinedrum Tap FX", on an MPC return/FX track): its output is the tapped source, plus the input it
+// The effect build ("Machinemodule Tap FX", on an MPC return/FX track): its output is the tapped source, plus the input it
 // was given when "through" is on, so MPC's own insert effects after it process the Machinedrum's reverb or delay send.
 void eProcess(void* p, const int16_t* in, int16_t* out, int frames)
 {

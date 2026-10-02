@@ -1,5 +1,5 @@
 #!/bin/sh
-# ADVANCED: patches the factory /usr/bin/MPC (MPC OS 3.9.1.2 only) so Machinedrum Module gets the 16-pad drum layout.
+# ADVANCED: patches the factory /usr/bin/MPC (MPC OS 3.9.1.2 only) so Machinemodule gets the 16-pad drum layout.
 # Run ON the device as root:  sh install.sh        (undo: sh uninstall.sh)
 # Touches the factory OS. A firmware update replaces the file and removes the patch. Nothing Akai's is shipped here:
 # the patch file holds only our bytes and md5s, applied to your own copy.

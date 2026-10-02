@@ -1,5 +1,5 @@
 {
-  "name": "Machinedrum Module", "vendor": "sd88me", "uid": "MdOn", "version": 1000,
+  "name": "Machinemodule", "vendor": "sd88me", "uid": "MdOn", "version": 1000,
   "so": "machinedrum_one.so",
   "params": "params.json", "custom_skin": true,
   "defines": {"MODULE_SUBDIR": "\"machinedrum\"", "MODULE_DIR": "\"/sdcard/vst/machinedrum\"", "HAS_LFO_BPM": 1},

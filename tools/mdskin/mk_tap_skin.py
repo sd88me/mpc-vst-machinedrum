@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the MPC skin for Machinedrum Tap / Machinedrum Tap FX: one LCD page of on/off cells, one per source (the 16 tracks,
+"""Builds the MPC skin for Machinemodule Tap / Machinemodule Tap FX: one LCD page of on/off cells, one per source (the 16 tracks,
 the reverb send, the delay send, and on the FX build "THRU": pass the plugin's own input through). Several can be on at once:
 the tap outputs their sum, so one MPC track (or submix) can receive any set of Machinedrum channels. Same LCD look as
 mk_skin.py (the Module's skin generator: fonts and toggle icon from art.json (tools/mdskin/mdartdump), drawing code copied, not
@@ -109,8 +109,8 @@ def text_width(font, s):
 CELLS = [("TRK %d" % (i + 1), "src%d" % (i + 1)) for i in range(16)] + [("REV", "src_rev"), ("DEL", "src_del")]
 if FX:
     CELLS.append(("THRU", "through"))
-TITLE = "MACHINEDRUM TAP FX" if FX else "MACHINEDRUM TAP"
-NAME, VENDOR = ("Machinedrum Tap FX" if FX else "Machinedrum Tap"), "sd88me"
+TITLE = "MACHINEMODULE TAP FX" if FX else "MACHINEMODULE TAP"
+NAME, VENDOR = ("Machinemodule Tap FX" if FX else "Machinemodule Tap"), "sd88me"
 OUT = os.path.join(sys.argv[3], "%s - VST - %s" % (VENDOR, NAME))
 SKIN = os.path.join(OUT, "Plugin Skins")
 os.makedirs(SKIN, exist_ok=True)
@@ -205,7 +205,7 @@ for k, (label, key) in enumerate(CELLS):
     place(tkey, label + " touch", PIDX[key], PX + (cx + TOUCH_INSET) * S, PY + (cy + TOUCH_INSET) * S, TOUCH_W, TOUCH_H)
 
 comp_bg = {"version": 1, "colour": "ff%02x%02x%02x" % PAPER, "image": ""}
-comp = "MACHINEDRUM TAP|MAIN"
+comp = "MACHINEMODULE TAP|MAIN"
 defs[comp] = {"key": comp, "value": {"version": 4, "actions": [], "backgroundData": {"version": 1, "focussed": comp_bg, "unfocussed": comp_bg},
                                      "ignoreMousePresses": False, "disableCoarseDataWheel": False, "repeats": 1,
                                      "hideQLinkBounds": True, "componentsData": comps}}

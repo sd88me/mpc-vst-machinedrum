@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes params.json for Machinedrum Module (VST index = order; append only, never reorder once shipped).
+"""Writes params.json for Machinemodule (VST index = order; append only, never reorder once shipped).
 Keys match vst/engine.cpp. Per track (0-15): machine (a raw OS machine id, not a named option list - the
 id table is decoded from the user's own firmware at runtime, see docs/FIRMWARE.md, so this repo can't
 commit real names for it), vol, pan, the AMP/EFX page's 8 params (AMD/AMF/EQF/EQG/FLTF/FLTW/FLTQ/SRR -
@@ -110,6 +110,6 @@ for key, name in (("randomize_all", "Randomise Machines"), ("randomize_1_8", "Ra
 # machine stay silent (engine.cpp swaps in the empty machine; the track keeps its ROM setting for when it is back on).
 params.append({"key": "rom_enabled", "name": "ROM Machines", "options": ["OFF", "ON"], "default": 1})
 
-json.dump({"name": "Machinedrum Module", "params": params,
+json.dump({"name": "Machinemodule", "params": params,
            "sections": [{"label": l, "keys": k} for l, k in sections]},
           open("params.json", "w"), indent=1)

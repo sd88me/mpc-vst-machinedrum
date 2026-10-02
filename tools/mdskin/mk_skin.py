@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the MPC skin for Machinedrum Module: mpc-vst-monomodule's own vst/skin/mk_skin.py (at 56cb8e0, its "2x2"
+"""Builds the MPC skin for Machinemodule: mpc-vst-monomodule's own vst/skin/mk_skin.py (at 56cb8e0, its "2x2"
 layout), adapted to the Machinedrum - the same LCD look, drawing code, knob cells, machine bar, picker and LEV
 column, not a new design. Upstream-of-this differences are only what the Machinedrum needs:
 
@@ -246,7 +246,7 @@ FR_X, FR_Y, FR_W, FR_H = 1, CONTENT_Y, CW - 1, CELL - CONTENT_Y
 
 
 # ------------------------------------------------------------------ output ----------------------------------------
-NAME, VENDOR = "Machinedrum Module", "sd88me"
+NAME, VENDOR = "Machinemodule", "sd88me"
 OUT = os.path.join(sys.argv[4], "%s - VST - %s" % (VENDOR, NAME))
 SKIN = os.path.join(OUT, "Plugin Skins")
 os.makedirs(SKIN, exist_ok=True)
@@ -544,7 +544,7 @@ build_row("BANK", strip_y0, "bank_prev", "bank_next", "bank_name")
 build_row("KIT", strip_y0 + (STRIP_H + STRIP_GAP) * S, "kit_prev", "kit_next", "kit_name")
 BAR_W_MAX = max(machine_bar(m).size[0] for m in MACHINES)   # the machine picker's tap field: the widest bar
 # the nameplate, on the LCD in its own bold font, right-aligned with the pages, level with the machine bar
-_np = "MACHINEDRUM MODULE"
+_np = "MACHINEMODULE"
 px_text(TRACK_CHASSIS, F["bold8"], _np, OX + PAGES_X0 + PAGES_W - text_width(F["bold8"], _np) * 3,
         OY + 8 + (BAR_ROWS * S - F["bold8"].h * 3) // 2, 3, INK)
 

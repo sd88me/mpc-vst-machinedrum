@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Makes Machinedrum Module's factory data from the user's own MD OS: the factory kits (FACTORY.syx) and the ROM
+"""Makes Machinemodule's factory data from the user's own MD OS: the factory kits (FACTORY.syx) and the ROM
 machines' sample memory (ROM_SAMPLES.bin), both installed to <data dir>/factory.
 
 Both come from booting the emulated MD (tools/mdtrace/mdProbe) from the user's flash image. The factory kits are made
