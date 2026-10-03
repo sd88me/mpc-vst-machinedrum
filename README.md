@@ -1,5 +1,8 @@
 # Machinemodule for MPC OS
 
+> **Requires MPC OS 3.x.** MPC OS 2.x needs further development: the touchscreen skins do not draw there yet (the page
+> stays empty). See [MPC OS 2.x vs 3.x](https://github.com/sd88me/mpc-vst-plugins#mpc-os-2x-vs-3x) in the main repo.
+
 The Elektron Machinedrum SPS-1 UW sound engine as a native VST2 instrument for Akai MPC OS standalone devices
 (built and tested on the Force), with its own touchscreen skin and Q-Link support. All 16 Machinedrum tracks play
 from one plugin instance, using the Machinedrum's own DSP code and its own machine, LFO and mixer maths.
