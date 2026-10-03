@@ -1,5 +1,7 @@
 # Machinemodule for MPC OS
 
+💬 Questions or feedback? Join the [Open MPC Discord](https://discord.gg/sRRysZSgu3).
+
 > **Requires MPC OS 3.x.** MPC OS 2.x needs further development: the touchscreen skins do not draw there yet (the page
 > stays empty). See [MPC OS 2.x vs 3.x](https://github.com/sd88me/mpc-vst-plugins#mpc-os-2x-vs-3x) in the main repo.
 
