@@ -168,10 +168,35 @@ offers is checked to make sound as part of the build.### Known limits
 
 The build reads your firmware and writes an installer zip containing the plugin, the skin, your extracted kits and ROM
 samples, and your OS file (the plugin reads it at run time); the result contains firmware-derived code and data, so it is
-for your own devices only.
+for your own devices only. You don't need to be a programmer: do the steps in order and run the check after each one.
+(The site's [Build page](https://sd88me.github.io/mpc-vst-plugins/build.html#plugins-you-build-yourself) describes the general
+process for every build-it-yourself plugin.)
 
 **Where to run this: on your own computer, not on the Force.** The build runs inside Docker on your computer, and so does
-the `git clone` below. The Force is only where the finished plugin is installed.
+the `git clone`. The Force is only where the finished plugin is installed.
+
+### Step 1: Get your files and your device's address
+
+1. Download the **Machinedrum OS 1.63** `.syx` (free, from Elektron's website) and, optionally, make or find your Machinedrum
+   UW **flash image** `.bin` (see "What you need" for what it adds).
+2. Put them in a folder whose path has **no spaces**, for example `~/md/`.
+3. Find your device's IP address (on the Force/MPC: Menu, Preferences, Network; it looks like `192.168.1.44`), on the same
+   network as your computer. Check SSH: `ssh root@<device-ip>` should log in (type `exit` to leave). If it times out, see
+   "Check that you can reach your device" on the [Install page](https://sd88me.github.io/mpc-vst-plugins/install.html).
+
+### Step 2: Set up your computer (one time)
+
+1. **Open a terminal.** macOS: the Terminal app (then do "On a Mac" above). Ubuntu: Ctrl+Alt+T. Windows: install Ubuntu in
+   WSL 2 (`wsl --install` in an administrator PowerShell, restart, open "Ubuntu") and work in your Ubuntu home folder (`cd ~`).
+2. **Install the tools.** Ubuntu/WSL: `sudo apt update && sudo apt install git cmake ninja-build python3`.
+   Check: `git --version`, `cmake --version`, `ninja --version` and `python3 --version` each print a version.
+3. **Install Docker** ([Docker Desktop](https://docs.docker.com/desktop/) on macOS/Windows, and start it;
+   [Docker Engine](https://docs.docker.com/engine/install/ubuntu/) on Ubuntu, then `sudo usermod -aG docker $USER` and log out
+   and back in). Check: `docker run --rm hello-world` prints a welcome message.
+4. Make sure you have about **10 GB free disk space**, and keep the computer awake: the build takes about 25 minutes, plus a
+   few more the first time (it builds `mdProbe`).
+
+### Step 3: Build
 
 ```bash
 git clone --recursive https://github.com/sd88me/mpc-vst-machinedrum.git
@@ -179,24 +204,43 @@ cd mpc-vst-machinedrum
 release/build_release.sh "/path/to/Elektron_SPS1-1UW_OS1.63.syx" "/path/to/flash image.bin"   # the flash image is optional
 ```
 
-That's the whole build. The result is three installer zips in `dist/`: `Machinemodule-<version>-mpc-armv7.zip` and one each
-for the two taps, `Machinemodule-Tap-...` and `Machinemodule-Tap-FX-...` (install the ones you want; the taps need the Module). Put the two file paths in quotes.
-To install it on the Force from the same command, add `-d <device-ip>` (see below), or copy the zip over yourself,
-unzip it on the device and run `install.sh` as root. Installing stops and restarts MPC, so save your project first and run it
-with the device idle.
+Put both file paths in quotes. Watch for the `== 3/7 ...` step headings; at the end you have three installer zips in `dist/`:
+`Machinemodule-<version>-mpc-armv7.zip` and one each for the two taps, `Machinemodule-Tap-...` and `Machinemodule-Tap-FX-...`
+(install the ones you want; the taps need the Module).
 
-Options: `-v <version>` (default from `git describe`), `-d <device-ip>` (copy all three zips over and run their installers; MPC restarts once per zip),
+### Step 4: Install on the device
+
+1. **Save your project on the device.** Installing stops and restarts MPC, once per zip, and the device should be idle.
+2. Either re-run the build with `-d <device-ip>` (finished work is reused, so this is quick) to copy all three zips over and
+   run their installers, or install a zip yourself: copy it to the device, unzip it there and run `install.sh` as root, or
+   drop it into the [installer app](https://sd88me.github.io/mpc-vst-plugins/install.html).
+3. On the device, add **Machinemodule** on a track from the plugin browser. Save and reload a project once to check.
+
+### Options
+
+`-v <version>` (default from `git describe`), `-d <device-ip>` (copy all three zips over and run their installers),
 `-m <mpc-vst-plugins checkout>` (default: fetched automatically, or `../mpc-vst` if it exists). `MDPROBE=<path>` uses a
 ready-built `mdProbe`; otherwise `tools/mdtrace/build_mdprobe.sh` builds it the first time (you can also run that by hand).
 `-p` is the advanced MPC OS patch below (off by default).
+
+### What the build does, and if something goes wrong
 
 The script builds, in order: the x86 helper tools, the factory kits and ROM samples (by booting the emulated MD from your flash
 image), the recompiled voice DSP (traced from your OS file), a **bit-exactness gate** (the recompiled DSP must give the same
 audio hash as the plain interpreter, ROM machines included, and every machine the plugin offers must make sound, or nothing is
 built for the device), the skin, the ARM plugin, and the installer zip.
 
-**If something goes wrong:** the script stops at the first error and says which step (`== 3/7 ...`). Run it again after fixing
-what it names; finished work is reused. `HANDOFF.md` has every step's details.
+The script stops at the first error and says which step. Fix what it names and run it again; finished work is reused.
+
+| You see | Usually means |
+|---|---|
+| `docker: permission denied` | Your user isn't in the `docker` group yet: run the `usermod` command above, log out and in. |
+| `Cannot connect to the Docker daemon` | Docker isn't running: start Docker Desktop (or `sudo systemctl start docker`). |
+| `ssh: ... timed out` / `Permission denied` | Wrong IP, different network, or SSH not reachable; see Step 1. |
+| Stops at the bit-exactness gate | Wrong OS file or version. Use Machinedrum OS **1.63**. |
+| A file is "not found" | A space or typo in a path: put paths in quotes, or move the files to a folder without spaces. |
+
+Still stuck? Ask on the [Open MPC Discord](https://discord.gg/sRRysZSgu3), or open an issue with the last 20 lines of output. `HANDOFF.md` has every step's details.
 
 ### Advanced (optional): 16 drum pads, by patching MPC OS
 
