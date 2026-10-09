@@ -61,6 +61,9 @@ namespace md::engine
 			cfg.dynamicFastInterrupts = true;
 			cfg.aguSupportBitreverse = true;
 			cfg.linkJitBlocks = false;
+			// The voice program keeps main-loop code below $100, in the interrupt-vector area; without this the JIT
+			// compiles it as 2-word fast-interrupt blocks and the init loop never ends (x86-64/arm64 hosts).
+			cfg.interruptRegionIsCode = true;
 			m_dsp->getJit().setConfig(cfg);
 		}
 		else

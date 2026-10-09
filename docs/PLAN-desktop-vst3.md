@@ -24,7 +24,7 @@ the default.
 
 | Part | Monomodule files | What changes for the MD |
 |---|---|---|
-| CMake: JUCE 8.0.9 via FetchContent, pinned dsp56300 + patch, plugin targets, hardened-runtime JIT entitlements on macOS | `CMakeLists.txt`, `cmake/dsp56300.cmake`, `cmake/apply_patch.cmake`, `src/plugin/CMakeLists.txt` | A second patch for the MD fixes (Phase 0). |
+| CMake: JUCE 8.0.9 via FetchContent, dsp56300 + patch, plugin targets, hardened-runtime JIT entitlements on macOS | `CMakeLists.txt`, `cmake/dsp56300.cmake`, `cmake/apply_patch.cmake`, `src/plugin/CMakeLists.txt` | Uses the repo's dsp56300 fork (it already carries the patch). |
 | Processor skeleton: APVTS, MIDI handling, state, latency reporting, bypass | `src/plugin/one/OneProcessor.*`, `OneParams.h` | 16 tracks in one instance (Monomodule Six is the model), MD note map. |
 | 44.1 kHz <-> host-rate converter | `src/core/dsp/Resampler.*` | As is. The MD also runs only at 44.1 kHz. |
 | OS-file selection, shared settings, status text | `SharedSettings.h`, `setFirmwarePath` etc. | Settings folder `.../Machinemodule/`. |
@@ -70,8 +70,7 @@ upstream commit, `eb5cfee`), not forked; upstream fixes are carried over by hand
 ```
 desktop/
   CMakeLists.txt              Monomodule's top level, cut down: JUCE 8.0.9 via FetchContent, MD targets
-  cmake/dsp56300.cmake        Monomodule's pinned commit + 0001-dsp56300-mnm.patch + 0002-dsp56300-md.patch
-  ext/patches/                the two dsp56300 patches
+  cmake/dsp56300.cmake        uses ../libs/dsp56300 (the fork, which already carries Monomodule's patch)
   src/core/                   MdVoice (engine + resampler glue), MasterFx, KitCodec, RomData, Resampler (from Monomodule)
   src/plugin/                 MdProcessor, MdEditor, MdParams, RomArt (MD OS 1.63), Lcd, MachinePicker
   src/cli/                    md-render (WAV render), md-import (flash image -> ROM samples + factory kits)
@@ -96,18 +95,31 @@ Each phase ends in something that can be run and checked.
 
 1. Build `mdcore` on x86-64 Linux, macOS (arm64 and x86-64) and Windows (MSVC). Replace `memmem` with `std::search`.
    Confirm Musashi's CPU state is per instance (`getCpuState()`), because a DAW runs several plugin instances in one process.
-2. Settle the dsp56300 version. Our fork (`libs/dsp56300`, branch arm32) carries the MERGE instruction, the boot-loader
-   cache-invalidation fix and the opcode-table static-init (SIOF) fix. Monomodule pins `c051afad` with SR.SM saturation,
-   MPYRI and PFLUSH. HANDOFF records that the JIT "can crash while VoiceEngine initialises" on x86-64/arm64 hosts.
-   - Recommended: start from Monomodule's pinned commit and patch, and add our fixes as a second patch
-     (`0002-dsp56300-md.patch`). The JIT is the same one Monomodule ships on macOS, Windows and Linux.
-   - Fallback: fix the JIT crash in our own fork.
+2. dsp56300: our fork (`libs/dsp56300`) already contains Monomodule's patch (marked "MNM patch" in 17 files), so there
+   is one lineage and no second patch to write. Desktop builds use the fork as it is.
 3. Gate: `md-hash` (interpreter) = `md-hash` (JIT) on the same OS file and ROM samples, including the per-machine sweep. This
    is the existing release gate, run as a ctest.
 4. Measure: real-time factor for 16 busy tracks on a modest laptop. Expected: well under one core, since the Force does about
    6 voices on a slow ARM core with the recompiler.
 
 **Done when:** the JIT hash equals the interpreter hash on all three OSes, with no crash on init.
+
+**Result so far (x86-64 Linux, MD OS 1.63, no ROM samples yet):**
+
+- The JIT crashed at voice DSP init ("instruction budget exceeded", an endless loop in the init code). Cause: the voice
+  program keeps code below `$100`, which the JIT compiled as fast-interrupt vectors. Fix, in `engine/VoiceEngine.cpp`,
+  JIT builds only (the ARM build is unaffected): `cfg.interruptRegionIsCode = true`, the same switch Monomodule sets.
+- `md-hash`: JIT and interpreter both give `04ef1db4fe767721` (12 s, 16 tracks, random machines). The JIT is about 3x
+  faster than the interpreter on this pattern (2 s against 6 s for 12 s of audio).
+- Machine sweep (`MD_SWEEP=1`): all 135 machines make sound under both. Two noise-based machines, TRX CB and TRX S2,
+  differ in level between JIT and interpreter (peak 3744 against 2979, and 2778 against 2977). The result changes with
+  the JIT block size, so it depends on timing inside the voice program (the noise seed) and is not an arithmetic error.
+  The hardware gives a fresh noise sequence on every hit as well. To investigate later; the other noise machines match.
+- `md-multi`: four engines rendering at the same time on four threads give the same audio as when rendered one after the
+  other, so several plugin instances in one DAW process are safe (Musashi and the JIT keep no shared state).
+- Load: 16 tracks all sounding cost about 28% of one core on the build server.
+- `memmem` replaced by `std::search` in `MachineRunner.cpp` (MSVC has none).
+- Still to do for Phase 0: the same check with ROM samples (needs the flash import, Phase 4), and builds on macOS and Windows.
 
 ### Phase 1: a minimal VST3 that plays
 
@@ -198,8 +210,8 @@ Today these come from booting the emulated MD at build time (`mdProbe` + `tools/
 
 | Risk | Mitigation |
 |---|---|
-| The dsp56300 JIT crashes on the MD voice program (seen once on x86-64/arm64). | Phase 0 settles this first; the interpreter fallback is always available (slower but well within desktop budgets). |
-| Two dsp56300 lineages (ours and Monomodule's). | One pinned commit plus two small patches, both tested by the JIT=interpreter gate. |
+| The dsp56300 JIT crashes on the MD voice program. | Fixed on x86-64 (see Phase 0 result); arm64 (Apple Silicon) still to check. The interpreter is the fallback, at about half a core for 16 busy tracks. |
+| JIT and interpreter differ in the noise seed of two TRX machines. | Understand it (timer or cycle-count dependence) before release; level is the same. |
 | Several plugin instances in one process. | Check for global state in Musashi and in the dsp56300 JIT; Monomodule already runs Six with six DSPs in one process. |
 | Booting gearmulator-md-mm inside the plugin for the flash import. | Keep it in a background job and a separate CLI; it runs once and its output is cached. |
 | Master-FX parameter mapping not decoded yet. | Phase 2 starts with tracing the tick on the full-system emulator, as was done for DSP1's per-track words. |

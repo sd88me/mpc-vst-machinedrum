@@ -3,6 +3,7 @@
 // usage: md-hash <OS.syx> [ROM_SAMPLES.bin]   (with the ROM samples, the pattern plays two ROM machines too)
 //   MD_GROUPS=n   voices split over n DSP2 instances (must give the same hash)
 //   MD_SWEEP=1    plays every machine on a fresh engine and prints "SWEEP id name peak" (release gate: none of the offered ones silent)
+//   MD_SWEEP_ID=n  with MD_SWEEP: only machine n; MD_SWEEP_DUMP=file also writes track 3's samples (int32 LE) for diffing two builds
 //   MD_BUDGET=n   voice budget n; prints the max/mean number of voices that rendered
 //   MD_RELEASE=n  silence release after n quiet blocks (HostModel::setSilenceRelease)
 #include <cstdio>
@@ -75,6 +76,7 @@ int main(int argc, char** argv)
 		}
 		for(const int id : ids)
 		{
+			if(getenv("MD_SWEEP_ID") && id != atoi(getenv("MD_SWEEP_ID"))) continue;
 			md::engine::Engine e(fwv, std::vector<uint8_t>(c.sections.at(0).data));
 			if(argc > 2)
 				if(FILE* rf = fopen(argv[2], "rb"))
@@ -98,7 +100,9 @@ int main(int argc, char** argv)
 			for(int b = 0; b < 40; ++b) e.render(o);
 			hh.trigger(2, 100);
 			int peak = 0;
-			for(int b = 0; b < 700; ++b) { e.render(o); for(int f = 0; f < 32; ++f) peak = std::max(peak, std::abs(int(o.tracks[2][f] >> 8))); }
+			FILE* dump = getenv("MD_SWEEP_DUMP") ? fopen(getenv("MD_SWEEP_DUMP"), "wb") : nullptr;
+			for(int b = 0; b < 700; ++b) { e.render(o); for(int f = 0; f < 32; ++f) peak = std::max(peak, std::abs(int(o.tracks[2][f] >> 8))); if(dump) fwrite(o.tracks[2].data(), 4, 32, dump); }
+			if(dump) fclose(dump);
 			printf("SWEEP %3d %-8s peak %d\n", id, mc->name.c_str(), peak);
 			fflush(stdout);
 		}
