@@ -135,9 +135,31 @@ Each phase ends in something that can be run and checked.
 **Done when:** it loads in Reaper, Bitwig and Ableton (VST3) and Logic (AU); a factory-style kit plays, saves and reloads;
 the output at 44.1 kHz is sample-identical to `md-render` for the same note list.
 
-### Phase 2: 16 track outputs and the master effects
+**Result (Linux x86-64; `desktop/`):**
 
-1. Buses: Main stereo + Track 1-16. Each track bus carries the track after its effects and VOL (`Mixer::solo`, which
+- Built: VST3 and Standalone (AU is configured for macOS). `desktop/README.md` has the build and use instructions.
+- Processor: 16 tracks, 496 host parameters (per track: machine, SYN1-8, AMD AMF EQF EQG FLTF FLTW FLTQ SRR, DIST VOL PAN
+  DEL REV LFOS LFOD LFOM, LEV, and the five LFO settings, all raw 0-127 like a kit byte). A machine change adopts the new
+  machine's SYN defaults, but a kit or a restored project keeps its own values. Engine loaded on a background thread
+  (silent until ready); notes 36-51 and 0-15; host tempo; any host sample rate through Monomodule's resampler.
+- **Outputs: Main + Track 1-16 are already in** (pulled forward from Phase 2): a track whose bus is enabled leaves the main
+  mix (`dryMute`) and still feeds the sends. Each track bus is mono on both channels, no pan for now.
+- Editor: OS file, kit file, kit stepping, status. Kits load from any `.syx` (all kits in the file); a `factory/FACTORY.syx`
+  and `factory/ROM_SAMPLES.bin` in the data folder are used when present (Phase 4 will make them).
+- Tests: `mm-render` shows the processor's main output is **sample-identical to the bare engine** at 44.1 kHz (0 of 88,200
+  samples differ), 48 kHz peaks within 1%, and a track on its own bus leaves the main mix. The VST3 passes **pluginval
+  strictness 5** (sample rates up to 96 kHz, block sizes, state, automation, enabling and disabling all 17 buses), with and
+  without an OS file.
+- Found on the way: the engine applies a machine change at the track's next trigger, so parameters are applied before the
+  notes of each block.
+- Open: a track bus is about 6 dB hotter than the track's share of the main mix (no pan law; the hardware's individual-output
+  formula, as the MPC taps), and clips on a very loud machine at high VOL (17 full-scale samples in the test). To confirm against
+  the hardware before release. Not yet tried in a DAW; macOS and Windows builds untried; sample-accurate note timing is
+  to the engine's 32-frame block.
+
+### Phase 2: the master effects, and pan on the track outputs
+
+1. (Buses are done in Phase 1; this is what remains.) Main stereo + Track 1-16. Each track bus carries the track after its effects and VOL (`Mixer::solo`, which
    the taps use today). Each track bus is stereo, so PAN can apply there, with a per-track "PAN on track out" switch
    (default on); a mono bus is offered too where the host supports it. When a track's bus is enabled in the host, the
    track leaves the dry main mix (the `dryMute` mask the taps already use) but still feeds the reverb and delay sends,
