@@ -50,8 +50,8 @@ the default.
 - **Master effects**: rhythm echo, gate box/reverb, EQ, dynamix. Emulate DSP1's master section (`$342-$971`) in
   dsp56300, MixerRef-style, as the 2026-09-30 HANDOFF entry already planned (about 13.4 M DSP instructions a second: trivial
   for a desktop JIT). REV and DEL then do what they do on the hardware.
-- **The MD's outputs**: Main L/R plus the four individual outputs A-D, with each track's ROUTE (main / A / B / C / D)
-  through the route word `HostModel::setRouting` already produces. An optional extension: 16 per-track mono outputs.
+- **Full 16-track output** (decided): Main stereo (the MD's main out, master effects included) plus 16 per-track outputs,
+  one per track, each after the track's effects and VOL. This replaces the taps. See Phase 2 for the details.
 - **INP machines** (INP-GA, GB, FA, FB): the plugin's side-chain input as the MD's audio inputs A/B, the same way
   Monomodule feeds its FX machines.
 - **RAM machines** (RAM-R/P): record from the side-chain input or the main mix into the voice DSP's RAM. Later phase:
@@ -62,24 +62,29 @@ the default.
 
 ## 2. Repository layout
 
-Recommended: a **new repository forked from shnolk/monomodule** (for example `sd88me/machinemodule-desktop`). That keeps
-Monomodule's history and attribution and lets framework fixes (resampler, JUCE updates, LCD code) be merged from upstream.
-This repo's `engine/` and `tools/mdfw/` come in as a **git submodule pinned to a commit**, so there is one copy of the
-engine for both the MPC build and the desktop build:
+Decided: a **`desktop/` folder in this repo** for now, with its own CMake project, so the MPC build (`CMakeLists.txt`,
+`release/`, `vst/`) is untouched. The desktop build uses `engine/` and `tools/mdfw/` from the repo root as they are, so
+there is one copy of the engine. Monomodule's framework files are copied in (with their AGPL headers and a note of the
+upstream commit, `eb5cfee`), not forked; upstream fixes are carried over by hand when needed.
 
 ```
-machinemodule-desktop/
-  CMakeLists.txt              Monomodule's, with MD targets
+desktop/
+  CMakeLists.txt              Monomodule's top level, cut down: JUCE 8.0.9 via FetchContent, MD targets
   cmake/dsp56300.cmake        Monomodule's pinned commit + 0001-dsp56300-mnm.patch + 0002-dsp56300-md.patch
-  ext/mpc-vst-machinedrum/    submodule: this repo (engine/, tools/mdfw/, libs/gearmulator-md-mm for Musashi)
-  src/core/md/                MdVoice (engine + resampler glue), MasterFx, KitCodec, RomData (ROM samples/kits import)
-  src/plugin/md/              MdProcessor, MdEditor, MdParams, RomArt (MD 1.63), pages
+  ext/patches/                the two dsp56300 patches
+  src/core/                   MdVoice (engine + resampler glue), MasterFx, KitCodec, RomData, Resampler (from Monomodule)
+  src/plugin/                 MdProcessor, MdEditor, MdParams, RomArt (MD OS 1.63), Lcd, MachinePicker
   src/cli/                    md-render (WAV render), md-import (flash image -> ROM samples + factory kits)
   tests/                      JIT vs interpreter hash, MixerRef vs TrackFx, master FX vs emulated DSP1, golden renders
+  README.md                   desktop build and install
 ```
 
-The other choice is a `desktop/` folder in this repo. It is simpler at first, but it mixes JUCE and the MPC toolchain in
-one build, and upstream Monomodule fixes would have to be copied over by hand.
+`desktop/CMakeLists.txt` adds `../engine` and `../tools/mdfw` as the `mdcore` library (the same source list as the root
+`CMakeLists.txt`) and Musashi from `../libs/gearmulator-md-mm`. The root `.gitignore` already keeps firmware and derived
+files out; add `desktop/build*/`.
+
+The master effects (`MasterFx`) live in `desktop/src/core/`: the MPC build stays as it is, without them, by decision.
+If the MPC build ever gets them, the class moves to `engine/`.
 
 Licences fit together: both projects are AGPL-3.0-only, dsp56300 and gearmulator-md-mm are GPL-3.0, JUCE 8 is AGPL.
 
@@ -106,7 +111,7 @@ Each phase ends in something that can be run and checked.
 
 ### Phase 1: a minimal VST3 that plays
 
-1. Fork Monomodule. Add the `MdVoice` glue: `EngineT` -> 32-frame blocks -> FIFO -> Monomodule's Resampler -> host
+1. Set up `desktop/` with the Monomodule files listed in section 1. Add the `MdVoice` glue: `EngineT` -> 32-frame blocks -> FIFO -> Monomodule's Resampler -> host
    buffer (the same pattern as Monomodule's `MonoVoice::process`).
 2. `MdProcessor`: OS file selected at run time (Monomodule's flow and settings file); MIDI notes 36-51 play tracks 1-16
    (the MD's map), velocity to trigger velocity; host tempo to `HostModel::setTempo`.
@@ -118,9 +123,16 @@ Each phase ends in something that can be run and checked.
 **Done when:** it loads in Reaper, Bitwig and Ableton (VST3) and Logic (AU); a factory-style kit plays, saves and reloads;
 the output at 44.1 kHz is sample-identical to `md-render` for the same note list.
 
-### Phase 2: the hardware's outputs and master effects
+### Phase 2: 16 track outputs and the master effects
 
-1. Buses: Main stereo + A, B, C, D (mono, like the hardware) through ROUTE. Optional layout: 16 per-track mono outputs.
+1. Buses: Main stereo + Track 1-16. Each track bus carries the track after its effects and VOL (`Mixer::solo`, which
+   the taps use today). Each track bus is stereo, so PAN can apply there, with a per-track "PAN on track out" switch
+   (default on); a mono bus is offered too where the host supports it. When a track's bus is enabled in the host, the
+   track leaves the dry main mix (the `dryMute` mask the taps already use) but still feeds the reverb and delay sends,
+   as on the hardware's individual outputs. Disabled buses cost nothing, and with none enabled the main output is
+   identical to the single-output build.
+   The MD's own ROUTE setting (main / A-D) stays a kit parameter so kits load and save unchanged, but the plugin routes by
+   track bus instead.
 2. `MasterFx`: DSP1 in dsp56300 running only the master section, fed with the dry mix and the REV/DEL sends; parameters
    `Y:$150-$18c` from the kit's 32 master-FX bytes. First decode how the OS tick fills them (`$1000d7c+16`).
 3. Master FX pages as parameters: rhythm echo, gate box, EQ, dynamix. Kits now load their master settings (today ignored).
@@ -193,10 +205,10 @@ Today these come from booting the emulated MD at build time (`mdProbe` + `tools/
 | Master-FX parameter mapping not decoded yet. | Phase 2 starts with tracing the tick on the full-system emulator, as was done for DSP1's per-track words. |
 | macOS JIT needs the hardened-runtime entitlements and notarisation. | Monomodule's CMake already sets them; copy as is. |
 
-Open questions for you:
+Decisions (2026-10-09):
 
-1. New repo forked from Monomodule (recommended) or a `desktop/` folder in this repo?
-2. Outputs: the hardware's Main + A-D only, or also 16 per-track outputs?
-3. Name: "Machinemodule" for both, or a distinct desktop name?
-4. Should the MPC build later switch to the same master FX (it is the roadmap's "Gen 2" build)? If so, `MasterFx` belongs in
-   this repo's `engine/`, not in the desktop repo.
+1. A `desktop/` folder in this repo, for now.
+2. Full 16-track output: Main + one bus per track.
+3. The name stays **Machinemodule**.
+4. The MPC build keeps its current effects (no master FX there for now).
+5. The desktop version has the Machinedrum's original master effects (rhythm echo, gate box/reverb, EQ, dynamix), built in.
