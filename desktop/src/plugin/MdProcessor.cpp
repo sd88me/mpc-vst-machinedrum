@@ -11,6 +11,11 @@ namespace mm
 	const int kRawDefault[kRaw] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 64, 0, 127, 0, 0, 0, 100, 64, 0, 0, 0, 0, 0};
 	const char* const kLfoKeys[kNumLfo] = {"lfo_track", "lfo_param", "lfo_shp1", "lfo_shp2", "lfo_type"};
 
+	// The default kit's master effects (the factory kit TRX UW, as a unit has them after the first-run initialisation)
+	const int kMasterDefault[kMasterBytes] = {0x00, 0x00, 0x44, 0x32, 0x01, 0x52, 0x47, 0x6d, 0x10, 0x00, 0x20, 0x1b, 0x00, 0x2c, 0x00, 0x47,
+		0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x00, 0x00};
+	juce::String masterId(int i) { return juce::String::formatted("mfx%02d", i + 1); }
+
 	juce::String paramId(int track, const juce::String& key) { return juce::String::formatted("t%02d_", track + 1) + key; }
 
 	juce::File dataDir()
@@ -46,6 +51,14 @@ namespace mm
 			for(int i = 0; i < kNumLfo; ++i) add(*g, paramId(t, kLfoKeys[i]), pre + juce::String(kLfoKeys[i]).toUpperCase(), 0, kLfoMax[i], i == 0 ? t : 0);
 			layout.add(std::move(g));
 		}
+		{
+			auto g = std::make_unique<juce::AudioProcessorParameterGroup>("master", "Master FX", "|");
+			g->addChild(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"master_on", 1}, "Master FX", true));
+			static const char* const groups[4] = {"REV", "ECHO", "EQ", "DYN"};
+			for(int i = 0; i < kMasterBytes; ++i)
+				add(*g, masterId(i), juce::String(groups[i / 8]) + " " + juce::String(i % 8 + 1), 0, 127, kMasterDefault[i]);
+			layout.add(std::move(g));
+		}
 		return layout;
 	}
 
@@ -63,6 +76,8 @@ namespace mm
 			m_needsDefaults[size_t(t)] = false;
 			m_defaultsReady[size_t(t)] = false;
 		}
+		for(int i = 0; i < kMasterBytes; ++i) m_master[size_t(i)] = apvts.getRawParameterValue(masterId(i));
+		m_masterOn = apvts.getRawParameterValue("master_on");
 		m_notes.reserve(1024);
 		resetApplied();
 
@@ -105,6 +120,8 @@ namespace mm
 			for(int i = 0; i < kNumLfo; ++i) m_appliedLfo[t][i] = -1;
 		}
 		m_appliedBpm = -1;
+		for(int& v : m_appliedMaster) v = -1;
+		m_masterSnap = true;
 	}
 
 	// ---- engine loading ---------------------------------------------------------------------------------------------
@@ -161,7 +178,10 @@ namespace mm
 					std::fclose(rf);
 				}
 				Engine::Output o;
-				for(int b = 0; b < 40; ++b) eng->render(o);	// the DSP's own start-up, as the build's machine sweep does
+				for(int b = 0; b < 40; ++b) eng->render(o);
+				// after the warm-up and built here, not on the audio thread: the section must not run before it has its parameters (the first audio
+				// block settles them before rendering), or its dynamics start from a state a unit never has
+				eng->enableMasterFx(true);	// the DSP's own start-up, as the build's machine sweep does
 				{
 					const juce::ScopedLock sl(m_lock);
 					m_engine.reset();
@@ -218,6 +238,7 @@ namespace mm
 			for(int i = 0; i < kNumLfo; ++i) setInt(apvts, paramId(t, kLfoKeys[i]), k.lfo[t][i]);
 			m_needsDefaults[size_t(t)] = false;
 		}
+		for(int i = 0; i < kMasterBytes; ++i) setInt(apvts, masterId(i), k.master[i]);
 		m_suppressDefaults = false;
 	}
 
@@ -316,6 +337,19 @@ namespace mm
 		auto& h = m_engine->host();
 		const double bpm = std::clamp<double>(m_hostBpm.load(), 30.0, 300.0);
 		if(bpm != m_appliedBpm) { m_appliedBpm = bpm; h.setTempo(bpm); }
+		m_engine->setMasterBypass(m_masterOn->load() < 0.5f);
+		{
+			uint8_t bytes[kMasterBytes];
+			bool changed = false;
+			for(int i = 0; i < kMasterBytes; ++i)
+			{
+				bytes[i] = uint8_t(std::clamp(int(std::lround(m_master[size_t(i)]->load())), 0, 127));
+				changed |= bytes[i] != m_appliedMaster[i];
+				m_appliedMaster[i] = bytes[i];
+			}
+			// a change is a target for the OS's smoother (the master effects glide to it, as on the unit); the very first set settles at once
+			if(changed) { m_engine->setMasterFx(bytes, m_masterSnap); m_masterSnap = false; }
+		}
 		for(int t = 0; t < kTracks; ++t)
 		{
 			const auto& p = m_par[size_t(t)];

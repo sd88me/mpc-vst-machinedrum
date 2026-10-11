@@ -66,6 +66,8 @@ namespace md::engine
 			if(!_on) m_master.reset();
 		}
 		bool masterFxEnabled() const { return m_master != nullptr; }
+		// Bypassed: the main output is the dry mix again and the section is not run (it keeps its state, so switching back resumes).
+		void setMasterBypass(const bool _b) { m_masterBypass = _b; }
 		void setMasterFx(const uint8_t* _bytes32, const bool _snap = false) { m_host->setMasterFx(_bytes32); if(_snap) m_host->snapMasterFx(); }
 
 
@@ -144,7 +146,7 @@ namespace md::engine
 	private:
 		bool masterBlock(Output& _out)
 		{
-			if(!m_master) return true;
+			if(!m_master || m_masterBypass) return true;
 			uint32_t a[MasterFx::kWordsA], b[MasterFx::kWordsB];
 			m_host->masterWords(a, b);
 			m_master->setParams(a, b);
@@ -180,6 +182,7 @@ namespace md::engine
 		Mixer m_mixer;
 		const fw::Firmware* m_fw;
 		std::unique_ptr<MasterFx> m_master;
+		bool m_masterBypass = false;
 		std::array<TrackFx::State, kTracks> m_state{};
 		std::array<TrackFx::State, kTracks> m_settledState{};
 		std::array<bool, kTracks> m_settled{};

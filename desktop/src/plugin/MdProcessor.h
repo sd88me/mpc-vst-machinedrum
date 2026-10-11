@@ -25,6 +25,9 @@ namespace mm
 	extern const char* const kRawKeys[kRaw];
 	extern const int kRawDefault[kRaw];
 	extern const char* const kLfoKeys[kNumLfo];
+	constexpr int kMasterBytes = 32;	// the kit's master effects: reverb 8, echo 8, EQ 8, dynamix 8
+	extern const int kMasterDefault[kMasterBytes];
+	juce::String masterId(int i);	// "mfx01" .. "mfx32"
 
 	juce::String paramId(int track, const juce::String& key);	// track 0-15 -> "t01_<key>"
 	juce::File dataDir();	// per-user folder (OS file path, factory kits, ROM samples)
@@ -96,6 +99,10 @@ namespace mm
 			std::atomic<float>* level = nullptr;
 			std::atomic<float>* lfo[kNumLfo] = {};
 		};
+		std::array<std::atomic<float>*, kMasterBytes> m_master{};
+		std::atomic<float>* m_masterOn = nullptr;
+		int m_appliedMaster[kMasterBytes];
+		bool m_masterSnap = true;	// the first values after an engine is built settle at once (as a unit that has been on a while)
 		std::array<TrackParams, kTracks> m_par{};
 		std::array<std::atomic<bool>, kTracks> m_needsDefaults{};
 		std::array<std::atomic<bool>, kTracks> m_defaultsReady{};

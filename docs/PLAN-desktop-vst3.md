@@ -157,22 +157,33 @@ the output at 44.1 kHz is sample-identical to `md-render` for the same note list
   the hardware before release. Not yet tried in a DAW; macOS and Windows builds untried; sample-accurate note timing is
   to the engine's 32-frame block.
 
-### Phase 2: the master effects, and pan on the track outputs
+### Phase 2: the master effects (done), pan on the track outputs (not yet)
 
-1. (Buses are done in Phase 1; this is what remains.) Main stereo + Track 1-16. Each track bus carries the track after its effects and VOL (`Mixer::solo`, which
-   the taps use today). Each track bus is stereo, so PAN can apply there, with a per-track "PAN on track out" switch
-   (default on); a mono bus is offered too where the host supports it. When a track's bus is enabled in the host, the
-   track leaves the dry main mix (the `dryMute` mask the taps already use) but still feeds the reverb and delay sends,
-   as on the hardware's individual outputs. Disabled buses cost nothing, and with none enabled the main output is
-   identical to the single-output build.
-   The MD's own ROUTE setting (main / A-D) stays a kit parameter so kits load and save unchanged, but the plugin routes by
-   track bus instead.
-2. `MasterFx`: DSP1 in dsp56300 running only the master section, fed with the dry mix and the REV/DEL sends; parameters
-   `Y:$150-$18c` from the kit's 32 master-FX bytes. First decode how the OS tick fills them (`$1000d7c+16`).
-3. Master FX pages as parameters: rhythm echo, gate box, EQ, dynamix. Kits now load their master settings (today ignored).
-4. Check against gearmulator-md-mm's final audio for the same kit and triggers (the full-system reference).
+**Result (Linux x86-64):**
 
-**Done when:** a kit with reverb and delay matches gearmulator-md-mm's main output.
+- **`engine/MasterFx`** runs the mixer DSP's master section (`P:$342-$970`, rhythm echo, gate box/reverb, EQ, dynamix) plus its
+  output stage, unmodified from the OS file, on the dry mix and the sends from `Mixer`. The Machinedrum's main output is
+  `X:$180` after the section has run in place on it (found in the DSP's output routine at `$270`). About 9,700 DSP instructions
+  per block. Opt-in (`Engine::enableMasterFx`); the Force build does not use it and its hash is unchanged.
+- **Parameters came from the OS's own code, not formulas.** The tick ends with four time-sliced routines (`$20b4a2-$20ba4c`,
+  one per tick, chosen by `$265404 & 3`) that turn the 32 smoothed master values into the DSP's words. `MachineRunner::runRange`
+  replays them in the 68k emulator once per tick; `HostModel` feeds the kit's 32 master bytes (offset `$487` in the kit sysex)
+  as targets of the OS smoother. The shadow words map to `Y:$150-$158` and `Y:$170-$18c` (the only words the OS writes to DSP1).
+- **Verified against the full-system emulation** (`mdProbe`, built here): the 38 parameter words are identical; the audio of
+  kit 1's voice with the master settings of kits 1, 4, 8, 12 and 15 correlates at 1.000000, gain 1.00003, residual -71 dB
+  (`tools/mdmix/mdmfxref` + `mfx_compare.py`; peak levels agree to 5 digits).
+- **Three things found on the way:** (1) the OS reads the velocity byte sign-extended, so an *accented* step (the front-panel
+  trigger) has the opposite polarity of the same note played by MIDI; `HostModel` now does the same (MIDI velocities 1-127 are
+  unaffected). (2) The smoother settles just below `target << 7` when it approaches from below and exactly on it from above, and
+  the EQ code branches on `<= $1fff`, so the EQ's sign depends on the history of the values: faithful, and the reason a fresh
+  instance pre-rolls the smoother (`snapMasterFx`) while a kit change glides. (3) The section must not run before it has its
+  parameters (a zero start leaves its dynamics wrong), so it is enabled after the warm-up and the first block settles them.
+- **Plugin:** 32 master parameters (`REV 1-8`, `ECHO 1-8`, `EQ 1-8`, `DYN 1-8`; hardware labels come with the LCD editor in Phase 3),
+  a `Master FX` on/off, kits load their master settings. `mm-render` shows the processor with the master section is
+  sample-identical to the bare engine; the VST3 passes pluginval strictness 5.
+- **Phase 0 loose end closed:** with the ROM samples, JIT and interpreter both hash to `e2b514e70c173c33`, the Force build's hash.
+- **Not done:** pan on the track outputs. The track outputs stay mono, no pan, and do not carry the master effects (they never did on
+  the hardware's individual outputs either; the sends still feed them through the main mix).
 
 ### Phase 3: the Machinedrum LCD editor
 

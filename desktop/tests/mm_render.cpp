@@ -65,6 +65,9 @@ int main(int argc, char** argv)
 		md::engine::Engine e(fw, std::vector<uint8_t>(c.sections.at(0).data));
 		md::engine::Engine::Output o;
 		for(int b = 0; b < 40; ++b) e.render(o);
+		uint8_t master[32]; for(int i = 0; i < 32; ++i) master[i] = uint8_t(kMasterDefault[i]);
+		e.enableMasterFx(true);
+		e.setMasterFx(master, true);
 		auto& h = e.host();
 		h.setMachine(0, uint8_t(machine));
 		for(int i = 0; i < kRaw; ++i) h.setParam(0, i, i == 17 ? 110 : kRawDefault[i]);
@@ -81,7 +84,7 @@ int main(int argc, char** argv)
 			e.render(o);
 			for(int f = 0; f < 32; ++f)
 			{
-				const float ref = float(o.mix.main[size_t(f)][0]) / 8388608.0f;
+				const float ref = float(e.mainOut(o, f, 0)) / 8388608.0f;
 				if(ref != a.L[size_t(frame) + size_t(f)]) { ++mismatches; if(first == ~size_t(0)) { first = size_t(frame) + size_t(f); for(int k = 0; k < 6 && first + size_t(k) < a.L.size(); ++k) std::printf("  [%zu] processor %.8f\n", first + size_t(k), a.L[first + size_t(k)]); std::printf("  engine ref at first: %.8f\n", ref); } }
 			}
 		}
