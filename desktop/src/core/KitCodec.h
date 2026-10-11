@@ -19,6 +19,7 @@ namespace mm
 		uint8_t params[kTracks][24]{};	// HostModel raw order: SYN1-8, AMD AMF EQF EQG FLTF FLTW FLTQ SRR, DIST VOL PAN DEL REV LFOS LFOD LFOM
 		uint8_t level[kTracks]{};
 		uint8_t lfo[kTracks][kNumLfo]{};	// destination track, destination param, shape 1, shape 2, update
+		uint8_t master[32]{};				// master effects: reverb 8, echo 8, EQ 8, dynamix 8 (raw 0-127 bytes at $487)
 	};
 
 	// Elektron's 7-bit packing: each group of up to 7 bytes is preceded by a byte holding their top bits
@@ -43,6 +44,7 @@ namespace mm
 			for(int i = 0; i < 24; ++i) k.params[t][i] = m[0x1a + t * 24 + i] & 0x7f;
 			k.level[t] = m[0x19a + t] & 0x7f;
 		}
+		for(int i = 0; i < 32; ++i) k.master[i] = m[0x487 + i] & 0x7f;
 		const auto mach = decode7(m + 0x1aa, 74);
 		const auto lfo = decode7(m + 0x1f4, 664);
 		if(mach.size() < 64 || lfo.size() < kTracks * 36) return false;

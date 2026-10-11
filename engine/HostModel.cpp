@@ -26,6 +26,11 @@ namespace md::engine
 		constexpr uint32_t kLevel = 0x1000d7c;		// smoothed track levels: 16 words (value << 7); then 32 master FX
 		constexpr uint32_t kLevelTarget = 0x1000f5c;	// their targets: 48 bytes (0-127)
 		constexpr uint32_t kLevelSmooth = 0x100029e;	// new = (3 old + target << 7) >> 2, all 48
+		// The tick's master-effect parameter code (OS 1.63): four phases by ($265404 & 3), each runs to $20ba4c; the results are the
+		// shadow words the OS DMAs to the mixer DSP (Y:$150-$158 from $1001af4, $17a-$184 from $1001b18, $170-$179 from $1001b44,
+		// $185-$18c from $1001b74)
+		constexpr uint32_t kMasterPhaseCounter = 0x265404, kMasterBegin = 0x20b4a2, kMasterEnd = 0x20ba4c;
+		constexpr uint32_t kMasterShadowA = 0x1001af4, kMasterShadowB1 = 0x1001b44, kMasterShadowB2 = 0x1001b18, kMasterShadowB3 = 0x1001b74;
 
 		bool isAudioMachine(const uint8_t _id) { return !(_id >= 0x60 && _id <= 0x7b); }	// MID/CTR: no audio
 	}
@@ -228,15 +233,49 @@ namespace md::engine
 			m.mix[1] = m.mix[2] = m.mix[3] = m.mix[4] = 0;
 			return;
 		}
-		// VOL gain = ((LEV^2 >> 8) x VEL >> 17) x (VOL^2 >> 17); VEL = the trigger's velocity, or 128 + 2 x accent
+		// VOL gain = ((LEV^2 >> 8) x VEL >> 17) x (VOL^2 >> 17); VEL = the trigger's velocity, or the accent byte 128 + 2 x accent
 		const int32_t lev = m_os.peek16(kLevel + 2 * static_cast<uint32_t>(_track));
-		const int32_t vel = m_accent[_track] ? 128 + 2 * m_accentAmount : m_velocity[_track];
+		// The OS reads the velocity byte sign-extended ($20b2b2: move.b / extb.l), so an accented step (128 + 2 x accent amount) is a negative
+		// number: the accent plays at inverted polarity (seen on a unit: the front-panel trigger is accented and its audio is the negative of
+		// the same note played by MIDI). Plain velocities 1-127 are unaffected.
+		const int32_t vel = m_accent[_track] ? static_cast<int8_t>(128 + 2 * m_accentAmount) : m_velocity[_track];
 		const auto sq = [](const uint16_t _v) { return static_cast<uint32_t>(_v) * _v; };
 		const int32_t gain = static_cast<int32_t>((((lev * lev) >> 8) * vel) >> 17) * static_cast<int32_t>(sq(a6[17]) >> 17);
 		m.mix[1] = static_cast<uint32_t>(gain) & 0xffffff;
 		m.mix[2] = (static_cast<uint32_t>(a6[18]) << 9) & 0x1fffe00;
 		m.mix[3] = sq(a6[20]) >> 5;	// REV
 		m.mix[4] = sq(a6[19]) >> 5;	// DEL
+	}
+
+	template<class TVoices>
+	void HostModel<TVoices>::setMasterFx(const uint8_t* _bytes32)
+	{
+		for(uint32_t i = 0; i < 32; ++i)
+			m_os.poke8(kLevelTarget + 16 + i, _bytes32[i] & 0x7f);
+	}
+
+	template<class TVoices>
+	void HostModel<TVoices>::snapMasterFx()
+	{
+		// The OS's smoother settles just below target << 7 (it never quite reaches it): run it as long as the unit would have, so the
+		// mixer DSP starts from the values a unit that has been on for a while has (and never sees the ramp up from zero).
+		for(int i = 0; i < 100; ++i)
+			m_os.call(kLevelSmooth, {});
+		for(uint32_t phase = 0; phase < 4; ++phase)
+		{
+			m_os.poke32(kMasterPhaseCounter, phase);
+			m_os.runRange(kMasterBegin, kMasterEnd);
+		}
+	}
+
+	template<class TVoices>
+	void HostModel<TVoices>::masterWords(uint32_t* _a9, uint32_t* _b29) const
+	{
+		auto w = [this](const uint32_t _addr) { return m_os.peek32(_addr) & 0xffffff; };
+		for(uint32_t i = 0; i < 9; ++i) _a9[i] = w(kMasterShadowA + 4 * i);
+		for(uint32_t i = 0; i < 10; ++i) _b29[i] = w(kMasterShadowB1 + 4 * i);			// Y:$170-$179
+		for(uint32_t i = 0; i < 11; ++i) _b29[10 + i] = w(kMasterShadowB2 + 4 * i);		// Y:$17a-$184
+		for(uint32_t i = 0; i < 8; ++i) _b29[21 + i] = w(kMasterShadowB3 + 4 * i);		// Y:$185-$18c
 	}
 
 	template<class TVoices>
@@ -256,6 +295,11 @@ namespace md::engine
 		m_os.call(kLfoOsc, {});
 		m_os.call(kLfoApply, {});
 		m_os.call(kLevelSmooth, {});
+		if(m_masterParams)
+		{
+			m_os.poke32(kMasterPhaseCounter, m_masterPhase++ & 3);
+			m_os.runRange(kMasterBegin, kMasterEnd);
+		}
 		if(timingOn)
 		{
 			const auto tv2 = std::chrono::steady_clock::now();

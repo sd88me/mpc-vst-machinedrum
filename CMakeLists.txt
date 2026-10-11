@@ -23,6 +23,7 @@ include(cmake/dsp56300.cmake)
 add_library(mdcore STATIC
   engine/HostModel.cpp
   engine/MachineRunner.cpp
+  engine/MasterFx.cpp
   engine/Mixer.cpp
   engine/ParallelVoiceEngine.cpp
   engine/TrackFx.cpp
@@ -52,6 +53,9 @@ target_link_libraries(md-cost PRIVATE mdcore pthread dl)
 # mdhash: an audio hash of a fixed pattern, to compare builds
 add_executable(md-hash tools/mdhash/mdhash.cpp)
 target_link_libraries(md-hash PRIVATE mdcore pthread dl)
+# mdmfxref: a kit through the engine with the master effects, for comparison with the full-system emulation
+add_executable(md-mfxref tools/mdmix/mdmfxref.cpp)
+target_link_libraries(md-mfxref PRIVATE mdcore pthread dl)
 # mdmulti: several engines on several threads give the same audio as alone (desktop plugin instances)
 add_executable(md-multi tools/mdhash/mdmulti.cpp)
 target_link_libraries(md-multi PRIVATE mdcore pthread dl)

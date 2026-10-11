@@ -44,6 +44,10 @@ namespace md::engine
 		// Call any OS routine (C calling convention, up to 4 32-bit arguments). Returns d0, or -1 on a fault.
 		int64_t call(uint32_t _address, std::initializer_list<uint32_t> _args);
 
+		// Run OS code that is not a function: from _start until the PC reaches _stop (never executed). Registers start undefined, the
+		// stack is a fresh one. Returns false on a fault or an access outside the mapped memory (faultReason() says which).
+		bool runRange(uint32_t _start, uint32_t _stop);
+
 		// OS memory, as the ColdFire sees it: main RAM $200000-$2fffff (initialised from the OS image, so its
 		// initialised data is right), internal SRAM $1000000-$100ffff (the OS's copy of its fast routines from
 		// image $2622f4, and their data). Big-endian.

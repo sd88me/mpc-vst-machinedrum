@@ -29,6 +29,7 @@ include("${MD_ROOT}/cmake/dsp56300.cmake")
 add_library(mdcore STATIC
   ${MD_ROOT}/engine/HostModel.cpp
   ${MD_ROOT}/engine/MachineRunner.cpp
+  ${MD_ROOT}/engine/MasterFx.cpp
   ${MD_ROOT}/engine/Mixer.cpp
   ${MD_ROOT}/engine/ParallelVoiceEngine.cpp
   ${MD_ROOT}/engine/TrackFx.cpp

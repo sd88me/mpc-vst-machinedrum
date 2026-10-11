@@ -12,6 +12,7 @@
 #include <vector>
 #include "HostModel.h"
 #include "MachineRunner.h"
+#include "MasterFx.h"
 #include "Mixer.h"
 #include "ParallelVoiceEngine.h"
 #include "TrackFx.h"
@@ -35,7 +36,7 @@ namespace md::engine
 		// _osImage: the OS file's section 0 (the ColdFire OS), decompressed. Constructs TVoices with just the
 		// firmware (VoiceEngine's own constructor).
 		EngineT(const fw::Firmware& _fw, std::vector<uint8_t> _osImage)
-			: m_tables(_fw), m_mixer(m_tables)
+			: m_tables(_fw), m_mixer(m_tables), m_fw(&_fw)
 		{
 			m_os = std::make_unique<MachineRunner>(std::move(_osImage));
 			m_voices = std::make_unique<TVoices>(_fw);
@@ -46,7 +47,7 @@ namespace md::engine
 		// count). Only ever instantiated for a TVoices whose constructor actually takes (firmware, _voicesArg).
 		template<class TVoicesArg>
 		EngineT(const fw::Firmware& _fw, std::vector<uint8_t> _osImage, TVoicesArg _voicesArg)
-			: m_tables(_fw), m_mixer(m_tables)
+			: m_tables(_fw), m_mixer(m_tables), m_fw(&_fw)
 		{
 			m_os = std::make_unique<MachineRunner>(std::move(_osImage));
 			m_voices = std::make_unique<TVoices>(_fw, _voicesArg);
@@ -54,6 +55,19 @@ namespace md::engine
 		}
 
 		~EngineT() = default;
+
+		// The Machinedrum's master effects (see MasterFx.h). On: the OS's parameter code runs every tick and render() runs the mixer
+		// DSP's master section on the mix, and Output::mix.main becomes the processed main output. Off (default, the Force build):
+		// Output::mix.main is the dry mix, bit-exact with the plain mixer.
+		void enableMasterFx(const bool _on)
+		{
+			if(_on && !m_master) m_master = std::make_unique<MasterFx>(*m_fw);
+			m_host->enableMasterParams(_on);
+			if(!_on) m_master.reset();
+		}
+		bool masterFxEnabled() const { return m_master != nullptr; }
+		void setMasterFx(const uint8_t* _bytes32, const bool _snap = false) { m_host->setMasterFx(_bytes32); if(_snap) m_host->snapMasterFx(); }
+
 
 		HostModel<TVoices>& host() { return *m_host; }
 		const MachineRunner& os() const { return *m_os; }
@@ -64,6 +78,9 @@ namespace md::engine
 			Mixer::Output mix;													// main, sends, individual outputs
 			std::array<std::array<int32_t, kBlock>, kTracks> tracks{};			// each track after its effects
 		};
+
+		// Main output sample f, channel c (0 = left) of a rendered block, with or without the master effects.
+		int32_t mainOut(const Output& _o, const int _f, const int _c) const { return _o.mix.main[_f][_c]; }
 
 		// Optional stage timing (microseconds, accumulated): track effects, and the mix. The OS tick and the voice DSP
 		// are HostModel's (host().tickUs / dspUs).
@@ -110,9 +127,10 @@ namespace md::engine
 				in[t] = _out.tracks[t].data();
 				mix[t] = m_host->mixerInput(t).mix;
 			}
-			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); return true; }
+			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); return masterBlock(_out); }
 			const auto tf1 = std::chrono::steady_clock::now();
 			m_mixer.process(in.data(), mix.data(), _out.mix, dryMute);
+			if(!masterBlock(_out)) return false;
 			const auto tf2 = std::chrono::steady_clock::now();
 			fxUs += std::chrono::duration<double, std::micro>(tf1 - tf0).count();
 			mixUs += std::chrono::duration<double, std::micro>(tf2 - tf1).count();
@@ -124,6 +142,15 @@ namespace md::engine
 		bool skipSettled = true;	// false: run every track's effects every block (for verifying the skip)
 
 	private:
+		bool masterBlock(Output& _out)
+		{
+			if(!m_master) return true;
+			uint32_t a[MasterFx::kWordsA], b[MasterFx::kWordsB];
+			m_host->masterWords(a, b);
+			m_master->setParams(a, b);
+			return m_master->process(_out.mix);
+		}
+
 		void init()
 		{
 			m_host = std::make_unique<HostModel<TVoices>>(*m_os, *m_voices);
@@ -151,6 +178,8 @@ namespace md::engine
 		std::vector<std::unique_ptr<TrackFx>> m_fxs;	// one per voice group (one when not parallel)
 		Output* m_out = nullptr;
 		Mixer m_mixer;
+		const fw::Firmware* m_fw;
+		std::unique_ptr<MasterFx> m_master;
 		std::array<TrackFx::State, kTracks> m_state{};
 		std::array<TrackFx::State, kTracks> m_settledState{};
 		std::array<bool, kTracks> m_settled{};

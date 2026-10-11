@@ -202,6 +202,29 @@ int main(int argc, char** argv)
 			std::fprintf(stderr, "\n");
 			continue;
 		}
+		if(kind == "poke8")	// poke8:ADDR:V[:V...] - ColdFire bytes (hex), e.g. the OS targets for the kit's master effects at $1000f6c
+		{
+			uint32_t a = static_cast<uint32_t>(std::strtoul(s.c_str() + 6, nullptr, 16));
+			for(auto pos = s.find(':', 6); pos != std::string::npos; pos = s.find(':', pos + 1))
+				hw.traceUc().write8(a++, static_cast<uint8_t>(std::strtoul(s.c_str() + pos + 1, nullptr, 16)));
+			continue;
+		}
+		if(kind == "dspmem")	// dspmem:DSP:X|Y|P:FROM:TO - print a DSP's X, Y or P words FROM..TO-1 (hex) to stderr, 8 per line
+		{
+			const auto p1 = s.find(':'), p2 = s.find(':', p1 + 1), p3 = s.find(':', p2 + 1), p4 = s.find(':', p3 + 1);
+			auto& mem = hw.traceDsp(static_cast<uint32_t>(std::atoi(s.c_str() + p1 + 1))).memory();
+			const char area = s[p2 + 1];
+			const auto from = static_cast<uint32_t>(std::strtoul(s.substr(p3 + 1, p4 - p3 - 1).c_str(), nullptr, 16));
+			const auto to = static_cast<uint32_t>(std::strtoul(s.c_str() + p4 + 1, nullptr, 16));
+			for(uint32_t a = from; a < to; a += 8)
+			{
+				std::fprintf(stderr, "   %c:%06x ", area, a);
+				for(uint32_t k = 0; k < 8 && a + k < to; ++k)
+					std::fprintf(stderr, " %06x", mem.get(area == 'X' ? dsp56k::MemArea_X : area == 'Y' ? dsp56k::MemArea_Y : dsp56k::MemArea_P, a + k) & 0xffffff);
+				std::fprintf(stderr, "\n");
+			}
+			continue;
+		}
 		if(kind == "dumpmem")	// dumpmem:FROM:TO:PATH - raw ColdFire memory to a file
 		{
 			const auto p1 = s.find(':'), p2 = s.find(':', p1 + 1), p3 = s.find(':', p2 + 1);

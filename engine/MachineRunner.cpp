@@ -156,6 +156,24 @@ namespace md::engine
 		return cpu.getDReg(0);
 	}
 
+	bool MachineRunner::runRange(const uint32_t _start, const uint32_t _stop)
+	{
+		m_fault.clear();
+		auto& cpu = *m_cpu;
+		cpu.setAReg(7, kStackTop);
+		cpu.setPC(_start);
+		cpu.m_badAccesses = 0;
+		uint64_t n = 0;
+		while(cpu.getPC() != _stop)
+		{
+			cpu.exec();
+			if(++n > kMaxInstructions) { m_fault = "instruction budget exceeded"; return false; }
+		}
+		m_lastInstructions = n;
+		if(cpu.m_badAccesses) { m_fault = "access outside main RAM / internal SRAM"; return false; }
+		return true;
+	}
+
 	int MachineRunner::compute(const uint8_t _machineId, const uint16_t* _params, uint32_t* _out, const int _outCapacity, const bool _trigger)
 	{
 		const auto* m = machine(_machineId);
