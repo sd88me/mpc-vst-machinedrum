@@ -38,7 +38,7 @@ namespace mm
 		addMouseListener(this, true);	// to close the picker on a press anywhere else
 		m_lfo.setValuesSource(1, [this] { return lfoParamNames(); });
 
-		m_tracks.onSelect = [this](int t) { selectTrack(t); };
+		m_tracks.onSelect = [this](int t) { selectTrack(t); setView(View::Track); };
 		m_tracks.onLock = [this](int t) { m_proc.setTrackLocked(t, !m_proc.trackLocked(t)); timerCallback(); };
 		m_tracks.onMute = [this](int t)
 		{
@@ -51,8 +51,6 @@ namespace mm
 			timerCallback();
 		};
 		m_mixer.onSelect = [this](int t) { selectTrack(t); };
-		m_mixerToggle.setRadioGroupId(7);
-		m_masterToggle.setRadioGroupId(7);
 		m_mixerToggle.onClick = [this] { setView(m_mixerToggle.getToggleState() ? View::Mixer : View::Track); };
 		m_masterToggle.onClick = [this] { setView(m_masterToggle.getToggleState() ? View::Master : View::Track); };
 		m_kitStrip.onPart = [this](ui::KitStrip::Part part)
