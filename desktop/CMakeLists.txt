@@ -107,3 +107,22 @@ target_include_directories(MmSnapshot PRIVATE src/core src/plugin src/ui)
 target_compile_definitions(MmSnapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=1
   JucePlugin_Name="Machinemodule" JucePlugin_VersionString="${PROJECT_VERSION}" JUCE_STANDALONE_APPLICATION=1)
 target_link_libraries(MmSnapshot PRIVATE mdcore juce::juce_audio_utils juce::juce_recommended_config_flags)
+
+# The flash-image import helpers (MENU > Import Flash Image...): md-import runs mdProbe (boots the emulated Machinedrum; built by
+# tools/mdtrace/build_mdprobe.sh, which needs the gearmulator-md-mm submodules) and mdsamples. They are copied next to the plugin binary,
+# where the plugin looks first. Pass -DMM_MDPROBE=<path to mdProbe> to include mdProbe too; tools/mdimport/build_helpers.sh does all of it.
+add_executable(md-import ${MD_ROOT}/tools/mdimport/md_import.cpp)
+add_executable(mdsamples ${MD_ROOT}/tools/mdkits/mdsamples.cpp)
+find_package(Threads REQUIRED)
+target_link_libraries(mdsamples PRIVATE mdcore Threads::Threads ${CMAKE_DL_LIBS})
+set(MM_MDPROBE "" CACHE FILEPATH "mdProbe (tools/mdtrace/build_mdprobe.sh), copied next to the plugin with the other import helpers")
+foreach(MM_TARGET Machinemodule_VST3 Machinemodule_Standalone Machinemodule_AU)
+  if(TARGET ${MM_TARGET})
+    add_dependencies(${MM_TARGET} md-import mdsamples)
+    add_custom_command(TARGET ${MM_TARGET} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:md-import> $<TARGET_FILE:mdsamples> $<TARGET_FILE_DIR:${MM_TARGET}>)
+    if(MM_MDPROBE AND EXISTS "${MM_MDPROBE}")
+      add_custom_command(TARGET ${MM_TARGET} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy "${MM_MDPROBE}" $<TARGET_FILE_DIR:${MM_TARGET}>)
+    endif()
+  endif()
+endforeach()

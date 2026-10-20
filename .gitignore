@@ -7,3 +7,4 @@ fwdump/
 build*/
 *.wav
 dist/
+build-helpers/

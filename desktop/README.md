@@ -11,6 +11,7 @@ Not affiliated with Elektron. The plugin contains nothing of Elektron's: it need
 
 ## Using it
 
+0. **Standalone:** the `Machinemodule` app (target `Machinemodule_Standalone`) is the same plugin in its own window with your audio and MIDI devices.
 1. Put the plugin where your DAW looks (`~/.vst3/` on Linux, `C:\Program Files\Common Files\VST3\` on Windows,
    `/Library/Audio/Plug-Ins/VST3/` on macOS) and rescan.
 2. Open it. The first time it asks for your OS file: choose the `.syx`. It loads in a second or two and remembers the file.
@@ -30,7 +31,9 @@ Not affiliated with Elektron. The plugin contains nothing of Elektron's: it need
 The OS file holds every machine except the ROM sample machines, and the 16 factory kits are not in it either: both come from the flash of a
 Machinedrum UW. **MENU > Import Flash Image...** reads your own 8 MB flash image once (about a minute: it boots the emulated Machinedrum) and
 writes the factory kits and the ROM samples to the data folder. It runs the `md-import` helper, which must sit in `<data folder>/bin`
-(or next to the plugin) together with `mdProbe` and `mdsamples`. Without the import everything else works and kit `.syx` files load.
+(or next to the plugin binary) together with `mdProbe` and `mdsamples`. Configure the build with `-DMM_MDPROBE=<mdProbe>` and they are copied
+next to the plugin and the standalone app automatically; otherwise run `tools/mdimport/build_helpers.sh` once (builds all three, installs them in
+the data folder; no JUCE needed). Without the import everything else works and kit `.syx` files load.
 
 Data folder (`~/.config/Machinemodule/`, `%APPDATA%\Machinemodule\`, `~/Library/Application Support/Machinemodule/`):
 `os_path.txt`, `settings.xml` (skin), `factory/FACTORY.syx` and `factory/ROM_SAMPLES.bin` (from the import), `bin/` (the helpers).

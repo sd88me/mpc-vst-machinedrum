@@ -274,6 +274,15 @@ namespace mm
 
 	void MdEditor::openFlashChooser()
 	{
+		if(const auto helper = MdProcessor::importHelper(); !helper.existsAsFile())
+		{
+			juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Machinemodule",
+				"The import needs three small helper programs (md-import, mdProbe, mdsamples) that are not installed yet.\n\n"
+				"Put them in:\n" + helper.getParentDirectory().getFullPathName() + "\n\n"
+				"They are built together with the plugin when it is configured with -DMM_MDPROBE=<mdProbe>, or by running "
+				"tools/mdimport/build_helpers.sh in the source folder.");
+			return;
+		}
 		m_chooser = std::make_unique<juce::FileChooser>("Select your Machinedrum UW flash image (8 MB .bin)", juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.bin");
 		m_chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc)
 		{
