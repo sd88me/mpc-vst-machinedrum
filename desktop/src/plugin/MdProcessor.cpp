@@ -193,6 +193,10 @@ namespace mm
 					m_notes.clear();
 					for(auto& h : m_hist) h.clear();
 				}
+				{
+					const juce::ScopedLock sl(m_statusLock);
+					m_machineList = std::make_shared<const std::vector<md::engine::MachineInfo>>(m_engine->os().machines());
+				}
 				m_ready = true;
 				setStatus(juce::String("Ready") + (romRecords ? " (ROM samples loaded)" : " (no ROM samples: ROM machines are silent)"));
 			}

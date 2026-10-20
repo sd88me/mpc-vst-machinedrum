@@ -66,6 +66,9 @@ namespace mm
 		void setOsPath(const juce::String& path, bool persist = true);
 		bool engineReady() const { return m_ready.load(); }
 		juce::String statusText() const;
+		// The OS's machine table (names and the eight SYN labels), for the editor; empty until the engine is ready.
+		using MachineList = std::shared_ptr<const std::vector<md::engine::MachineInfo>>;
+		MachineList machines() const { const juce::ScopedLock sl(m_statusLock); return m_machineList; }
 
 		// Kits (message thread): a kit .syx file may hold several; kit 0 is applied on load.
 		bool loadKitFile(const juce::File&, juce::String& error);
@@ -119,6 +122,7 @@ namespace mm
 		mutable juce::CriticalSection m_statusLock;
 		juce::String m_status;
 		bool m_stateRestored = false;
+		MachineList m_machineList;	// under m_statusLock
 
 		// what the engine has been given (-1 = nothing yet), so only changes are sent
 		int m_appliedMachine[kTracks], m_appliedRaw[kTracks][kRaw], m_appliedLevel[kTracks], m_appliedLfo[kTracks][kNumLfo];

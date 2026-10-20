@@ -21,7 +21,7 @@ The older [../HANDOFF.md](../HANDOFF.md) is the MPC Force history; this one cove
 | 0 engine on desktop under the dsp56300 JIT | done. Fix: `cfg.interruptRegionIsCode = true` (VoiceEngine, JIT builds only). JIT = interpreter hash `04ef1db4fe767721` (no ROM samples) and `e2b514e70c173c33` (with ROM samples = the Force build's hash). `md-multi`: 4 engines on 4 threads identical to solo. |
 | 1 plugin that plays | done: `desktop/` JUCE project, 16 tracks, 496 params, Main + Track 1-16 outputs, kit loading, resampler, simple editor. pluginval strictness 5 passes. `mm-render` (processor == bare engine, sample-identical). |
 | 2 master effects | done: `engine/MasterFx.*`, 32 master params + on/off in the plugin. Verified vs the full-system emulation (see below). **Not done: pan on the track outputs.** |
-| 3 LCD editor | **next** (below) |
+| 3 LCD editor | **first version done (2026-10-20)**: `desktop/src/plugin/MdEditor.*`, pages SYN / FX / ROUTE / LFO / MASTER / MIXER, track buttons, machine picker (names and SYN labels from the OS's machine table), kit browser, scalable. Drawn with JUCE in LCD colours, not yet with the OS file's own font/dial bitmaps. `mm-snapshot` renders every page to a PNG. |
 | 4 flash-image import (ROM samples, factory kits) | engine side works (`tools/mdkits/make_factory.py` ran fine); no in-plugin import button yet |
 | 5/6 INP/RAM/MID machines, Library, release CI | not started |
 
@@ -75,7 +75,17 @@ mdProbe notes: time is in audio frames (the OS tick is ~every 352 frames; `adv:`
 for the smoother to settle); `wav:PATH` records the main out; `trig:1:N` is an *accented* panel trigger; new actions this work
 added: `poke8:ADDR:V[:V...]`, `dspmem:DSP:X|Y|P:FROM:TO`. MD_ROM=<ROM_SAMPLES.bin> makes `md-mfxref` load ROM samples.
 
+## Container build (no sudo needed), added 2026-10-20
+
+`docker build -t md-desktop-builder` from a plain `ubuntu:24.04` with build-essential cmake ninja git python3 xvfb and the JUCE dev packages
+listed above. Mount the repo at /r and a build dir at /b. **Run anything that boots the engine with `--shm-size=4g`**: the JIT's memory
+tables use shared memory and Docker's 64 MB /dev/shm makes the process die with SIGBUS in `MasterFx::MasterFx` (it is not a code bug).
+Screenshots: `xvfb-run -a MmSnapshot <OS.syx> <outdir> [width]` (target `MmSnapshot`, `desktop/tests/ui_snapshot.cpp`).
+
 ## Next steps (suggested order)
+0. Phase 3 leftovers: the OS's own font and dial bitmaps (`tools/mdskin/mdartdump.cpp`) instead of the system monospace font; hardware names for
+   the 32 master parameters and the LFO shapes (the editor shows `REV 1`.. and `SHAPE 1-6`); pan/VOL display in hardware units; kit browser
+   as a list.
 
 1. **Phase 3: Machinedrum LCD editor.** Use the OS file's own fonts/dials (`tools/mdskin/mdartdump.cpp`, `tools/mdtrace/ui_spec.py`
    page layouts) drawn like Monomodule's `Lcd`/`RomArt` code (`ext` clone of shnolk/monomodule; `src/plugin/one/`). Pages: SYN (labels
