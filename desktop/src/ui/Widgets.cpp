@@ -550,30 +550,48 @@ MissingOsOverlay::MissingOsOverlay(std::function<void()> onSelect)
 	addAndMakeVisible(m_select);
 }
 
+// All in LCD pixels: the title bar, the wrapped explanation, the button, then the status (a failed load says why).
+MissingOsOverlay::Layout MissingOsOverlay::layout() const
+{
+	static const char* const para = "THIS PLUGIN RUNS THE MACHINEDRUM'S OWN SOUND ENGINE. IT NEEDS YOUR COPY OF THE MACHINEDRUM UW OS 1.63 "
+		"(ELEKTRON_SPS1-1UW_OS1.63.SYX, A FREE DOWNLOAD FROM ELEKTRON). CHOOSE THAT FILE ONCE: EVERY INSTANCE SHARES IT.";
+	constexpr int kTitleH = 11, kLine = 8, kPad = 5, kButtonH = 14, kButtonGap = 8;
+	Layout l;
+	l.bw = juce::jmax(120, juce::jmin(220, getWidth() / kScale - 16));
+	l.text = wrapLcdText(spec::kFontSmall4x5(), para, l.bw - 2 * kPad);
+	l.buttonY = kTitleH + kPad + int(l.text.size()) * kLine + kButtonGap;
+	l.bh = l.buttonY + kButtonH + kPad;
+	if(m_status.isNotEmpty())
+	{
+		l.status = wrapLcdText(spec::kFontSmall4x5(), m_status.toUpperCase(), l.bw - 2 * kPad);
+		if(l.status.size() > 3) l.status.resize(3);
+		l.statusY = l.bh;
+		l.bh += int(l.status.size()) * kLine + kPad;
+	}
+	return l;
+}
+
 void MissingOsOverlay::resized()
 {
-	m_box = getLocalBounds().withSizeKeepingCentre(80 * 2 * kScale, 60 * kScale);
-	m_select.setBounds(juce::Rectangle<int>(0, 0, 76 * kScale, 14 * kScale).withCentre({m_box.getCentreX(), m_box.getBottom() - 24 * kScale}));
+	const auto l = layout();
+	m_box = juce::Rectangle<int>(0, 0, l.bw * kScale, l.bh * kScale).withCentre(getLocalBounds().getCentre());
+	const int bwLcd = juce::jmin(l.bw - 16, 120);
+	m_select.setBounds(m_box.getX() + (m_box.getWidth() - bwLcd * kScale) / 2, m_box.getY() + l.buttonY * kScale, bwLcd * kScale, 14 * kScale);
 }
 
 void MissingOsOverlay::paint(juce::Graphics& g)
 {
 	g.fillAll(lcd::paper);
-	const int bw = m_box.getWidth() / kScale, bh = m_box.getHeight() / kScale;
-	LcdCanvas cv(bw, bh);
-	cv.fillRect(0, 0, bw, 11, true);
+	const auto l = layout();
+	LcdCanvas cv(l.bw, l.bh);
+	cv.fillRect(0, 0, l.bw, 11, true);
 	cv.text(spec::kFontBold8(), "MACHINEDRUM OS REQUIRED", 3, 1, false);
-	cv.dotsH(0, bw - 1, bh - 1); cv.dotsH(0, bw - 1, 11);
-	cv.dotsV(0, 11, bh - 1); cv.dotsV(bw - 1, 11, bh - 1);
-	const char* para = "THIS PLUGIN RUNS THE MACHINEDRUM'S OWN SOUND ENGINE. IT NEEDS YOUR COPY OF THE MACHINEDRUM UW OS 1.63 "
-		"(ELEKTRON_SPS1-1UW_OS1.63.SYX, A FREE DOWNLOAD FROM ELEKTRON). CHOOSE THAT FILE ONCE: EVERY INSTANCE SHARES IT.";
-	int y = 16;
-	for(const auto& l : wrapLcdText(spec::kFontSmall4x5(), para, bw - 10)) { cv.text(spec::kFontSmall4x5(), l.toRawUTF8(), 5, y); y += 8; }
-	if(m_status.isNotEmpty())
-	{
-		const auto wrapped = wrapLcdText(spec::kFontSmall4x5(), m_status.toUpperCase(), bw - 10);
-		for(size_t i = 0; i < wrapped.size() && i < 2; ++i) cv.text(spec::kFontSmall4x5(), wrapped[i].toRawUTF8(), 5, bh - 8 - int(2 - i) * 8 + 8);
-	}
+	cv.dotsH(0, l.bw - 1, 11); cv.dotsH(0, l.bw - 1, l.bh - 1);
+	cv.dotsV(0, 11, l.bh - 1); cv.dotsV(l.bw - 1, 11, l.bh - 1);
+	int y = 11 + 5;
+	for(const auto& line : l.text) { cv.text(spec::kFontSmall4x5(), line.toRawUTF8(), 5, y); y += 8; }
+	y = l.statusY + 3;
+	for(const auto& line : l.status) { cv.text(spec::kFontSmall4x5(), line.toRawUTF8(), 5, y); y += 8; }
 	cv.draw(g, m_box.getX(), m_box.getY());
 }
 

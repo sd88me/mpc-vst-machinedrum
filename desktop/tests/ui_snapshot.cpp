@@ -32,6 +32,18 @@ static int importTest(const char* os, const char* flash)
 int main(int argc, char** argv)
 {
 	juce::ScopedJuceInitialiser_GUI init;
+	if(argc == 3 && juce::String(argv[1]) == "--missing-os")	// the first-run screen, no OS file
+	{
+		MdProcessor proc;
+		std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+		juce::MessageManager::getInstance()->runDispatchLoopUntil(400);
+		const juce::File f(argv[2]);
+		f.deleteFile();
+		juce::FileOutputStream fos(f);
+		juce::PNGImageFormat().writeImageToStream(ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f), fos);
+		std::printf("%s\n", f.getFullPathName().toRawUTF8());
+		return 0;
+	}
 	if(argc == 4 && juce::String(argv[1]) == "--import-test") return importTest(argv[2], argv[3]);
 	if(argc < 3) { std::fprintf(stderr, "usage: mm-snapshot <OS.syx> <outdir> [width]\n"); return 2; }
 	const int width = argc > 3 ? juce::String(argv[3]).getIntValue() : 0;

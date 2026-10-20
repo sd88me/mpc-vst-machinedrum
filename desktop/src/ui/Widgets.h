@@ -225,15 +225,18 @@ private:
 	bool m_loaded = false, m_open = false;
 };
 
-// Blocking screen shown until a valid Machinedrum OS file has been selected, in the LCD faces.
+// Blocking screen shown until a valid Machinedrum OS file has been selected, in the LCD faces. The box is as tall as its wrapped text.
 class MissingOsOverlay : public juce::Component
 {
 public:
 	explicit MissingOsOverlay(std::function<void()> onSelect);
-	void setStatusMessage(const juce::String& s) { if(s != m_status) { m_status = s; repaint(); } }
+	void setStatusMessage(const juce::String& s) { if(s != m_status) { m_status = s; resized(); repaint(); } }
 	void paint(juce::Graphics&) override;
 	void resized() override;
+	void lookAndFeelChanged() override { resized(); }
 private:
+	struct Layout { std::vector<juce::String> text, status; int bw = 0, bh = 0, buttonY = 0, statusY = 0; };
+	Layout layout() const;
 	LcdButton m_select{"SELECT OS FILE..."};
 	juce::String m_status;
 	juce::Rectangle<int> m_box;
