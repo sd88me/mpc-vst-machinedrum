@@ -110,3 +110,4 @@ MPC OS, plugin host, can a process map executable memory?), build `md-hash`/`md-
 aarch64 JIT (fallback: static recompiler built for 64-bit, then interpreter), measure the 16-track load before deciding threads, then
 reuse the wrapper with the Gen 1 limits off (master FX on, no voice budget, no silence release, 16 taps) and the Phase 3 UI source.
 Needs from the user: which Gen 2 devices, and SSH access to one.
+2026-10-20: `md-hash` and `md-multi` cross-build cleanly for aarch64 (JIT build, `g++-aarch64-linux-gnu` in an ubuntu:24.04 container, `-DCMAKE_TOOLCHAIN_FILE` with `CMAKE_SYSTEM_PROCESSOR aarch64`), but they were not run: this machine has no arm64 emulation and the only device reachable (192.168.1.187) is the 32-bit Force (armv7l, 2 cores), not a Gen 2. Run them on a Gen 2: expect hash `04ef1db4fe767721` (and `e2b514e70c173c33` with the ROM samples).
