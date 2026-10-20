@@ -336,7 +336,8 @@ void TrackPanel::mouseDown(const juce::MouseEvent& e)
 	if(t < 0) return;
 	if(lockBox(t).contains(lcd)) { if(onLock) onLock(t); return; }
 	if(muteBox(t).contains(lcd)) { if(onMute) onMute(t); return; }
-	if(t != m_selected) { setSelected(t); if(onSelect) onSelect(t); }
+	setSelected(t);
+	if(onSelect) onSelect(t);	// also on the selected track: in the mixer / master view it returns to the track view
 }
 
 void TrackPanel::mouseMove(const juce::MouseEvent& e)
@@ -345,7 +346,7 @@ void TrackPanel::mouseMove(const juce::MouseEvent& e)
 	const auto lcd = e.getPosition() / kScale;
 	if(headerKey(0).contains(lcd) || headerKey(1).contains(lcd)) { setMouseCursor(juce::MouseCursor::PointingHandCursor); return; }
 	const bool key = t >= 0 && (lockBox(t).contains(lcd) || muteBox(t).contains(lcd));
-	setMouseCursor(t >= 0 && (t != m_selected || key) ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+	setMouseCursor(t >= 0 && (t != m_selected || m_mode != 0 || key) ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
 }
 
 // ---------------------------------------------------------------------------
