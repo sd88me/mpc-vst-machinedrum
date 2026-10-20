@@ -252,16 +252,16 @@ juce::Rectangle<int> TrackPanel::cellRect(int t) const
 {
 	const int col = t / kRows, row = t % kRows;
 	const int x = col == 0 ? 0 : kLcdW / 2, w = col == 0 ? kLcdW / 2 : kLcdW - kLcdW / 2;
-	return {x, kTitleH + 1 + row * kCellH, w, kCellH};
+	return {x, kTitleH + 1 + (row + 1) * kCellH, w, kCellH};	// row 0 is the MIXER / MASTER keys
 }
 
-juce::Rectangle<int> TrackPanel::lockBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 22, r.getY() + 8, 9, 8}; }
-juce::Rectangle<int> TrackPanel::muteBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 12, r.getY() + 8, 9, 8}; }
+juce::Rectangle<int> TrackPanel::lockBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 22, r.getY() + 6, 9, 8}; }
+juce::Rectangle<int> TrackPanel::muteBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 12, r.getY() + 6, 9, 8}; }
 
 juce::Rectangle<int> TrackPanel::headerKey(int k) const
 {
 	const auto r = cellRect(k * kRows);
-	return {r.getX(), 0, r.getWidth() - (k == 0 ? 1 : 0), kTitleH};
+	return {r.getX(), kTitleH + 1, r.getWidth(), kCellH};
 }
 
 int TrackPanel::trackAt(juce::Point<int> local) const
@@ -275,12 +275,18 @@ void TrackPanel::paint(juce::Graphics& g)
 {
 	LcdCanvas cv(kLcdW, kLcdH);
 	cv.fillRect(0, 0, kLcdW, kTitleH, true);
-	for(int k = 0; k < 2; ++k)	// MIXER above track 1, MASTER above track 9: inverted while their view is shown
+	cv.text(spec::kFontBold8(), "TRACKS", 2, 1, false);
+	for(int k = 0; k < 2; ++k)	// MIXER above track 1, MASTER above track 9: framed like the track keys, solid while their view is shown
 	{
 		const auto r = headerKey(k);
 		const bool on = m_mode == k + 1;
-		cv.fillRect(r.getX(), 0, r.getWidth(), kTitleH, !on);
-		cv.text(spec::kFontBold8(), k == 0 ? "MIXER" : "MASTER", r.getX() + 3, 1, on);
+		if(on) cv.fillRect(r.getX(), r.getY(), r.getWidth(), r.getHeight(), true);
+		else
+		{
+			cv.dotsH(r.getX(), r.getRight() - 1, r.getY()); cv.dotsH(r.getX(), r.getRight() - 1, r.getBottom() - 1);
+			cv.dotsV(r.getX(), r.getY(), r.getBottom() - 1); cv.dotsV(r.getRight() - 1, r.getY(), r.getBottom() - 1);
+		}
+		cv.text(spec::kFontBold8(), k == 0 ? "MIXER" : "MASTER", r.getX() + 3, r.getY() + 4, !on);
 	}
 	for(int t = 0; t < 16; ++t)
 	{
@@ -294,10 +300,10 @@ void TrackPanel::paint(juce::Graphics& g)
 		}
 		const bool ink = !sel;
 		const juce::String num = juce::String(t + 1).paddedLeft('0', 2);
-		cv.text(spec::kFontBold8(), num.toRawUTF8(), r.getX() + 3, r.getY() + 5, ink);
-		cv.text(spec::kFontTiny3x5(), m_machine[size_t(t)].toRawUTF8(), r.getX() + 19, r.getY() + 3, ink);
+		cv.text(spec::kFontBold8(), num.toRawUTF8(), r.getX() + 3, r.getY() + 4, ink);
+		cv.text(spec::kFontTiny3x5(), m_machine[size_t(t)].toRawUTF8(), r.getX() + 19, r.getY() + 2, ink);
 		// activity LED: a 4x4 block while the track outputs signal, its outline otherwise
-		const int lx = r.getRight() - 7, ly = r.getY() + 3;
+		const int lx = r.getRight() - 7, ly = r.getY() + 2;
 		if(m_active[size_t(t)]) cv.fillRect(lx, ly, 4, 4, ink);
 		else
 		{
