@@ -66,6 +66,13 @@ namespace mm
 		void setOsPath(const juce::String& path, bool persist = true);
 		bool engineReady() const { return m_ready.load(); }
 		juce::String statusText() const;
+
+		// Factory data from the user's own flash image (Phase 4): runs the md-import helper (boots the emulated Machinedrum once),
+		// which writes the 16 factory kits and the ROM machines' samples to the data folder; the plugin then reloads. Background; the
+		// plugin keeps working meanwhile. Needs the OS file to be selected.
+		void importFlashImage(const juce::File& flashImage);
+		bool importRunning() const { return m_importing.load(); }
+		static juce::File importHelper();	// the md-import executable, or a File that does not exist
 		// The OS's machine table (names and the eight SYN labels), for the editor; empty until the engine is ready.
 		using MachineList = std::shared_ptr<const std::vector<md::engine::MachineInfo>>;
 		MachineList machines() const { const juce::ScopedLock sl(m_statusLock); return m_machineList; }
@@ -98,6 +105,8 @@ namespace mm
 		void applyKit(const Kit&);
 		void startLoad(const juce::String& path);
 		void joinLoader();
+		void joinImporter();
+		void loadFactoryKits();
 		void applyParameters();
 		void renderFrames(int n, int64_t firstFrame);
 		void processChunk(juce::AudioBuffer<float>&, int offset, int n);
@@ -126,6 +135,8 @@ namespace mm
 		std::unique_ptr<Engine> m_engine;
 		std::thread m_loader;
 		std::atomic<bool> m_ready{false}, m_loading{false};
+		std::thread m_importer;
+		std::atomic<bool> m_importing{false}, m_importFinished{false}, m_importOk{false};
 		juce::String m_osPath;
 		mutable juce::CriticalSection m_statusLock;
 		juce::String m_status;

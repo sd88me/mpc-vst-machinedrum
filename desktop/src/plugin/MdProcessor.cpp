@@ -1,4 +1,5 @@
 #include "MdProcessor.h"
+#include <cstdlib>
 #include "MdEditor.h"
 #include <algorithm>
 #include <cmath>
@@ -20,6 +21,7 @@ namespace mm
 
 	juce::File dataDir()
 	{
+		if(const char* env = std::getenv("MACHINEMODULE_DATA_DIR"); env && *env) return juce::File(juce::String(env));	// tests use an empty folder
 		auto base = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory);
 #if JUCE_MAC
 		base = base.getChildFile("Application Support");
@@ -81,18 +83,7 @@ namespace mm
 		m_notes.reserve(1024);
 		resetApplied();
 
-		// factory kits, if the user imported them (Phase 4); kit 0 is the starting sound
-		const auto factory = dataDir().getChildFile("factory").getChildFile("FACTORY.syx");
-		if(factory.existsAsFile())
-		{
-			juce::MemoryBlock mb;
-			if(factory.loadFileAsData(mb))
-			{
-				m_kits = parseKits(std::vector<uint8_t>(static_cast<const uint8_t*>(mb.getData()), static_cast<const uint8_t*>(mb.getData()) + mb.getSize()));
-				m_kitSource = "FACTORY";
-				if(!m_kits.empty()) { m_kitIndex = 0; applyKit(m_kits[0]); }
-			}
-		}
+		loadFactoryKits();
 
 		juce::String path = juce::SystemStats::getEnvironmentVariable("MM_OS_SYX", {});
 		if(path.isEmpty())
@@ -107,7 +98,76 @@ namespace mm
 	MdProcessor::~MdProcessor()
 	{
 		cancelPendingUpdate();
+		joinImporter();
 		joinLoader();
+	}
+
+	// The factory kits, if the user imported them (Phase 4); kit 0 is the starting sound.
+	void MdProcessor::loadFactoryKits()
+	{
+		const auto factory = dataDir().getChildFile("factory").getChildFile("FACTORY.syx");
+		if(!factory.existsAsFile()) return;
+		juce::MemoryBlock mb;
+		if(!factory.loadFileAsData(mb)) return;
+		auto kits = parseKits(std::vector<uint8_t>(static_cast<const uint8_t*>(mb.getData()), static_cast<const uint8_t*>(mb.getData()) + mb.getSize()));
+		if(kits.empty()) return;
+		m_kits = std::move(kits);
+		m_kitSource = "FACTORY";
+		m_kitIndex = 0;
+		applyKit(m_kits[0]);
+	}
+
+	void MdProcessor::joinImporter()
+	{
+		if(m_importer.joinable()) m_importer.join();
+	}
+
+	juce::File MdProcessor::importHelper()
+	{
+#if JUCE_WINDOWS
+		const char* name = "md-import.exe";
+#else
+		const char* name = "md-import";
+#endif
+		if(const char* env = std::getenv("MM_IMPORT_HELPER"); env && *env) return juce::File(juce::String(env));
+		for(const auto& dir : {dataDir().getChildFile("bin"), juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory()})
+			if(dir.getChildFile(name).existsAsFile()) return dir.getChildFile(name);
+		return dataDir().getChildFile("bin").getChildFile(name);
+	}
+
+	void MdProcessor::importFlashImage(const juce::File& flashImage)
+	{
+		auto setStatus = [this](const juce::String& s) { const juce::ScopedLock sl(m_statusLock); m_status = s; };
+		if(m_importing.load()) return;
+		const juce::File helper = importHelper();
+		if(m_osPath.isEmpty() || !juce::File(m_osPath).existsAsFile()) { setStatus("Select the OS file first, then import the flash image"); return; }
+		if(!helper.existsAsFile()) { setStatus("The import helper (" + helper.getFileName() + ") was not found in " + helper.getParentDirectory().getFullPathName()); return; }
+		joinImporter();
+		m_importing = true;
+		m_importOk = false;
+		setStatus("Importing the flash image: booting the emulated Machinedrum, about a minute ...");
+		const juce::String os = m_osPath;
+		m_importer = std::thread([this, helper, flashImage, os]
+		{
+			const auto out = dataDir().getChildFile("factory");
+			out.createDirectory();
+			juce::ChildProcess proc;
+			juce::String output;
+			bool ok = proc.start(juce::StringArray{helper.getFullPathName(), flashImage.getFullPathName(), os, out.getFullPathName()});
+			if(ok)
+			{
+				output = proc.readAllProcessOutput();
+				ok = proc.getExitCode() == 0;
+			}
+			{
+				const juce::ScopedLock sl(m_statusLock);
+				m_status = ok ? "Flash image imported: factory kits and ROM samples" : "Flash image import failed: " + output.trim().fromLastOccurrenceOf("\n", false, false);
+			}
+			m_importOk = ok;
+			m_importing = false;
+			m_importFinished = true;
+			triggerAsyncUpdate();
+		});
 	}
 
 	void MdProcessor::resetApplied()
@@ -218,6 +278,11 @@ namespace mm
 
 	void MdProcessor::handleAsyncUpdate()
 	{
+		if(m_importFinished.exchange(false) && m_importOk.load())	// new factory data: kits now, ROM samples with the next engine build
+		{
+			loadFactoryKits();
+			if(m_osPath.isNotEmpty()) { const auto keep = statusText(); startLoad(m_osPath); const juce::ScopedLock sl(m_statusLock); m_status = keep + " (reloading)"; }
+		}
 		// a machine change on the audio thread adopted the new machine's SYN defaults: show them in the parameters
 		for(int t = 0; t < kTracks; ++t)
 			if(m_defaultsReady[size_t(t)].exchange(false))

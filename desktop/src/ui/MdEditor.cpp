@@ -216,6 +216,7 @@ namespace mm
 		juce::PopupMenu m;
 		m.addItem(2, "Select OS File...");
 		m.addItem(3, "Load Kit File...");
+		m.addItem(6, "Import Flash Image (factory kits, ROM samples)...", !m_proc.importRunning());
 		m.addSeparator();
 		{	// the two colours of the UI
 			juce::PopupMenu skins;
@@ -233,6 +234,7 @@ namespace mm
 			{
 				case 2: openOsChooser(); break;
 				case 3: openKitChooser(); break;
+				case 6: openFlashChooser(); break;
 				case 4: m_showStatus = !m_showStatus; m_status.setVisible(m_showStatus); break;
 				case 5:
 					juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Machinemodule",
@@ -256,6 +258,16 @@ namespace mm
 		{
 			const auto f = fc.getResult();
 			if(f.existsAsFile()) m_proc.setOsPath(f.getFullPathName());
+		});
+	}
+
+	void MdEditor::openFlashChooser()
+	{
+		m_chooser = std::make_unique<juce::FileChooser>("Select your Machinedrum UW flash image (8 MB .bin)", juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.bin");
+		m_chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc)
+		{
+			const auto f = fc.getResult();
+			if(f.existsAsFile()) m_proc.importFlashImage(f);
 		});
 	}
 
@@ -299,6 +311,7 @@ namespace mm
 		const auto st = m_proc.statusText();
 		m_missingOs.setStatusMessage(ready || st.startsWith("Loading") ? juce::String() : st);
 		m_status.setText(st, juce::dontSendNotification);
+		m_status.setVisible(m_showStatus || m_proc.importRunning() || st.startsWith("Flash image"));
 		m_status.setColour(juce::Label::textColourId, lcd::ink);
 
 		if(m_view == View::Track) rebuildSynPage();

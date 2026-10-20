@@ -13,9 +13,26 @@ static void setParam(MdProcessor& p, const juce::String& id, int v)
 	prm->setValueNotifyingHost(prm->convertTo0to1(float(v)));
 }
 
+// mm-snapshot --import-test <OS.syx> <flash.bin>: the plugin's "Import flash image" path with MM_IMPORT_HELPER and an empty data folder.
+static int importTest(const char* os, const char* flash)
+{
+	MdProcessor proc;
+	proc.setOsPath(os, false);
+	for(int i = 0; i < 600 && !proc.engineReady(); ++i) juce::Thread::sleep(50);
+	if(!proc.engineReady()) { std::fprintf(stderr, "engine not ready: %s\n", proc.statusText().toRawUTF8()); return 2; }
+	std::printf("before: %d kits, status: %s\n", proc.kitCount(), proc.statusText().toRawUTF8());
+	proc.importFlashImage(juce::File(flash));
+	for(int i = 0; i < 3000 && (proc.importRunning() || i < 20); ++i) juce::MessageManager::getInstance()->runDispatchLoopUntil(100);
+	juce::MessageManager::getInstance()->runDispatchLoopUntil(300);	// the async update that reloads
+	for(int i = 0; i < 600 && !proc.engineReady(); ++i) juce::MessageManager::getInstance()->runDispatchLoopUntil(50);
+	std::printf("after: %d kits, kit 0 \"%s\", ready %d, status: %s\n", proc.kitCount(), proc.kitName(0).toRawUTF8(), int(proc.engineReady()), proc.statusText().toRawUTF8());
+	return proc.kitCount() == 16 && proc.engineReady() ? 0 : 1;
+}
+
 int main(int argc, char** argv)
 {
 	juce::ScopedJuceInitialiser_GUI init;
+	if(argc == 4 && juce::String(argv[1]) == "--import-test") return importTest(argv[2], argv[3]);
 	if(argc < 3) { std::fprintf(stderr, "usage: mm-snapshot <OS.syx> <outdir> [width]\n"); return 2; }
 	const int width = argc > 3 ? juce::String(argv[3]).getIntValue() : 0;
 	MdProcessor proc;

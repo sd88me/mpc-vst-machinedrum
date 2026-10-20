@@ -45,6 +45,15 @@ static Render run(const juce::String& os, int machine, double rate, int block, b
 
 int main(int argc, char** argv)
 {
+	{	// hermetic: an empty data folder, so the user's factory kits and ROM samples do not change what the processor starts from
+		const auto empty = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("mm-render-empty-data");
+		empty.createDirectory();
+#if JUCE_WINDOWS
+		_putenv_s("MACHINEMODULE_DATA_DIR", empty.getFullPathName().toRawUTF8());
+#else
+		setenv("MACHINEMODULE_DATA_DIR", empty.getFullPathName().toRawUTF8(), 1);
+#endif
+	}
 	juce::ScopedJuceInitialiser_GUI init;
 	if(argc < 2) { std::fprintf(stderr, "usage: mm-render <OS.syx> [out.wav]\n"); return 2; }
 	const juce::String os = argv[1];

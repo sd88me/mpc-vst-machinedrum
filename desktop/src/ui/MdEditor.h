@@ -40,6 +40,7 @@ namespace mm
 		void skinChanged();
 		void openOsChooser();
 		void openKitChooser();
+		void openFlashChooser();
 		void timerCallback() override;
 		const md::engine::MachineInfo* info(int machineId) const;
 		const char* const* lfoParamNames();

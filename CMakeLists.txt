@@ -61,6 +61,7 @@ add_executable(md-multi tools/mdhash/mdmulti.cpp)
 target_link_libraries(md-multi PRIVATE mdcore pthread dl)
 # mdsamples: extracts the ROM machines' sample memory from a dump of the emulated MD's voice DSP (tools/mdkits)
 add_executable(mdsamples tools/mdkits/mdsamples.cpp)
+add_executable(md-import tools/mdimport/md_import.cpp)
 target_link_libraries(mdsamples PRIVATE mdcore pthread)
 
 # machinedrum_one: the same engine source (vst/engine.cpp) built against the shared wrapper

@@ -22,7 +22,7 @@ The older [../HANDOFF.md](../HANDOFF.md) is the MPC Force history; this one cove
 | 1 plugin that plays | done: `desktop/` JUCE project, 16 tracks, 496 params, Main + Track 1-16 outputs, kit loading, resampler, simple editor. pluginval strictness 5 passes. `mm-render` (processor == bare engine, sample-identical). |
 | 2 master effects | done: `engine/MasterFx.*`, 32 master params + on/off in the plugin. Verified vs the full-system emulation (see below). **Not done: pan on the track outputs.** |
 | 3 LCD editor | **version 2 done (2026-10-20), after shnolk's desktop Monomodule**: `desktop/src/ui/` (ported from `libs/monomodule/src/plugin/one/`, AGPL, attributed in each header): `RomArt` (fonts, dial ring and 128 pointer frames read from the user's OS file at the addresses `tools/mdskin/mdartdump.cpp` uses; stand-in face until then), `Lcd`, `Skin` (default = the MD's red LCD; also black/white, inverted, low contrast, custom), `Widgets` (KnobPage, MachineBar, LevelColumn, TrackPanel, MixerPage, KitStrip), `MachinePicker` (one column per group from the OS machine table), `MdEditor`. Layout = Monomodule One/Six: header (mark, machine block, kit strip, BPM, MIXER / MASTER / MENU), LEV column, pages SYN / AMP-EFX over ROUTE / LFO, 16-track panel in place of his third page column. MIXER shows the 16 LEV columns; MASTER swaps the four pages for the master effects. |
-| 4 flash-image import (ROM samples, factory kits) | engine side works (`tools/mdkits/make_factory.py` ran fine); no in-plugin import button yet |
+| 4 flash-image import (ROM samples, factory kits) | **done 2026-10-20 (Linux)**: MENU > "Import Flash Image..." runs `md-import` (`tools/mdimport/md_import.cpp`: runs `mdProbe` then `mdsamples`, writes `FACTORY.syx` + `ROM_SAMPLES.bin` to `<data dir>/factory`, byte-identical to `tools/mdkits/make_factory.py`) in the background and reloads (`MdProcessor::importFlashImage`; test: `MmSnapshot --import-test <OS.syx> <flash.bin>` with `MACHINEMODULE_DATA_DIR` and `MM_IMPORT_HELPER`). With the data: 16 factory kits, ROM machines sound, `md-hash` with the samples = `e2b514e70c173c33`. **Open:** the three helpers (`md-import`, `mdProbe`, `mdsamples`) must ship in `<data dir>/bin` or next to the plugin (release/installer work, Phase 6; `mdProbe` is built by `tools/mdtrace/build_mdprobe.sh` and has not been tried on Windows/macOS). |
 | 5/6 INP/RAM/MID machines, Library, release CI | not started |
 
 Not yet tried: macOS, Windows, Apple Silicon (arm64 JIT), a real DAW, the ARM (Force) build with the new engine files (only x86 built;
@@ -66,7 +66,7 @@ python3 tools/mdkits/make_factory.py <mdProbe> /tmp/b-jit/mdsamples flash.bin OS
 # desktop plugin (Linux needs: libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev
 # libxext-dev libxrender-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev; run apt-get update first)
 cmake -S desktop -B /tmp/b-desk -G Ninja && ninja -C /tmp/b-desk MmRender Machinemodule_VST3
-/tmp/b-desk/MmRender_artefacts/Release/MmRender OS.syx          # expect ALL OK
+/tmp/b-desk/MmRender_artefacts/Release/MmRender OS.syx          # expect ALL OK (it uses an empty data folder: MACHINEMODULE_DATA_DIR)
 # pluginval: https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
 pluginval --strictness-level 5 --validate-in-process --skip-gui-tests --timeout-ms 120000 <...>/Machinemodule.vst3
 ```
