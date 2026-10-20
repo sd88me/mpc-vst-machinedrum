@@ -79,6 +79,7 @@ jobs:
           $out
           "exit code: $LASTEXITCODE"
           if ($LASTEXITCODE -ne 2) { exit 1 }
+          exit 0   # a pwsh step otherwise ends with the last program's exit code, which is the expected 2
       - uses: actions/upload-artifact@v4
         with:
           name: mdprobe-windows-x64
@@ -120,6 +121,7 @@ jobs:
           $out
           "exit code: $LASTEXITCODE"
           if ($LASTEXITCODE -eq 0 -or $out -notmatch "ROM not valid") { exit 1 }
+          exit 0
       - uses: actions/upload-artifact@v4
         with:
           name: machinemodule-windows-x64
