@@ -112,7 +112,9 @@ int main(int argc, char** argv)
 	if(flash.empty())
 	{
 		std::cerr << "first-run flash initialisation (cached to " << argv[2] << ")\n";
-		md::Hardware init(rom, argv[1], md::MachineModel::Machinedrum);
+		// the emulated machine is far bigger than Windows' default 1 MB stack: both Hardware objects live on the heap
+		const std::unique_ptr<md::Hardware> initPtr(new md::Hardware(rom, argv[1], md::MachineModel::Machinedrum));
+		md::Hardware& init = *initPtr;
 		if(!init.isValid()) { std::cerr << "ROM not valid\n"; return 1; }
 		init.disqualifyFactoryFlashCache();
 		for(uint32_t f = 0; f < md::g_samplerate * 18 && !init.isFactoryFlashReadyForReboot(); f += 128)
@@ -122,7 +124,8 @@ int main(int argc, char** argv)
 		std::ofstream(argv[2], std::ios::binary).write(reinterpret_cast<const char*>(flash.data()), static_cast<std::streamsize>(flash.size()));
 	}
 
-	md::Hardware hw(rom, argv[1], md::MachineModel::Machinedrum, {}, {}, flash);
+	const std::unique_ptr<md::Hardware> hwPtr(new md::Hardware(rom, argv[1], md::MachineModel::Machinedrum, {}, {}, flash));
+	md::Hardware& hw = *hwPtr;
 	if(!hw.isValid()) { std::cerr << "hardware not valid\n"; return 1; }
 	uint32_t boot = 0;
 	const uint32_t bootFrames = std::getenv("MDPROBE_BOOT") ? static_cast<uint32_t>(std::atoi(std::getenv("MDPROBE_BOOT"))) : md::g_samplerate * 20;

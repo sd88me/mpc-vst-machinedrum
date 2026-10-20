@@ -66,7 +66,7 @@ jobs:
         shell: bash
         env:
           MDPROBE_GENERATOR: Ninja
-          MDPROBE_CMAKE_ARGS: -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
+          MDPROBE_CMAKE_ARGS: -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_EXE_LINKER_FLAGS=/STACK:16777216
         run: |
           git submodule update --init --depth 1 libs/gearmulator-md-mm
           bash tools/mdtrace/build_mdprobe.sh
