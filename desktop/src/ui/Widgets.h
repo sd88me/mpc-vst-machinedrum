@@ -103,7 +103,7 @@ private:
 class TrackPanel : public juce::Component
 {
 public:
-	static constexpr int kLcdW = KnobPage::kLcdW, kTitleH = 10, kCellH = 16, kRows = 8, kLcdH = 2 * KnobPage::kLcdH + 4;	// as tall as the two page rows
+	static constexpr int kLcdW = KnobPage::kLcdW, kTitleH = 10, kCellH = 18, kRows = 8, kKeysH = 16, kLcdH = kKeysH + 2 * KnobPage::kLcdH + 4;	// the MIXER / MASTER keys, then as tall as the two page rows
 	TrackPanel() { setOpaque(true); }
 	std::function<void(int)> onSelect;
 	std::function<void(int)> onMute;	// toggle

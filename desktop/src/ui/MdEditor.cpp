@@ -384,7 +384,7 @@ namespace mm
 		body.removeFromTop(36);	// the machine block's lower part and the gap under it
 		auto col = body.removeFromRight(ui::KnobPage::kWidth);	// the track keys stand beside the pages, as tall as the two rows
 		body.removeFromRight(kGap);
-		m_tracks.setBounds(col.withHeight(2 * ui::KnobPage::kHeight + kGap));
+		m_tracks.setBounds(col.getX(), col.getY() - ui::TrackPanel::kKeysH * kScale, col.getWidth(), ui::TrackPanel::kLcdH * kScale);	// its title lines up with the pages'; the MIXER / MASTER keys stand above it under BPM and MENU
 		// LEV: its label sits under the mark and its frame (11 LCD rows down) starts level with the pages
 		lev = lev.withTop(body.getY() - 11 * kScale);
 		m_level.setBounds(lev.withHeight((lev.getHeight() / kScale) * kScale));
