@@ -16,7 +16,7 @@ set(ASMJIT_NO_INSTALL TRUE)
 add_subdirectory("${MD_DSP56300_DIR}/source/asmjit"     "${CMAKE_BINARY_DIR}/dsp56300/asmjit"     EXCLUDE_FROM_ALL)
 add_subdirectory("${MD_DSP56300_DIR}/source/dsp56kBase" "${CMAKE_BINARY_DIR}/dsp56300/dsp56kBase" EXCLUDE_FROM_ALL)
 add_subdirectory("${MD_DSP56300_DIR}/source/dsp56kEmu"  "${CMAKE_BINARY_DIR}/dsp56300/dsp56kEmu"  EXCLUDE_FROM_ALL)
-if(UNIX AND NOT APPLE)   # dsp56kEmu links vtuneSdk unconditionally on Linux (its own CMakeLists.txt)
+if(WIN32 OR (UNIX AND NOT APPLE))   # dsp56kEmu links vtuneSdk on Windows and Linux (its own CMakeLists.txt)
   add_subdirectory("${MD_DSP56300_DIR}/source/vtuneSdk" "${CMAKE_BINARY_DIR}/dsp56300/vtuneSdk" EXCLUDE_FROM_ALL)
 endif()
 
