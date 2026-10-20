@@ -81,6 +81,9 @@ namespace mm
 		bool loadKitFile(const juce::File&, juce::String& error);
 		void stepKit(int dir);
 		juce::String kitLabel() const;
+		// Track lock: a locked track keeps its machine and settings when a kit is loaded (stored with the project).
+		bool trackLocked(int t) const;
+		void setTrackLocked(int t, bool locked);
 		int kitCount() const { return int(m_kits.size()); }
 		int kitIndex() const { return m_kitIndex; }
 		juce::String kitName(int i) const;	// the kit's own name, trimmed
@@ -117,6 +120,7 @@ namespace mm
 			std::atomic<float>* machine = nullptr;
 			std::atomic<float>* raw[kRaw] = {};
 			std::atomic<float>* level = nullptr;
+			std::atomic<float>* mute = nullptr;
 			std::atomic<float>* lfo[kNumLfo] = {};
 		};
 		std::array<std::atomic<float>*, kMasterBytes> m_master{};

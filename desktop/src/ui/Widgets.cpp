@@ -255,6 +255,9 @@ juce::Rectangle<int> TrackPanel::cellRect(int t) const
 	return {x, kTitleH + 1 + row * kCellH, w, kCellH};
 }
 
+juce::Rectangle<int> TrackPanel::lockBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 22, r.getY() + 8, 9, 8}; }
+juce::Rectangle<int> TrackPanel::muteBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 12, r.getY() + 8, 9, 8}; }
+
 int TrackPanel::trackAt(juce::Point<int> local) const
 {
 	const auto p = local / kScale;
@@ -280,7 +283,7 @@ void TrackPanel::paint(juce::Graphics& g)
 		const bool ink = !sel;
 		const juce::String num = juce::String(t + 1).paddedLeft('0', 2);
 		cv.text(spec::kFontBold8(), num.toRawUTF8(), r.getX() + 3, r.getY() + 5, ink);
-		cv.text(spec::kFontTiny3x5(), m_machine[size_t(t)].toRawUTF8(), r.getX() + 19, r.getY() + 7, ink);
+		cv.text(spec::kFontTiny3x5(), m_machine[size_t(t)].toRawUTF8(), r.getX() + 19, r.getY() + 3, ink);
 		// activity LED: a 4x4 block while the track outputs signal, its outline otherwise
 		const int lx = r.getRight() - 7, ly = r.getY() + 3;
 		if(m_active[size_t(t)]) cv.fillRect(lx, ly, 4, 4, ink);
@@ -289,6 +292,19 @@ void TrackPanel::paint(juce::Graphics& g)
 			for(int c = 0; c < 4; ++c) { cv.set(lx + c, ly, ink); cv.set(lx + c, ly + 3, ink); }
 			cv.set(lx, ly + 1, ink); cv.set(lx, ly + 2, ink); cv.set(lx + 3, ly + 1, ink); cv.set(lx + 3, ly + 2, ink);
 		}
+		// LOCK and MUTE keys: solid while on (the track keeps its sound across kit loads / is silent), a dotted frame otherwise
+		auto key = [&](juce::Rectangle<int> b, const char* letter, bool on)
+		{
+			if(on) { cv.fillRect(b.getX(), b.getY(), b.getWidth(), b.getHeight(), ink); cv.text(spec::kFontTiny3x5(), letter, b.getX() + 3, b.getY() + 1, !ink); }
+			else
+			{
+				cv.dotsH(b.getX(), b.getRight() - 1, b.getY()); cv.dotsH(b.getX(), b.getRight() - 1, b.getBottom() - 1);
+				cv.dotsV(b.getX(), b.getY(), b.getBottom() - 1); cv.dotsV(b.getRight() - 1, b.getY(), b.getBottom() - 1);
+				cv.text(spec::kFontTiny3x5(), letter, b.getX() + 3, b.getY() + 1, ink);
+			}
+		};
+		key(lockBox(t), "L", m_locked[size_t(t)]);
+		key(muteBox(t), "M", m_muted[size_t(t)]);
 	}
 	cv.draw(g, 0, 0);
 }
@@ -296,13 +312,19 @@ void TrackPanel::paint(juce::Graphics& g)
 void TrackPanel::mouseDown(const juce::MouseEvent& e)
 {
 	const int t = trackAt(e.getPosition());
-	if(t >= 0 && t != m_selected) { setSelected(t); if(onSelect) onSelect(t); }
+	if(t < 0) return;
+	const auto lcd = e.getPosition() / kScale;
+	if(lockBox(t).contains(lcd)) { if(onLock) onLock(t); return; }
+	if(muteBox(t).contains(lcd)) { if(onMute) onMute(t); return; }
+	if(t != m_selected) { setSelected(t); if(onSelect) onSelect(t); }
 }
 
 void TrackPanel::mouseMove(const juce::MouseEvent& e)
 {
 	const int t = trackAt(e.getPosition());
-	setMouseCursor(t >= 0 && t != m_selected ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+	const auto lcd = e.getPosition() / kScale;
+	const bool key = t >= 0 && (lockBox(t).contains(lcd) || muteBox(t).contains(lcd));
+	setMouseCursor(t >= 0 && (t != m_selected || key) ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
 }
 
 // ---------------------------------------------------------------------------

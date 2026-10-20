@@ -39,6 +39,17 @@ namespace mm
 		m_lfo.setValuesSource(1, [this] { return lfoParamNames(); });
 
 		m_tracks.onSelect = [this](int t) { selectTrack(t); };
+		m_tracks.onLock = [this](int t) { m_proc.setTrackLocked(t, !m_proc.trackLocked(t)); timerCallback(); };
+		m_tracks.onMute = [this](int t)
+		{
+			if(auto* prm = m_proc.apvts.getParameter(paramId(t, "mute")))
+			{
+				prm->beginChangeGesture();
+				prm->setValueNotifyingHost(prm->getValue() >= 0.5f ? 0.0f : 1.0f);
+				prm->endChangeGesture();
+			}
+			timerCallback();
+		};
 		m_mixer.onSelect = [this](int t) { selectTrack(t); };
 		m_mixerToggle.setRadioGroupId(7);
 		m_masterToggle.setRadioGroupId(7);
@@ -322,6 +333,8 @@ namespace mm
 			m_tracks.setTrack(t, mi ? MachineNames::group(*mi) + " " + MachineNames::shortName(*mi) : juce::String("-"));
 			const float pk = ready ? m_proc.trackPeak(t) : 0.0f;
 			m_tracks.setPeak(t, pk);
+			m_tracks.setMuted(t, m_proc.apvts.getRawParameterValue(paramId(t, "mute"))->load() >= 0.5f);
+			m_tracks.setLocked(t, m_proc.trackLocked(t));
 			m_mixer.setPeak(t, pk);
 		}
 		m_bpm.setBpm(m_proc.hostBpm());

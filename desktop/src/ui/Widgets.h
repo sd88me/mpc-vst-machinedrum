@@ -106,6 +106,10 @@ public:
 	static constexpr int kLcdW = KnobPage::kLcdW, kTitleH = 10, kCellH = 18, kRows = 8, kLcdH = 2 * KnobPage::kLcdH + 4;	// as tall as the two page rows
 	TrackPanel() { setOpaque(true); }
 	std::function<void(int)> onSelect;
+	std::function<void(int)> onMute;	// toggle
+	std::function<void(int)> onLock;	// toggle
+	void setMuted(int t, bool m) { if(m_muted[size_t(t)] != m) { m_muted[size_t(t)] = m; repaint(); } }
+	void setLocked(int t, bool l) { if(m_locked[size_t(t)] != l) { m_locked[size_t(t)] = l; repaint(); } }
 	void setSelected(int t) { if(m_selected != t) { m_selected = t; repaint(); } }
 	void setTrack(int t, const juce::String& machine) { if(m_machine[size_t(t)] != machine) { m_machine[size_t(t)] = machine; repaint(); } }
 	void setPeak(int t, float linear) { const bool a = linear > 0.02f; if(m_active[size_t(t)] != a) { m_active[size_t(t)] = a; repaint(); } }
@@ -115,10 +119,12 @@ public:
 
 private:
 	juce::Rectangle<int> cellRect(int t) const;	// LCD px
+	juce::Rectangle<int> lockBox(int t) const;	// LCD px: "L" key, bottom right of the cell
+	juce::Rectangle<int> muteBox(int t) const;	// "M" key
 	int trackAt(juce::Point<int> local) const;
 	int m_selected = 0;
 	std::array<juce::String, 16> m_machine;
-	std::array<bool, 16> m_active{};
+	std::array<bool, 16> m_active{}, m_muted{}, m_locked{};
 };
 
 // LEV: level fader drawn as the LCD level bar (dotted frame, filled to the value) with the output meter as a second bar beside it.

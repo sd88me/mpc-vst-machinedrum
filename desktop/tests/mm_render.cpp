@@ -17,7 +17,7 @@ static void setParam(MdProcessor& p, const juce::String& id, int v)
 
 struct Render { std::vector<float> L, R, bus; };
 
-static Render run(const juce::String& os, int machine, double rate, int block, bool trackBus)
+static Render run(const juce::String& os, int machine, double rate, int block, bool trackBus, bool mute = false)
 {
 	MdProcessor proc;
 	proc.setOsPath(os, false);
@@ -25,6 +25,7 @@ static Render run(const juce::String& os, int machine, double rate, int block, b
 	if(!proc.engineReady()) { std::fprintf(stderr, "engine not ready: %s\n", proc.statusText().toRawUTF8()); std::exit(2); }
 	setParam(proc, paramId(0, "machine"), machine);
 	setParam(proc, paramId(0, "vol"), 110);
+	if(mute) setParam(proc, paramId(0, "mute"), 1);
 	if(trackBus) proc.enableAllBuses();
 	proc.setRateAndBufferSizeDetails(rate, block);
 	proc.prepareToPlay(rate, block);
@@ -130,6 +131,15 @@ int main(int argc, char** argv)
 		size_t hot = 0; for(float v : t.bus) hot += std::abs(v) >= 0.9999f;
 		std::printf("track bus: main peak %.4f, bus peak %.4f (%zu samples at full scale)\n", mainPk, busPk, hot);
 		if(mainPk > 1e-6 || busPk < 0.01) { std::printf("FAIL: track did not move to its bus\n"); ++bad; }
+	}
+	// (e) a muted track is silent on the main mix and on its own bus
+	{
+		const auto m = run(os, machine, 44100.0, 480, false, true);
+		double pk = 0; for(float v : m.L) pk = std::max(pk, double(std::abs(v)));
+		const auto mb = run(os, machine, 44100.0, 480, true, true);
+		double bpk = 0; for(float v : mb.bus) bpk = std::max(bpk, double(std::abs(v)));
+		std::printf("muted: main peak %.6f, bus peak %.6f\n", pk, bpk);
+		if(pk > 1e-6 || bpk > 1e-6) { std::printf("FAIL: a muted track is not silent\n"); ++bad; }
 	}
 	std::printf(bad ? "FAILED\n" : "ALL OK\n");
 	return bad;

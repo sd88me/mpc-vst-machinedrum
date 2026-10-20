@@ -50,6 +50,7 @@ namespace mm
 			add(*g, paramId(t, "machine"), pre + "Machine", 0, 191, 0);
 			for(int i = 0; i < kRaw; ++i) add(*g, paramId(t, kRawKeys[i]), pre + juce::String(kRawKeys[i]).toUpperCase(), 0, 127, kRawDefault[i]);
 			add(*g, paramId(t, "level"), pre + "LEV", 0, 127, 100);
+			g->addChild(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{paramId(t, "mute"), 1}, pre + "Mute", false));
 			for(int i = 0; i < kNumLfo; ++i) add(*g, paramId(t, kLfoKeys[i]), pre + juce::String(kLfoKeys[i]).toUpperCase(), 0, kLfoMax[i], i == 0 ? t : 0);
 			layout.add(std::move(g));
 		}
@@ -73,6 +74,7 @@ namespace mm
 			p.machine = apvts.getRawParameterValue(paramId(t, "machine"));
 			for(int i = 0; i < kRaw; ++i) p.raw[i] = apvts.getRawParameterValue(paramId(t, kRawKeys[i]));
 			p.level = apvts.getRawParameterValue(paramId(t, "level"));
+			p.mute = apvts.getRawParameterValue(paramId(t, "mute"));
 			for(int i = 0; i < kNumLfo; ++i) p.lfo[i] = apvts.getRawParameterValue(paramId(t, kLfoKeys[i]));
 			apvts.addParameterListener(paramId(t, "machine"), this);
 			m_needsDefaults[size_t(t)] = false;
@@ -115,6 +117,15 @@ namespace mm
 		m_kitSource = "FACTORY";
 		m_kitIndex = 0;
 		applyKit(m_kits[0]);
+	}
+
+	bool MdProcessor::trackLocked(int t) const { return (int(apvts.state.getProperty("locks", 0)) >> t) & 1; }
+
+	void MdProcessor::setTrackLocked(int t, bool locked)
+	{
+		int mask = int(apvts.state.getProperty("locks", 0));
+		mask = locked ? (mask | (1 << t)) : (mask & ~(1 << t));
+		apvts.state.setProperty("locks", mask, nullptr);	// saved with the project
 	}
 
 	void MdProcessor::joinImporter()
@@ -301,6 +312,7 @@ namespace mm
 		m_suppressDefaults = true;	// the kit brings its own SYN values with the machine
 		for(int t = 0; t < kTracks; ++t)
 		{
+			if(trackLocked(t)) continue;	// a locked track keeps its sound when a kit loads
 			setInt(apvts, paramId(t, "machine"), k.machine[t]);
 			for(int i = 0; i < kRaw; ++i) setInt(apvts, paramId(t, kRawKeys[i]), k.params[t][i]);
 			setInt(apvts, paramId(t, "level"), k.level[t]);
@@ -455,6 +467,7 @@ namespace mm
 			}
 			const int lev = std::clamp(int(std::lround(p.level->load())), 0, 127);
 			if(lev != m_appliedLevel[t]) { m_appliedLevel[t] = lev; h.setLevel(t, lev); }
+			h.setMute(t, p.mute->load() >= 0.5f);
 			int v[kNumLfo];
 			bool changed = false;
 			for(int i = 0; i < kNumLfo; ++i)
