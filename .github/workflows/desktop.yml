@@ -73,8 +73,10 @@ jobs:
       - name: Smoke test (prints its usage and exits 2)
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Continue'   # the program prints to stderr, which PowerShell would otherwise treat as a failure
           $exe = "libs\gearmulator-md-mm\build\source\elektron\md\mdLibTest\mdProbe.exe"
-          & $exe 2>&1 | Select-Object -First 3
+          $out = (& $exe 2>&1 | Out-String)
+          $out
           "exit code: $LASTEXITCODE"
           if ($LASTEXITCODE -ne 2) { exit 1 }
       - uses: actions/upload-artifact@v4
@@ -110,6 +112,7 @@ jobs:
       - name: Import helper test (a bogus flash image must be reported by mdProbe itself, which proves md-import can start it)
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Continue'
           $d = "build\Machinemodule_artefacts\Release\Standalone"
           [IO.File]::WriteAllBytes("$PWD\zero.bin", (New-Object byte[] 8388608))
           Set-Content -Path "$PWD\os.syx" -Value "x"
