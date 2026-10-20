@@ -56,6 +56,9 @@ target_link_libraries(md-hash PRIVATE mdcore pthread dl)
 # mdmfxref: a kit through the engine with the master effects, for comparison with the full-system emulation
 add_executable(md-mfxref tools/mdmix/mdmfxref.cpp)
 target_link_libraries(md-mfxref PRIVATE mdcore pthread dl)
+# mdinput: the audio input through the INP machines
+add_executable(md-input tools/mdhash/mdinput.cpp)
+target_link_libraries(md-input PRIVATE mdcore pthread dl)
 # mdmulti: several engines on several threads give the same audio as alone (desktop plugin instances)
 add_executable(md-multi tools/mdhash/mdmulti.cpp)
 target_link_libraries(md-multi PRIVATE mdcore pthread dl)

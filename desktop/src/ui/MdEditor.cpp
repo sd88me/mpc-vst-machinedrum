@@ -123,10 +123,10 @@ namespace mm
 		}
 		else
 		{
-			m_amp.setTitle("AMP/EFX"); m_route.setTitle("ROUTE"); m_lfo.setTitle("LFO"); m_syn.setTitle("SYN");
+			m_lfo.setTitle("LFO"); m_syn.setTitle("SYN");
 			m_amp.setBadge({}); m_route.setBadge({}); m_lfo.setBadge({});
-			m_amp.bind(spec::kAmpFxPage, [t](int k) { return paramId(t, kRawKeys[8 + k]); });
-			m_route.bind(spec::kRoutePage, [t](int k) { return paramId(t, kRawKeys[16 + k]); });
+			m_fxCtr8 = false;
+			bindFxPages();
 			m_lfo.bind(spec::kLfoPage, [t](int k) { return paramId(t, kLfoKeysAll[k]); });
 			m_shownMachine = -1;
 			rebuildSynPage();
@@ -137,6 +137,23 @@ namespace mm
 		m_mixer.setSelected(t);
 	}
 
+	void MdEditor::bindFxPages()
+	{
+		const int t = m_track;
+		if(m_fxCtr8)
+		{
+			m_amp.setTitle(spec::kCtr8PageNames[0]); m_route.setTitle(spec::kCtr8PageNames[1]);
+			m_amp.bind(spec::kCtr8Pages[0], [t](int k) { return paramId(t, kRawKeys[8 + k]); });
+			m_route.bind(spec::kCtr8Pages[1], [t](int k) { return paramId(t, kRawKeys[16 + k]); });
+		}
+		else
+		{
+			m_amp.setTitle("AMP/EFX"); m_route.setTitle("ROUTE");
+			m_amp.bind(spec::kAmpFxPage, [t](int k) { return paramId(t, kRawKeys[8 + k]); });
+			m_route.bind(spec::kRoutePage, [t](int k) { return paramId(t, kRawKeys[16 + k]); });
+		}
+	}
+
 	// SYN: the same eight parameters, described by the machine (its own labels; an unused cell is blank).
 	void MdEditor::rebuildSynPage()
 	{
@@ -144,6 +161,7 @@ namespace mm
 		const int mid = int(std::lround(m_proc.apvts.getRawParameterValue(paramId(m_track, "machine"))->load()));
 		if(mid == m_shownMachine) return;
 		m_shownMachine = mid;
+		if((mid == kCtr8P) != m_fxCtr8) { m_fxCtr8 = mid == kCtr8P; bindFxPages(); }
 		const auto* mi = info(mid);
 		for(int k = 0; k < 8; ++k)
 		{

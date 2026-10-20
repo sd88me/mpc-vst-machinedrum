@@ -5,6 +5,10 @@
 //   Outputs: "Main" (the dry main mix: all tracks, panned, with VOL) and "Track 1".."Track 16" (each track after its effects
 //   and VOL, no pan, mono on both channels). A track whose bus the host enables leaves the main mix.
 //   MIDI: notes 36-51 (and 0-15) play tracks 1-16, velocity = trigger velocity.
+//   Input: an optional stereo "Input" bus (off until the host enables it) is the Machinedrum's audio input: INP-GA/FA/EA process
+//   its left channel, INP-GB/FB/EB its right.
+//   Control machines (the OS's own rules, done here on the parameters): CTR-AL shifts SYN1-8 of every other track by the amount its own
+//   knob moves, CTR-8P sends P1-P8 to eight (track, parameter) targets, CTR-RE/GB/EQ/DX are SYN1-8 of the echo / reverb / EQ / dynamix.
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
@@ -28,6 +32,11 @@ namespace mm
 	constexpr int kMasterBytes = 32;	// the kit's master effects: reverb 8, echo 8, EQ 8, dynamix 8
 	extern const int kMasterDefault[kMasterBytes];
 	juce::String masterId(int i);	// "mfx01" .. "mfx32"
+
+	// The control machines (MachineInfo::id)
+	constexpr int kCtrAll = 112, kCtr8P = 113, kCtrEcho = 120, kCtrDynamix = 123;
+	constexpr bool isControlMachine(int id) { return (id & 0xf0) == 0x70; }	// CTR: no audio, never the target of another control machine
+	constexpr int kCtrMasterBlock[4] = {1, 0, 2, 3};	// CTR-RE / GB / EQ / DX -> the kit's master block (reverb 0, echo 1, EQ 2, dynamix 3), as the OS's table at $2462e3
 
 	juce::String paramId(int track, const juce::String& key);	// track 0-15 -> "t01_<key>"
 	juce::File dataDir();	// per-user folder (OS file path, factory kits, ROM samples)
@@ -92,6 +101,7 @@ namespace mm
 		// For the editor: output level of a track (0..1, falls off quickly) and the tempo the engine runs at.
 		float trackPeak(int t) const { return t >= 0 && t < kTracks ? m_peak[size_t(t)].load(std::memory_order_relaxed) : 0.0f; }
 		float hostBpm() const { return m_hostBpm.load(); }
+		int appliedValue(int t, int i) const { return m_appliedRaw[t][i]; }	// what the engine was last given for a track's raw value (tests: after processBlock)
 
 		juce::AudioProcessorValueTreeState apvts;
 
@@ -106,6 +116,10 @@ namespace mm
 		void parameterChanged(const juce::String& id, float value) override;
 		void handleAsyncUpdate() override;
 		void applyKit(const Kit&);
+		void applyControlMachines();	// CTR-AL / CTR-RE...: knob moves that act on other parameters (message thread)
+		void resyncControlMachines();	// remember the current CTR-AL knob values without acting on them (a kit or project was loaded)
+		void pushInput(juce::AudioBuffer<float>& host, int n);
+		void engineInput(int32_t* lr64);
 		void startLoad(const juce::String& path);
 		void joinLoader();
 		void joinImporter();
@@ -130,7 +144,10 @@ namespace mm
 		std::array<TrackParams, kTracks> m_par{};
 		std::array<std::atomic<bool>, kTracks> m_needsDefaults{};
 		std::array<std::atomic<bool>, kTracks> m_defaultsReady{};
-		std::array<std::array<std::atomic<int>, 8>, kTracks> m_defaultSyn{};
+		std::array<std::array<std::atomic<int>, kRaw>, kTracks> m_defaultSyn{};	// a new machine's own starting values (SYN1-8; CTR-8P: all 24)
+		std::array<std::atomic<int>, kTracks> m_defaultCount{};
+		std::array<std::atomic<uint8_t>, kTracks> m_ctrDirty{};	// SYN knobs of CTR-AL / CTR-RE.. tracks that moved (bit k = SYN k+1)
+		std::array<std::array<int, 8>, kTracks> m_ctrAllLast{};	// message thread: each CTR-AL knob as the OS keeps it (1-126)
 		std::atomic<bool> m_suppressDefaults{false};
 
 		// the engine, built on a background thread; the audio thread uses it under m_lock (try-lock, silent when busy)
@@ -168,6 +185,12 @@ namespace mm
 		int m_carryN = 0;
 		std::array<mnm::dsp::History, kCh> m_hist;
 		std::vector<PendingNote> m_notes;
+		// the audio input: host samples in a ring, read at the engine's 44.1 kHz (linear interpolation when the host rate differs)
+		static constexpr int kInRing = 1 << 15;
+		std::array<std::vector<float>, 2> m_inBuf;
+		int64_t m_inWritten = 0;
+		double m_inPos = 0.0;
+		bool m_inputUsed = false;
 		std::atomic<float> m_hostBpm{120.0f};
 		std::array<std::atomic<float>, kTracks> m_peak{};
 		double m_appliedBpm = -1;

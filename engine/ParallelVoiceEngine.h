@@ -41,6 +41,7 @@ namespace md::engine
 
 		void setSlot(int _voice, const uint32_t* _words, int _count = kSlotWords);
 		bool renderBlock(Block& _out);
+		void setInput(const int32_t* _lr) { for(auto& g : m_groups) g->setInput(_lr); }	// see VoiceEngine::setInput
 
 		// Work to run on each group's own thread right after its voices render (the engine's per-track effects:
 		// tracks t with groupOf(t) == group). Gets the group's block, valid for its own voices only.

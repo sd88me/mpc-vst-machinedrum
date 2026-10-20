@@ -15,6 +15,13 @@ const Param kLfoPage[8] = {
 	{"UPDTE", Display::Text, 0, 2, kUpdateNames},
 	dial("SPEED"), dial("DEPTH"), dial("SHMIX")};
 
+const char* const kPairParamNames[24] = {"SYN1", "SYN2", "SYN3", "SYN4", "SYN5", "SYN6", "SYN7", "SYN8", "AMD", "AMF", "EQF", "EQG", "FLTF", "FLTW", "FLTQ", "SRR",
+	"DIST", "VOL", "PAN", "DEL", "REV", "LFOS", "LFOD", "LFOM"};
+#define PAIR(n) {"TRK" #n, Display::Text, 0, 15, kTrackNames}, {"PRM" #n, Display::Text, 0, 23, kPairParamNames}
+const Param kCtr8Pages[2][8] = {{PAIR(1), PAIR(2), PAIR(3), PAIR(4)}, {PAIR(5), PAIR(6), PAIR(7), PAIR(8)}};
+#undef PAIR
+const char* const kCtr8PageNames[2] = {"TARGETS 1-4", "TARGETS 5-8"};
+
 const char* const kMasterPageNames[4] = {"REVERB", "ECHO", "EQ", "DYNAMIX"};
 const Param kMasterPages[4][8] = {
 	{dial("REV1"), dial("REV2"), dial("REV3"), dial("REV4"), dial("REV5"), dial("REV6"), dial("REV7"), dial("REV8")},

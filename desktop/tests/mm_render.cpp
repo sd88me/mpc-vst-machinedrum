@@ -141,6 +141,87 @@ int main(int argc, char** argv)
 		std::printf("muted: main peak %.6f, bus peak %.6f\n", pk, bpk);
 		if(pk > 1e-6 || bpk > 1e-6) { std::printf("FAIL: a muted track is not silent\n"); ++bad; }
 	}
+	// (f) the control machines: the OS's rules for CTR-AL (relative, on every sounding track), CTR-RE.. (a master effect block) and CTR-8P (P1-P8 to targets)
+	{
+		MdProcessor p;
+		p.setOsPath(os, false);
+		for(int i = 0; i < 600 && !p.engineReady(); ++i) juce::Thread::sleep(50);
+		auto val = [&](int t, const char* k) { return int(std::lround(p.apvts.getRawParameterValue(paramId(t, k))->load())); };
+		auto master = [&](int i) { return int(std::lround(p.apvts.getRawParameterValue(masterId(i))->load())); };
+		auto pump = [&] { juce::MessageManager::getInstance()->runDispatchLoopUntil(60); };
+		p.setRateAndBufferSizeDetails(44100.0, 256);
+		p.prepareToPlay(44100.0, 256);
+		juce::AudioBuffer<float> buf(2 + 2 * kTracks, 256);
+		auto tick = [&] { juce::MidiBuffer m; buf.clear(); p.processBlock(buf, m); pump(); };
+		setParam(p, paramId(0, "machine"), kCtrAll);
+		setParam(p, paramId(1, "machine"), 16);
+		setParam(p, paramId(2, "machine"), kCtrEcho);
+		setParam(p, paramId(3, "machine"), kCtr8P);
+		setParam(p, paramId(4, "machine"), 16);
+		setParam(p, paramId(5, "machine"), 17);
+		tick(); tick();
+		std::printf("CTR defaults: CTR-AL syn1 %d, CTR-RE syn1 %d (echo parameter 1: %d), CTR-8P first target: track %d, parameter %d\n", val(0, "syn1"), val(2, "syn1"), master(8), val(3, "amd") + 1, val(3, "amf") + 1);
+		if(val(0, "syn1") != 64 || val(0, "syn8") != 64) { std::printf("FAIL: CTR-AL starts at 64\n"); ++bad; }
+		if(val(2, "syn1") != master(8)) { std::printf("FAIL: CTR-RE starts at the echo block's value\n"); ++bad; }
+		if(val(3, "amd") != 0 || val(3, "amf") != 0 || val(3, "eqf") != 1 || val(3, "eqg") != 0) { std::printf("FAIL: CTR-8P default targets\n"); ++bad; }
+		// CTR-AL: +10 on SYN1 of the sounding tracks
+		setParam(p, paramId(1, "syn1"), 40); setParam(p, paramId(4, "syn1"), 120); setParam(p, paramId(5, "syn1"), 7);
+		setParam(p, paramId(0, "syn1"), 74); pump();
+		std::printf("CTR-AL +10 on SYN1: track 2 %d (40), track 5 %d (120, clamps), track 6 %d (7), CTR-RE track unchanged\n", val(1, "syn1"), val(4, "syn1"), val(5, "syn1"));
+		if(val(1, "syn1") != 50 || val(4, "syn1") != 127 || val(5, "syn1") != 17 || val(2, "syn1") != master(8)) { std::printf("FAIL: CTR-AL did not shift SYN1 on the other tracks\n"); ++bad; }
+		setParam(p, paramId(0, "syn1"), 54); pump();
+		if(val(1, "syn1") != 30) { std::printf("FAIL: CTR-AL -20 (got %d, want 30)\n", val(1, "syn1")); ++bad; }
+		// CTR-RE: SYN1 is the echo block's first parameter
+		setParam(p, paramId(2, "syn1"), 99); pump();
+		std::printf("CTR-RE syn1 99 -> echo parameter 1 = %d\n", master(8));
+		if(master(8) != 99) { std::printf("FAIL: CTR-RE did not set the echo parameter\n"); ++bad; }
+		// CTR-8P: P1 -> track 5 (index 4) parameter SYN2; P2 (default track 2, SYN1) untouched by the first
+		setParam(p, paramId(3, "amd"), 4); setParam(p, paramId(3, "amf"), 1); setParam(p, paramId(3, "syn1"), 77);
+		tick(); tick();
+		std::printf("CTR-8P: engine's track 5 SYN2 = %d (want 77)\n", p.appliedValue(4, 1));
+		if(p.appliedValue(4, 1) != 77) { std::printf("FAIL: CTR-8P did not drive its target\n"); ++bad; }
+		// a control machine as the target is ignored
+		setParam(p, paramId(3, "amd"), 0); setParam(p, paramId(3, "amf"), 3); setParam(p, paramId(3, "syn1"), 55); tick();
+		if(p.appliedValue(0, 3) == 55) { std::printf("FAIL: CTR-8P wrote into a control machine\n"); ++bad; }
+	}
+	// (g) the audio input: a sine on the left channel through INP-GA (track 1) and nothing through INP-GB (track 2)
+	for(const double rate : {44100.0, 48000.0})
+	{
+		MdProcessor p;
+		p.setOsPath(os, false);
+		for(int i = 0; i < 600 && !p.engineReady(); ++i) juce::Thread::sleep(50);
+		setParam(p, paramId(0, "machine"), 80);
+		setParam(p, paramId(1, "machine"), 81);
+		for(int t = 0; t < 2; ++t) { setParam(p, paramId(t, "syn1"), 127); setParam(p, paramId(t, "syn2"), 0); setParam(p, paramId(t, "vol"), 100); }
+		const int block = 256;
+		p.enableAllBuses();
+		p.setRateAndBufferSizeDetails(rate, block);
+		p.prepareToPlay(rate, block);
+		juce::AudioBuffer<float> buf(2 + 2 * kTracks, block);
+		double pk = 0, pkSilentTrack = 0; int crossings = 0, last = 0, counted = 0;
+		for(int pos = 0; pos < int(rate * 1.5); pos += block)
+		{
+			juce::MidiBuffer m;
+			if(pos == 0) { m.addEvent(juce::MidiMessage::noteOn(1, 36, uint8_t(100)), 0); m.addEvent(juce::MidiMessage::noteOn(1, 37, uint8_t(100)), 0); }
+			buf.clear();
+			for(int i = 0; i < block; ++i) buf.setSample(0, i, float(0.5 * std::sin(2.0 * 3.14159265358979 * 441.0 * double(pos + i) / rate)));
+			p.processBlock(buf, m);
+			if(pos < int(rate * 0.5)) continue;
+			for(int i = 0; i < block; ++i)
+			{
+				pk = std::max(pk, double(std::abs(buf.getSample(2, i))));	// track 1's bus (stereo, after the input bus)
+				pkSilentTrack = std::max(pkSilentTrack, double(std::abs(buf.getSample(4, i))));
+				const float s = buf.getSample(2, i);
+				const int sg = s > 0 ? 1 : s < 0 ? -1 : 0;
+				if(sg && last && sg != last) ++crossings;
+				if(sg) last = sg;
+				++counted;
+			}
+		}
+		const double hz = crossings / 2.0 / (counted / rate);
+		std::printf("input at %.0f Hz: INP-GA on its track bus peak %.4f, %.0f Hz; INP-GB (no right input) peak %.6f\n", rate, pk, hz, pkSilentTrack);
+		if(pk < 0.01 || std::abs(hz - 441.0) > 25.0 || pkSilentTrack > 1e-4) { std::printf("FAIL: the audio input through INP machines\n"); ++bad; }
+	}
 	std::printf(bad ? "FAILED\n" : "ALL OK\n");
 	return bad;
 }

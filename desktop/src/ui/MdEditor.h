@@ -34,6 +34,7 @@ namespace mm
 	private:
 		void bindTrackPages();
 		void rebuildSynPage();
+		void bindFxPages();	// AMP/EFX and ROUTE: the usual parameters, or CTR-8P's eight targets
 		void showConfigMenu();
 		void showKitMenu();
 		void applySkin(const ui::skin::Skin&, bool save);
@@ -66,6 +67,7 @@ namespace mm
 		int m_track = 0;
 		View m_view = View::Track;
 		int m_shownMachine = -1;
+		bool m_fxCtr8 = false;
 		bool m_showStatus = false;
 		int m_skinPollCountdown = 0;
 		juce::String m_artPath;

@@ -19,12 +19,12 @@ struct MachineNames
 {
 	static juce::String group(const md::engine::MachineInfo& m) { return juce::String(m.name).substring(0, 3); }
 	static juce::String shortName(const md::engine::MachineInfo& m) { return juce::String(m.name).substring(3); }
-	// Offered in the picker: MIDI and control machines make no audio, INP has no audio input here, RAM has no sampling; ROM slots
-	// above 32 are empty in the factory image.
+	// Offered in the picker: all but MIDI (no audio here) and RAM (no sampling here); ROM slots above 32 are empty in the factory image.
+	// CTR machines act on parameters, INP machines process the plugin's audio input (see MdProcessor.h).
 	static bool offered(const md::engine::MachineInfo& m)
 	{
 		const auto g = group(m);
-		if(g == "MID" || g == "CTR" || g == "INP" || g == "RAM" || m.name.empty()) return false;
+		if(g == "MID" || g == "RAM" || m.name.empty()) return false;
 		if(g == "ROM" && shortName(m).getIntValue() > 32) return false;
 		return true;
 	}

@@ -32,6 +32,11 @@ extern const char* const kTrackNames[16];	// 01-BD .. 16-M4, the LFO destination
 extern const char* const kUpdateNames[3];	// FREE TRIG HOLD
 extern const char* const kFixedParamNames[16];	// the destination names of LFO PARAM 8-23: AMD .. LFOM
 
+// CTR-8P's AMP/EFX and ROUTE pages: its parameters 9-24 are eight (track, parameter) targets for P1-P8 (TRK1 PRM1 TRK2 PRM2 ...).
+extern const char* const kPairParamNames[24];	// SYN1-SYN8, AMD .. LFOM: the target parameters
+extern const Param kCtr8Pages[2][8];
+extern const char* const kCtr8PageNames[2];
+
 // The master effects' four pages (the kit's 32 master bytes: reverb, echo, EQ, dynamix), eight knobs each.
 extern const char* const kMasterPageNames[4];
 extern const Param kMasterPages[4][8];

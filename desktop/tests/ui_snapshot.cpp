@@ -82,5 +82,11 @@ int main(int argc, char** argv)
 	ed->selectTrack(1);
 	ed->showMachinePicker();
 	shot("picker");
+	// a CTR-8P track: AMP/EFX and ROUTE become its eight (track, parameter) targets
+	ed->selectTrack(2);
+	setParam(proc, paramId(2, "machine"), 113);
+	for(int k = 0; k < 8; ++k) { setParam(proc, paramId(2, kRawKeys[8 + 2 * k]), k + 3); setParam(proc, paramId(2, kRawKeys[9 + 2 * k]), k * 3); }
+	ed->setView(MdEditor::View::Track);
+	shot("ctr8p");
 	return 0;
 }

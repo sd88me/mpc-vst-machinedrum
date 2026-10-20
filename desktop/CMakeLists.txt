@@ -96,7 +96,7 @@ target_link_libraries(Machinemodule
 juce_add_console_app(MmRender PRODUCT_NAME "mm-render")
 target_sources(MmRender PRIVATE tests/mm_render.cpp ${MM_SOURCES})
 target_include_directories(MmRender PRIVATE src/core src/plugin src/ui)
-target_compile_definitions(MmRender PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=0
+target_compile_definitions(MmRender PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=1
   JucePlugin_Name="Machinemodule" JucePlugin_VersionString="${PROJECT_VERSION}" JUCE_STANDALONE_APPLICATION=1)
 target_link_libraries(MmRender PRIVATE mdcore juce::juce_audio_utils juce::juce_recommended_config_flags)
 

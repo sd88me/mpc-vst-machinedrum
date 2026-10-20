@@ -71,6 +71,10 @@ namespace md::engine
 		void setMasterFx(const uint8_t* _bytes32, const bool _snap = false) { m_host->setMasterFx(_bytes32); if(_snap) m_host->snapMasterFx(); }
 
 
+		// The audio input for the next render(): 32 stereo frames, interleaved L R, 24-bit signed (what the INP machines process;
+		// see VoiceEngine::setInput). Needed before every render once used.
+		void setInput(const int32_t* _lr) { m_voices->setInput(_lr); }
+
 		HostModel<TVoices>& host() { return *m_host; }
 		const MachineRunner& os() const { return *m_os; }
 		TVoices& voices() { return *m_voices; }

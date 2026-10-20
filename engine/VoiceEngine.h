@@ -39,6 +39,12 @@ namespace md::engine
 		// Render one 32-sample block of all 16 voices. Returns false on a fault.
 		bool renderBlock(Block& _out);
 
+		// The audio input (the Machinedrum's ADC; what the INP machines process): the next block's 32 stereo frames, interleaved
+		// L R, 24-bit signed. Without a call the input stays silent (and the DSP's input DMA is as the harness left it); with one
+		// every block must have its own call. The hardware's input DMA, which runs on emulated time that has nothing to do
+		// with the blocks, is stopped and its ring (X:$100-$1ff) is filled here, where the voices read it.
+		void setInput(const int32_t* _lr);
+
 		// Write words into P memory (e.g. the ROM machines' sample memory, which the MD copies from its sample flash at
 		// boot - not part of the OS file). reset() reloads the program's own records, the ROM sample directory among them,
 		// so write again after a reset.
@@ -56,6 +62,7 @@ namespace md::engine
 		void installHarness();
 		bool runUntilTx(size_t _words, uint64_t _maxInstructions);
 		bool readBlock(Block& _out, uint64_t _maxInstructions);
+		void feedInput();
 
 		const fw::Firmware& m_fw;
 		std::unique_ptr<dsp56k::DefaultMemoryValidator> m_validator;
@@ -67,5 +74,8 @@ namespace md::engine
 		int m_lastActive = 0;
 		std::array<uint32_t, kVoices> m_voiceInstr{};
 		std::string m_fault;
+		std::array<int32_t, kBlockFrames * 2> m_input{};
+		bool m_inputOn = false;
+		uint32_t m_inputBlock = 0;
 	};
 }

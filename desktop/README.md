@@ -26,6 +26,16 @@ Not affiliated with Elektron. The plugin contains nothing of Elektron's: it need
    routing): each carries one track after its effects and VOL, the same signal left and right, like the Machinedrum's own individual
    outputs (mono, no pan). A track whose output is enabled leaves the Main mix; a muted track is silent on both.
 
+### Input and control machines
+
+- **INP machines** (INP-GA/GB, FA/FB, EA/EB) process the Machinedrum's audio input. Enable the plugin's **Input** bus in your DAW (a sidechain
+  or aux input; it is off by default): the left channel is input A (INP-GA, FA, EA), the right channel is input B (GB, FB, EB). They gate or
+  filter-envelope the input when the track is triggered, like the hardware. (At 48 kHz and up the input is resampled with linear interpolation.)
+- **CTR-AL** shifts SYN1-8 of every other sounding track by the amount its own knob moves (as the OS does: relative, clamped to 0-127; the
+  knobs on the other tracks move). **CTR-8P** sends P1-P8 to eight (track, parameter) targets, set on its two TARGETS pages (TRK / PRM);
+  they take its values continuously. **CTR-RE / GB / EQ / DX** are SYN1-8 of the echo / reverb / EQ / dynamix master effects.
+- Still not offered: MID (MIDI output) and RAM (RAM recording and playback).
+
 ### ROM machines and factory kits
 
 The OS file holds every machine except the ROM sample machines, and the 16 factory kits are not in it either: both come from the flash of a
