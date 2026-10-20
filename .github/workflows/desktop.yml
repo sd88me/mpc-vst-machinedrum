@@ -5,9 +5,9 @@ name: desktop
 
 on:
   push:
-    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'cmake/**', '.github/workflows/desktop.yml']
+    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'cmake/**', 'libs/dsp56300', '.github/workflows/desktop.yml']
   pull_request:
-    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'cmake/**', '.github/workflows/desktop.yml']
+    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'cmake/**', 'libs/dsp56300', '.github/workflows/desktop.yml']
   workflow_dispatch:
 
 jobs:
