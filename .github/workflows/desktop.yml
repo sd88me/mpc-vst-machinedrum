@@ -1,0 +1,60 @@
+# Builds the desktop Machinemodule (VST3, plus AU and Standalone on macOS) on Linux, Windows and macOS (Apple Silicon).
+# Build only: running the engine needs the user's own Machinedrum OS file, which CI does not have, so the offline tests
+# (desktop/tests: MmRender, MmSnapshot) are run locally; see docs/HANDOFF-desktop.md.
+name: desktop
+
+on:
+  push:
+    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'cmake/**', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'cmake/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, name: linux-x64, targets: Machinemodule_VST3 }
+          - { os: windows-2022, name: windows-x64, targets: Machinemodule_VST3 }
+          - { os: macos-14, name: macos-arm64, targets: "Machinemodule_VST3 Machinemodule_AU" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Submodules (only what the plugin build needs)
+        shell: bash
+        run: |
+          git submodule update --init --depth 1 libs/dsp56300 libs/gearmulator-md-mm
+          git -C libs/dsp56300 submodule update --init --depth 1 source/asmjit
+          git -C libs/gearmulator-md-mm submodule update --init --depth 1 source/mc68k
+      - name: Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev \
+            libxcomposite-dev libxext-dev libxrender-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: macOS packages
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Configure
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cmake -S desktop -B build -G "Visual Studio 17 2022" -A x64
+          else
+            cmake -S desktop -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          fi
+      - name: Build
+        shell: bash
+        run: |
+          for t in ${{ matrix.targets }}; do cmake --build build --config Release --target "$t" --parallel 4; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: machinemodule-${{ matrix.name }}
+          path: |
+            build/Machinemodule_artefacts/Release/VST3
+            build/Machinemodule_artefacts/Release/AU
+          if-no-files-found: warn

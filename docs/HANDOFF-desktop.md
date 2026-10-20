@@ -84,8 +84,10 @@ Screenshots: `xvfb-run -a MmSnapshot <OS.syx> <outdir> [width]` (target `MmSnaps
 The reference: shnolk's own desktop UI can be rendered with his tool (`cmake -S <mpc-vst-monomodule>/libs/monomodule -B /b -DMNM_BUILD_TESTS=OFF -DMNM_COPY_PLUGINS=OFF`, build `MnmUiSnapshot`, run `MnmUiSnapshot --one out.png <Monomachine OS.syx>` and `--one-picker`) - build it in a container with the source mounted read-only.
 
 ## Next steps (suggested order)
-0. Phase 3 leftovers (master labels now come from the OS table at `$247cca`, 2026-10-20): mute/lock keys
-   on the track panel; the "Import flash image..." menu item (Phase 4); sizing/scale option; try it in a real DAW.
+0. (done 2026-10-20: mute/lock keys on the track panel, pluginval 5 passes with the new editor, `.github/workflows/desktop.yml` builds Linux/Windows/macOS-arm64 - written but never run: push and see; the Windows MSVC and Apple Silicon JIT builds are the likely trouble spots.)
+   Design note: the track outputs stay the MD's individual outputs (mono, no pan, `sample x VOL << 4`), so they are hotter than the track's share of Main and can clip at high VOL, as on the unit; stems that sum to Main (panned stereo, 34 engine channels) were not built.
+   Phase 3 leftovers (master labels now come from the OS table at `$247cca`, 2026-10-20): mute/lock keys
+   on the track panel; the "Import flash image..." menu item (done, Phase 4); a window scale option; try it in a real DAW.
 
 1. **Phase 3: Machinedrum LCD editor.** Use the OS file's own fonts/dials (`tools/mdskin/mdartdump.cpp`, `tools/mdtrace/ui_spec.py`
    page layouts) drawn like Monomodule's `Lcd`/`RomArt` code (`ext` clone of shnolk/monomodule; `src/plugin/one/`). Pages: SYN (labels
