@@ -18,32 +18,22 @@
 #include <vector>
 
 #include "KitCodec.h"
+#include "KitModel.h"
 #include "MdEngine.h"
 #include "Firmware.h"
 #include "Resampler.h"
 
 namespace mm
 {
-	// The 24 per-track kit values in HostModel's raw order, and their parameter id suffixes.
-	constexpr int kRaw = 24;
-	extern const char* const kRawKeys[kRaw];
-	extern const int kRawDefault[kRaw];
-	extern const char* const kLfoKeys[kNumLfo];
-	constexpr int kMasterBytes = 32;	// the kit's master effects: reverb 8, echo 8, EQ 8, dynamix 8
-	extern const int kMasterDefault[kMasterBytes];
 	juce::String masterId(int i);	// "mfx01" .. "mfx32"
-
-	// The control machines (MachineInfo::id)
-	constexpr int kCtrAll = 112, kCtr8P = 113, kCtrEcho = 120, kCtrDynamix = 123;
-	constexpr bool isControlMachine(int id) { return (id & 0xf0) == 0x70; }	// CTR: no audio, never the target of another control machine
-	constexpr int kCtrMasterBlock[4] = {1, 0, 2, 3};	// CTR-RE / GB / EQ / DX -> the kit's master block (reverb 0, echo 1, EQ 2, dynamix 3), as the OS's table at $2462e3
 
 	juce::String paramId(int track, const juce::String& key);	// track 0-15 -> "t01_<key>"
 	juce::File dataDir();	// per-user folder (OS file path, factory kits, ROM samples)
 
 	class MdProcessor : public juce::AudioProcessor,
 	                    private juce::AudioProcessorValueTreeState::Listener,
-	                    private juce::AsyncUpdater
+	                    private juce::AsyncUpdater,
+	                    private EngineFeeder::Host
 	{
 	public:
 		MdProcessor();
@@ -101,7 +91,7 @@ namespace mm
 		// For the editor: output level of a track (0..1, falls off quickly) and the tempo the engine runs at.
 		float trackPeak(int t) const { return t >= 0 && t < kTracks ? m_peak[size_t(t)].load(std::memory_order_relaxed) : 0.0f; }
 		float hostBpm() const { return m_hostBpm.load(); }
-		int appliedValue(int t, int i) const { return m_appliedRaw[t][i]; }	// what the engine was last given for a track's raw value (tests: after processBlock)
+		int appliedValue(int t, int i) const { return m_feeder.applied(t, i); }	// what the engine was last given for a track's raw value (tests: after processBlock)
 
 		juce::AudioProcessorValueTreeState apvts;
 
@@ -116,6 +106,10 @@ namespace mm
 		void parameterChanged(const juce::String& id, float value) override;
 		void handleAsyncUpdate() override;
 		void applyKit(const Kit&);
+		void readValues(KitValues&) const;	// the parameters as a kit table (any thread)
+		void writeValues(const KitValues& now, const KitValues& was);	// the values that differ into the parameters (message thread)
+		bool takeDefaults(int t) override { return m_needsDefaults[size_t(t)].exchange(false); }
+		void defaultsChosen(int t, const int* values, int count) override;
 		void applyControlMachines();	// CTR-AL / CTR-RE...: knob moves that act on other parameters (message thread)
 		void resyncControlMachines();	// remember the current CTR-AL knob values without acting on them (a kit or project was loaded)
 		void pushInput(juce::AudioBuffer<float>& host, int n);
@@ -139,15 +133,13 @@ namespace mm
 		};
 		std::array<std::atomic<float>*, kMasterBytes> m_master{};
 		std::atomic<float>* m_masterOn = nullptr;
-		int m_appliedMaster[kMasterBytes];
-		bool m_masterSnap = true;	// the first values after an engine is built settle at once (as a unit that has been on a while)
 		std::array<TrackParams, kTracks> m_par{};
-		std::array<std::atomic<bool>, kTracks> m_needsDefaults{};
+		std::array<std::atomic<bool>, kTracks> m_needsDefaults{};	// the user changed the machine: it starts from its own values
 		std::array<std::atomic<bool>, kTracks> m_defaultsReady{};
 		std::array<std::array<std::atomic<int>, kRaw>, kTracks> m_defaultSyn{};	// a new machine's own starting values (SYN1-8; CTR-8P: all 24)
 		std::array<std::atomic<int>, kTracks> m_defaultCount{};
 		std::array<std::atomic<uint8_t>, kTracks> m_ctrDirty{};	// SYN knobs of CTR-AL / CTR-RE.. tracks that moved (bit k = SYN k+1)
-		std::array<std::array<int, 8>, kTracks> m_ctrAllLast{};	// message thread: each CTR-AL knob as the OS keeps it (1-126)
+		ControlRules m_rules;	// message thread
 		std::atomic<bool> m_suppressDefaults{false};
 
 		// the engine, built on a background thread; the audio thread uses it under m_lock (try-lock, silent when busy)
@@ -164,9 +156,8 @@ namespace mm
 		bool m_stateRestored = false;
 		MachineList m_machineList;	// under m_statusLock
 
-		// what the engine has been given (-1 = nothing yet), so only changes are sent
-		int m_appliedMachine[kTracks], m_appliedRaw[kTracks][kRaw], m_appliedLevel[kTracks], m_appliedLfo[kTracks][kNumLfo];
-		void resetApplied();
+		EngineFeeder m_feeder;	// audio thread (under m_lock): what the engine has been given
+		KitValues m_now;	// audio thread: this block's parameters
 
 		std::vector<Kit> m_kits;
 		int m_kitIndex = -1;
@@ -193,7 +184,6 @@ namespace mm
 		bool m_inputUsed = false;
 		std::atomic<float> m_hostBpm{120.0f};
 		std::array<std::atomic<float>, kTracks> m_peak{};
-		double m_appliedBpm = -1;
 		uint32_t m_dryMute = 0;
 		Engine::Output m_out;
 	};
