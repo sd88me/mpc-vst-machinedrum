@@ -10,8 +10,8 @@ OS=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); ROM=$(cd "$(dirname "$2")" &
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 OUT=${BENCH_DIR:-$ROOT/schwung/build/bench}
 mkdir -p "$OUT"
-docker image inspect md-aarch64-builder >/dev/null 2>&1 || docker build -q -t md-aarch64-builder -f "$ROOT/schwung/tools/Dockerfile.aarch64-builder" "$ROOT" >/dev/null
-docker run --rm -u "$(id -u):$(id -g)" -v "$ROOT":/r:ro -v "$OUT":/o md-aarch64-builder sh -c "
+docker image inspect md-move-builder >/dev/null 2>&1 || docker build -q -t md-move-builder -f "$ROOT/schwung/tools/Dockerfile.move-builder" "$ROOT" >/dev/null
+docker run --rm -u "$(id -u):$(id -g)" -v "$ROOT":/r:ro -v "$OUT":/o md-move-builder sh -c "
   cmake -S /r -B /o/jit -G Ninja -DCMAKE_TOOLCHAIN_FILE=/r/schwung/tools/aarch64.cmake -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_FLAGS=-mcpu=cortex-a72 -DCMAKE_C_FLAGS=-mcpu=cortex-a72 -DCMAKE_EXE_LINKER_FLAGS=-static >/dev/null &&
   ninja -C /o/jit md-cost md-hash 2>&1 | grep -v 'dlopen\|Wno-dev' | tail -2"

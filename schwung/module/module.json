@@ -1,0 +1,44 @@
+{
+  "id": "machinemodule",
+  "name": "Machinemodule",
+  "abbrev": "MD",
+  "version": "0.1.0-test.1",
+  "description": "The Elektron Machinedrum SPS-1 UW's sound engine, emulated: 16 tracks on the 16 pads, the editor follows the pad you hit. Test build.",
+  "author": "sd88me",
+  "license": "AGPL-3.0",
+  "dsp": "dsp.so",
+  "api_version": 2,
+  "assets": [
+    {
+      "path": "os",
+      "label": "Machinedrum OS",
+      "extensions": [".syx"],
+      "description": "Requires the Machinedrum SPS-1 UW OS 1.63 file (.syx), a free download from Elektron's Machinedrum support page.",
+      "hint": "Download the Machinedrum UW OS 1.63 from elektron.se, unzip it and upload the .syx file.",
+      "files": [
+        {
+          "filename": "Elektron_SPS1-1UW_OS1.63.syx",
+          "label": "Machinedrum UW OS 1.63",
+          "required": true
+        }
+      ]
+    },
+    {
+      "path": "factory",
+      "label": "Factory kits and ROM samples",
+      "extensions": [".syx", ".bin"],
+      "optional": true,
+      "description": "Optional, for this test build: FACTORY.syx and ROM_SAMPLES.bin as the desktop Machinemodule's Import flash image makes them (in its data folder, factory/). They come from your own Machinedrum's flash image and are never shipped."
+    }
+  ],
+  "capabilities": {
+    "audio_out": true,
+    "audio_in": false,
+    "midi_in": true,
+    "midi_out": false,
+    "chainable": true,
+    "component_type": "sound_generator",
+    "forks_processes": true,
+    "claims_edit_ccs": true
+  }
+}

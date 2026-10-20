@@ -118,6 +118,17 @@ namespace md::engine
 
 		bool render(Output& _out)
 		{
+			if(!timingOn) return renderBlockDry(_out) && masterBlock(_out);
+			if(!renderBlockDry(_out)) return false;
+			const auto t0 = std::chrono::steady_clock::now();
+			if(!masterBlock(_out)) return false;
+			mixUs += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+			return true;
+		}
+
+	private:
+		bool renderBlockDry(Output& _out)
+		{
 			m_host->timingOn = timingOn;
 			m_out = &_out;
 			if(!m_host->renderBlock(m_voiceOut))
@@ -133,14 +144,39 @@ namespace md::engine
 				in[t] = _out.tracks[t].data();
 				mix[t] = m_host->mixerInput(t).mix;
 			}
-			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); return masterBlock(_out); }
+			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); return true; }
 			const auto tf1 = std::chrono::steady_clock::now();
 			m_mixer.process(in.data(), mix.data(), _out.mix, dryMute);
-			if(!masterBlock(_out)) return false;
 			const auto tf2 = std::chrono::steady_clock::now();
 			fxUs += std::chrono::duration<double, std::micro>(tf1 - tf0).count();
 			mixUs += std::chrono::duration<double, std::micro>(tf2 - tf1).count();
 			return true;
+		}
+
+	public:
+
+		// render() in two halves, so the master effects can run on another thread while the next block's voices render (the Schwung
+		// module's engine process): renderDry() is everything but the master section and takes the section's parameter words as the
+		// OS has them after this block's tick; renderMaster() runs the section on that block's mix. Call them in order, one
+		// renderMaster per renderDry, from at most two threads (the section's state is touched only by renderMaster). The same
+		// audio as render().
+		struct MasterJob
+		{
+			bool active = false;
+			uint32_t a[MasterFx::kWordsA], b[MasterFx::kWordsB];
+		};
+		bool renderDry(Output& _out, MasterJob& _job)
+		{
+			_job.active = false;
+			if(!renderBlockDry(_out)) return false;
+			if(m_master && !m_masterBypass) { _job.active = true; m_host->masterWords(_job.a, _job.b); }
+			return true;
+		}
+		bool renderMaster(Output& _out, const MasterJob& _job)
+		{
+			if(!_job.active || !m_master) return true;
+			m_master->setParams(_job.a, _job.b);
+			return m_master->process(_out.mix);
 		}
 
 		const std::string& fault() const { return m_voices->faultReason(); }

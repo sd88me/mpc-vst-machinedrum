@@ -1,6 +1,0 @@
-# Cross-compiler image for aarch64 (Ableton Move, Gen2 MPCs). Built automatically on first use.
-# debian:bookworm targets glibc 2.36; the Move has 2.35, so Move binaries are linked statically (or built on ubuntu:22.04).
-FROM debian:bookworm
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    crossbuild-essential-arm64 cmake ninja-build git file ca-certificates \
-    && rm -rf /var/lib/apt/lists/*

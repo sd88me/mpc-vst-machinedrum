@@ -58,6 +58,7 @@ endif()
 set(MM_HARDENED_OPTS com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.cs.disable-library-validation)
 
 set(MM_SOURCES
+  src/core/EngineFeeder.cpp
   src/core/KitModel.cpp
   src/core/Resampler.cpp
   src/plugin/MdProcessor.cpp

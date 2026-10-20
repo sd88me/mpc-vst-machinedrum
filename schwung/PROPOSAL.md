@@ -230,15 +230,62 @@ engine plus 630 MB, times 32 pads. So the plugin uses a **shared engine**:
 
 1. **Latency: D = 1 (2.9 ms) by default.** LTNCY on the Master page (1-4 blocks) raises it if a busy kit underruns.
 2. **Velocity: a global (kit-wide) VEL MODE on the Master page.**
-   - **MD** (the hardware's way): a hit at or above **ACC THR** (default 100) is an accented trigger with the kit's
-     **ACC AMT** (`HostModel::trigger(track, 127, true)` + `setAccentAmount`; faithful, including the OS's inverted
-     polarity on accented hits). A softer hit is a plain trigger at full velocity, so dynamics come only from accent, as on
-     the MD's own sequencer. (To check against the emulated MD in M2: the velocity byte of an unaccented sequencer step.)
+   - **MD** (the hardware's way): a hit at or above **ACC THR** (default 100) is an accented trigger
+     (`HostModel::trigger(track, 127, true)`): measured in the full-system emulation (mdProbe), the front panel's accented trigger
+     plays at the level of MIDI velocity 127/128 (0.220 vs 0.221), with the OS's inverted polarity. A softer hit is a plain trigger
+     at velocity 127 - **ACC AMT** (default 32 -> 95), so ACC AMT is how far an unaccented hit sits below an accented one. (The
+     MD sequencer's own unaccented-step velocity is still to be measured; ACC AMT can then default to it.)
    - **VEL** (like any Move instrument): the hit's velocity is the trigger velocity 1-127, which scales VOL through the OS's
-     own gain law (`LEV² x VEL x VOL²`); no accent.
+     own gain law (`LEV² x VEL x VOL²`); no accent. Measured on the Move: velocity 64 = 0.50 of 127.
 3. **Master FX kept**, on the kit-wide Echo / Reverb / EQ / Dynamix pages, with FX ON on the Master page.
 4. **Factory kits and ROM samples are imported on the Move** from the user's flash `.bin`: the module's `assets` block
    takes the OS `.syx` and the flash image; on first boot (or when the image changes) a worker runs `md-import` (mdProbe +
    mdsamples, built for aarch64) into the module's data folder, showing "IMPORTING..." until it is done. Expect it to take
    a while on the CM4 (it boots the whole emulated MD); measure in M2.
 5. **DR32 integration parked.** Section 4 stays as the record of what was found; M5 is off the plan for now.
+
+## 8. M2 status (2026-10-21): running on the Move, as a test module
+
+Built and installed as `sound_generators/machinemodule` (version 0.1.0-test.1): `schwung/scripts/build.sh` (Docker, ubuntu 22.04's
+aarch64 toolchain: glibc 2.35 as on the Move; bookworm's 2.36 pulled in `arc4random`) and `schwung/scripts/install.sh`.
+
+| file | what |
+|---|---|
+| `src/plugin/md_plugin.cpp` | `dsp.so`: the kit table (desktop `core/KitModel`), the pages (served `ui_hierarchy`, one Synth page per machine in use with the OS's labels, gated on `ui_machine`), focus follow (any note while stopped; a vouched press while playing), MIDI -> triggers (MD/VEL modes), kits, state, the supervisor (spawn, watch, respawn + replay) |
+| `src/child/md_engine.cpp` | `md-engine`: the engine, fed by `EngineFeeder` from its copy of the table; pre-warms every machine at boot; renders the master effects on a second thread (`master_worker.h`) |
+| `src/common/md_shm.h` | the shared segment: clock, command ring, the engine's answers (machine defaults, the OS's machine table), audio |
+| `tests/md_hosttest.cpp` | loads `dsp.so` as Schwung does and drives it in real time, on the Move |
+| `tests/md_busybench.cpp` | a kit's cost per Move block, offline, for each engine configuration (with an audio hash) |
+
+`md-hosttest` on the Move: boot 2.0 s (1.4 s of it the pre-warm), pages served (12 KB), a machine pick returns its own values, the
+editor follows the pad, MD accents and VEL velocity behave, kits load, the state round-trips, a killed engine is back in 2 s with the
+table replayed, destroy ends the engine. The one failure is the deliberately extreme case below.
+
+What the Move measured, per 128-frame block against the 2902 us budget (`md-busybench`, one voice thread):
+
+| | master FX off | master FX on |
+|---|---|---|
+| a typical groove (kick, snare, hats, clap, tom fill) | 586 us (20%), p99 1.7 ms | 1.2-1.4 ms (41-48%), p99 3.0-3.8 ms |
+| every track busy (default sounds) | 1.6 ms (56%) | 2.4 ms (82%) with the master thread, p99 4.6 ms |
+| every track busy with factory kit 1's long decays and sends | 3.3 ms of voice DSP: does not fit one core | |
+
+Found and fixed on the way (both bit-exact: the same audio hash before and after):
+
+- **The master effects recompiled themselves every block.** `MasterFx::process` patched a jump into P memory and restored it each
+  32 frames, so the JIT recompiled that code twice per block: 2.4 ms per Move block of master effects. Patched once at construction:
+  1.4 ms; linked JIT blocks: 1.3 ms. The section is genuine work (~9,700 DSP instructions per 32 frames, one loop per sample, no
+  padding), still about as much as a busy kit's voices.
+- **The master effects now run beside the voices** (`Engine::renderDry` + `renderMaster`, one 32-frame block behind, on a second
+  thread; same audio as `render`): a busy block went from 3.1 to 2.4 ms. The threads spin up to 0.5 ms before sleeping, because a
+  futex wake-up costs tens of microseconds on the A72, four times a block.
+- **First hits compiled code mid-play** (15-18 ms blocks, a dropout at any latency): every offered machine is played once at boot.
+
+Open, in order:
+
+1. **Listen on the Move** with real kits at LTNCY 1, master FX on; raise LTNCY where it crackles. A typical kit's p99 (3.0-3.8 ms) is
+   above one block with the master effects on, so LTNCY 2 may have to be the default when they are on.
+2. **Heavy kits:** split the voices over two threads (`ParallelVoiceEngine`, with the same spin-then-sleep hand-off as the master
+   thread; its condition-variable wake-up is what made it lose offline), and pin the three threads to separate cores.
+3. **The flash import on the Move** (decision 4): mdProbe + mdsamples for aarch64, run once by the supervisor.
+4. Machine picker as DR32's ENGN browser (sections per group) instead of an enum; `split_voices`; Copy/Delete checked on the device.
+

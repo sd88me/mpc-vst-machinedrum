@@ -1,8 +1,7 @@
 // The Machinedrum's sound as a plain table of kit values, and the rules that turn it into engine calls, without a plugin framework:
 // shared by the desktop plugin (desktop/src/plugin, values in JUCE parameters) and the Schwung module (schwung/, values in its own
-// param table). What the OS does with the values is the engine's; what is here is what the OS does around them:
-//   EngineFeeder   sends a table to an engine, only what changed: machines (a new machine starts from its own values when the user
-//                  picked it, as on the unit), the 24 raw values, levels, mutes, LFOs, the master effects, the tempo; CTR-8P's targets
+// param table). What the OS does with the values is the engine's; what is here is what the OS does around them (EngineFeeder.h
+// sends a table to an engine):
 //   ControlRules   the control machines that move other values: CTR-AL (a SYN knob move shifts that SYN on every sounding track) and
 //                  CTR-RE / GB / EQ / DX (SYN k is the master effect block's parameter k)
 #pragma once
@@ -10,7 +9,6 @@
 #include <cstdint>
 
 #include "KitCodec.h"
-#include "MdEngine.h"
 
 namespace mm
 {
@@ -46,30 +44,6 @@ namespace mm
 		static KitValues defaults();	// what a new instance starts with: every track GND, the default master effects
 		// A kit's values into the table; tracks whose bit is set in `keep` are left as they are (a locked track)
 		void load(const Kit&, uint32_t keep = 0);
-	};
-
-	class EngineFeeder
-	{
-	public:
-		struct Host
-		{
-			// The user changed track t's machine (not a kit or a restored state): true = the machine's own starting values are wanted.
-			virtual bool takeDefaults(int t) = 0;
-			// The starting values chosen for track t's new machine (SYN1-8; CTR-8P: all 24), already sent to the engine: show them.
-			virtual void defaultsChosen(int t, const int* values, int count) = 0;
-		protected:
-			~Host() = default;
-		};
-
-		EngineFeeder() { reset(); }
-		void reset();	// a new engine: everything is sent again, the master effects settle at once
-		void apply(md::engine::Engine& engine, const KitValues& v, double bpm, Host& host);
-		int applied(int t, int i) const { return m_raw[t][i]; }	// what the engine was last given for a track's raw value
-
-	private:
-		int m_machine[kTracks], m_raw[kTracks][kRaw], m_level[kTracks], m_lfo[kTracks][kNumLfo], m_master[kMasterBytes];
-		double m_bpm = -1;
-		bool m_masterSnap = true;	// the first values after an engine is built settle at once (as a unit that has been on a while)
 	};
 
 	class ControlRules

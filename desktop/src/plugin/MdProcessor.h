@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "KitCodec.h"
-#include "KitModel.h"
+#include "EngineFeeder.h"
 #include "MdEngine.h"
 #include "Firmware.h"
 #include "Resampler.h"
