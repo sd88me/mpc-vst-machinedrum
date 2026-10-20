@@ -258,6 +258,12 @@ juce::Rectangle<int> TrackPanel::cellRect(int t) const
 juce::Rectangle<int> TrackPanel::lockBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 22, r.getY() + 8, 9, 8}; }
 juce::Rectangle<int> TrackPanel::muteBox(int t) const { const auto r = cellRect(t); return {r.getRight() - 12, r.getY() + 8, 9, 8}; }
 
+juce::Rectangle<int> TrackPanel::headerKey(int k) const
+{
+	const auto r = cellRect(k * kRows);
+	return {r.getX(), 0, r.getWidth() - (k == 0 ? 1 : 0), kTitleH};
+}
+
 int TrackPanel::trackAt(juce::Point<int> local) const
 {
 	const auto p = local / kScale;
@@ -269,7 +275,13 @@ void TrackPanel::paint(juce::Graphics& g)
 {
 	LcdCanvas cv(kLcdW, kLcdH);
 	cv.fillRect(0, 0, kLcdW, kTitleH, true);
-	cv.text(spec::kFontBold8(), "TRACKS", 2, 1, false);
+	for(int k = 0; k < 2; ++k)	// MIXER above track 1, MASTER above track 9: inverted while their view is shown
+	{
+		const auto r = headerKey(k);
+		const bool on = m_mode == k + 1;
+		cv.fillRect(r.getX(), 0, r.getWidth(), kTitleH, !on);
+		cv.text(spec::kFontBold8(), k == 0 ? "MIXER" : "MASTER", r.getX() + 3, 1, on);
+	}
 	for(int t = 0; t < 16; ++t)
 	{
 		const auto r = cellRect(t);
@@ -311,9 +323,11 @@ void TrackPanel::paint(juce::Graphics& g)
 
 void TrackPanel::mouseDown(const juce::MouseEvent& e)
 {
+	const auto lcd = e.getPosition() / kScale;
+	if(headerKey(0).contains(lcd)) { if(onMixer) onMixer(); return; }
+	if(headerKey(1).contains(lcd)) { if(onMaster) onMaster(); return; }
 	const int t = trackAt(e.getPosition());
 	if(t < 0) return;
-	const auto lcd = e.getPosition() / kScale;
 	if(lockBox(t).contains(lcd)) { if(onLock) onLock(t); return; }
 	if(muteBox(t).contains(lcd)) { if(onMute) onMute(t); return; }
 	if(t != m_selected) { setSelected(t); if(onSelect) onSelect(t); }
@@ -323,6 +337,7 @@ void TrackPanel::mouseMove(const juce::MouseEvent& e)
 {
 	const int t = trackAt(e.getPosition());
 	const auto lcd = e.getPosition() / kScale;
+	if(headerKey(0).contains(lcd) || headerKey(1).contains(lcd)) { setMouseCursor(juce::MouseCursor::PointingHandCursor); return; }
 	const bool key = t >= 0 && (lockBox(t).contains(lcd) || muteBox(t).contains(lcd));
 	setMouseCursor(t >= 0 && (t != m_selected || key) ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
 }

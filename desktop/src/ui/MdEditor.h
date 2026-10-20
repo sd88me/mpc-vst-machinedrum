@@ -50,7 +50,6 @@ namespace mm
 		ui::MachineList m_list;
 		ui::LcdText m_mark, m_footerVersion, m_footerCredit, m_bpmLabel;
 		ui::LcdButton m_menuButton{"MENU"};
-		ui::LcdToggle m_mixerToggle{"MIXER"}, m_masterToggle{"MASTER"};
 		ui::MachineBar m_machineBar;
 		ui::KitStrip m_kitStrip;
 		ui::BpmReadout m_bpm;

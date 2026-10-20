@@ -23,7 +23,7 @@ namespace mm
 	{
 		setLookAndFeel(&m_lnf);
 		m_menuButton.onClick = [this] { showConfigMenu(); };
-		for(auto* c : std::initializer_list<juce::Component*>{&m_mark, &m_footerVersion, &m_footerCredit, &m_bpmLabel, &m_menuButton, &m_mixerToggle, &m_masterToggle,
+		for(auto* c : std::initializer_list<juce::Component*>{&m_mark, &m_footerVersion, &m_footerCredit, &m_bpmLabel, &m_menuButton,
 			&m_masterOn, &m_machineBar, &m_kitStrip, &m_bpm, &m_level, &m_syn, &m_amp, &m_route, &m_lfo, &m_tracks, &m_mixer})
 			addAndMakeVisible(*c);
 		m_status.setFont(juce::Font(juce::FontOptions(12.0f)));
@@ -51,8 +51,8 @@ namespace mm
 			timerCallback();
 		};
 		m_mixer.onSelect = [this](int t) { selectTrack(t); };
-		m_mixerToggle.onClick = [this] { setView(m_mixerToggle.getToggleState() ? View::Mixer : View::Track); };
-		m_masterToggle.onClick = [this] { setView(m_masterToggle.getToggleState() ? View::Master : View::Track); };
+		m_tracks.onMixer = [this] { setView(m_view == View::Mixer ? View::Track : View::Mixer); };
+		m_tracks.onMaster = [this] { setView(m_view == View::Master ? View::Track : View::Master); };
 		m_kitStrip.onPart = [this](ui::KitStrip::Part part)
 		{
 			if(part == ui::KitStrip::Part::Prev) m_proc.stepKit(-1);
@@ -170,8 +170,7 @@ namespace mm
 	{
 		if(v == m_view) return;
 		m_view = v;
-		m_mixerToggle.setToggleState(v == View::Mixer, juce::dontSendNotification);
-		m_masterToggle.setToggleState(v == View::Master, juce::dontSendNotification);
+		m_tracks.setMode(v == View::Mixer ? 1 : v == View::Master ? 2 : 0);
 		if(m_picker.isOpen()) m_picker.close(false);
 		m_mixer.setVisible(v == View::Mixer);
 		for(auto* pg : {&m_syn, &m_amp, &m_route, &m_lfo}) pg->setVisible(v != View::Mixer);
@@ -368,10 +367,6 @@ namespace mm
 		auto headerTop = header.removeFromTop(30);
 		m_menuButton.setBounds(headerTop.removeFromRight(32 * kScale));
 		headerTop.removeFromRight(10);
-		m_masterToggle.setBounds(headerTop.removeFromRight(40 * kScale));
-		headerTop.removeFromRight(8);
-		m_mixerToggle.setBounds(headerTop.removeFromRight(34 * kScale));
-		headerTop.removeFromRight(8);
 		m_masterOn.setBounds(headerTop.removeFromRight(m_masterOn.isVisible() ? 34 * kScale : 0));
 		headerTop.removeFromRight(10);
 		m_bpm.setBounds(headerTop.removeFromRight(62 * kScale));	// "120.0" in the tall digit face is 59 px

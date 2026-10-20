@@ -108,6 +108,8 @@ public:
 	std::function<void(int)> onSelect;
 	std::function<void(int)> onMute;	// toggle
 	std::function<void(int)> onLock;	// toggle
+	std::function<void()> onMixer, onMaster;	// the keys above track 1 and track 9: toggle the mixer / master view
+	void setMode(int m) { if(m_mode != m) { m_mode = m; repaint(); } }	// 0 tracks, 1 mixer, 2 master
 	void setMuted(int t, bool m) { if(m_muted[size_t(t)] != m) { m_muted[size_t(t)] = m; repaint(); } }
 	void setLocked(int t, bool l) { if(m_locked[size_t(t)] != l) { m_locked[size_t(t)] = l; repaint(); } }
 	void setSelected(int t) { if(m_selected != t) { m_selected = t; repaint(); } }
@@ -121,8 +123,9 @@ private:
 	juce::Rectangle<int> cellRect(int t) const;	// LCD px
 	juce::Rectangle<int> lockBox(int t) const;	// LCD px: "L" key, bottom right of the cell
 	juce::Rectangle<int> muteBox(int t) const;	// "M" key
+	juce::Rectangle<int> headerKey(int k) const;	// LCD px: 0 = MIXER, 1 = MASTER
 	int trackAt(juce::Point<int> local) const;
-	int m_selected = 0;
+	int m_selected = 0, m_mode = 0;
 	std::array<juce::String, 16> m_machine;
 	std::array<bool, 16> m_active{}, m_muted{}, m_locked{};
 };
