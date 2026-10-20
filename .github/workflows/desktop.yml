@@ -107,6 +107,16 @@ jobs:
         shell: bash
         run: |
           for t in Machinemodule_VST3 Machinemodule_Standalone; do cmake --build build --config Release --target "$t" --parallel 4; done
+      - name: Import helper test (a bogus flash image must be reported by mdProbe itself, which proves md-import can start it)
+        shell: pwsh
+        run: |
+          $d = "build\Machinemodule_artefacts\Release\Standalone"
+          [IO.File]::WriteAllBytes("$PWD\zero.bin", (New-Object byte[] 8388608))
+          Set-Content -Path "$PWD\os.syx" -Value "x"
+          $out = (& "$d\md-import.exe" "$PWD\zero.bin" "$PWD\os.syx" "$PWD\imp" 2>&1 | Out-String)
+          $out
+          "exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -eq 0 -or $out -notmatch "ROM not valid") { exit 1 }
       - uses: actions/upload-artifact@v4
         with:
           name: machinemodule-windows-x64
