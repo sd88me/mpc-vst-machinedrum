@@ -21,7 +21,7 @@ The older [../HANDOFF.md](../HANDOFF.md) is the MPC Force history; this one cove
 | 0 engine on desktop under the dsp56300 JIT | done. Fix: `cfg.interruptRegionIsCode = true` (VoiceEngine, JIT builds only). JIT = interpreter hash `04ef1db4fe767721` (no ROM samples) and `e2b514e70c173c33` (with ROM samples = the Force build's hash). `md-multi`: 4 engines on 4 threads identical to solo. |
 | 1 plugin that plays | done: `desktop/` JUCE project, 16 tracks, 496 params, Main + Track 1-16 outputs, kit loading, resampler, simple editor. pluginval strictness 5 passes. `mm-render` (processor == bare engine, sample-identical). |
 | 2 master effects | done: `engine/MasterFx.*`, 32 master params + on/off in the plugin. Verified vs the full-system emulation (see below). **Not done: pan on the track outputs.** |
-| 3 LCD editor | **first version done (2026-10-20)**: `desktop/src/plugin/MdEditor.*`, pages SYN / FX / ROUTE / LFO / MASTER / MIXER, track buttons, machine picker (names and SYN labels from the OS's machine table), kit browser, scalable. Drawn with JUCE in LCD colours, not yet with the OS file's own font/dial bitmaps. `mm-snapshot` renders every page to a PNG. |
+| 3 LCD editor | **version 2 done (2026-10-20), after shnolk's desktop Monomodule**: `desktop/src/ui/` (ported from `libs/monomodule/src/plugin/one/`, AGPL, attributed in each header): `RomArt` (fonts, dial ring and 128 pointer frames read from the user's OS file at the addresses `tools/mdskin/mdartdump.cpp` uses; stand-in face until then), `Lcd`, `Skin` (default = the MD's red LCD; also black/white, inverted, low contrast, custom), `Widgets` (KnobPage, MachineBar, LevelColumn, TrackPanel, MixerPage, KitStrip), `MachinePicker` (one column per group from the OS machine table), `MdEditor`. Layout = Monomodule One/Six: header (mark, machine block, kit strip, BPM, MIXER / MASTER / MENU), LEV column, pages SYN / AMP-EFX over ROUTE / LFO, 16-track panel in place of his third page column. MIXER shows the 16 LEV columns; MASTER swaps the four pages for the master effects. |
 | 4 flash-image import (ROM samples, factory kits) | engine side works (`tools/mdkits/make_factory.py` ran fine); no in-plugin import button yet |
 | 5/6 INP/RAM/MID machines, Library, release CI | not started |
 
@@ -80,12 +80,12 @@ added: `poke8:ADDR:V[:V...]`, `dspmem:DSP:X|Y|P:FROM:TO`. MD_ROM=<ROM_SAMPLES.bi
 `docker build -t md-desktop-builder` from a plain `ubuntu:24.04` with build-essential cmake ninja git python3 xvfb and the JUCE dev packages
 listed above. Mount the repo at /r and a build dir at /b. **Run anything that boots the engine with `--shm-size=4g`**: the JIT's memory
 tables use shared memory and Docker's 64 MB /dev/shm makes the process die with SIGBUS in `MasterFx::MasterFx` (it is not a code bug).
-Screenshots: `xvfb-run -a MmSnapshot <OS.syx> <outdir> [width]` (target `MmSnapshot`, `desktop/tests/ui_snapshot.cpp`).
+Screenshots: `xvfb-run -a MmSnapshot <OS.syx> <outdir> [width]` (target `MmSnapshot`, `desktop/tests/ui_snapshot.cpp`: track, mixer, master and picker views).
+The reference: shnolk's own desktop UI can be rendered with his tool (`cmake -S <mpc-vst-monomodule>/libs/monomodule -B /b -DMNM_BUILD_TESTS=OFF -DMNM_COPY_PLUGINS=OFF`, build `MnmUiSnapshot`, run `MnmUiSnapshot --one out.png <Monomachine OS.syx>` and `--one-picker`) - build it in a container with the source mounted read-only.
 
 ## Next steps (suggested order)
-0. Phase 3 leftovers: the OS's own font and dial bitmaps (`tools/mdskin/mdartdump.cpp`) instead of the system monospace font; hardware names for
-   the 32 master parameters and the LFO shapes (the editor shows `REV 1`.. and `SHAPE 1-6`); pan/VOL display in hardware units; kit browser
-   as a list.
+0. Phase 3 leftovers: hardware names for the 32 master parameters (the editor shows `REV1`.. `DYN8`; the labels are in the OS strings); mute/lock keys
+   on the track panel; the "Import flash image..." menu item (Phase 4); sizing/scale option; try it in a real DAW.
 
 1. **Phase 3: Machinedrum LCD editor.** Use the OS file's own fonts/dials (`tools/mdskin/mdartdump.cpp`, `tools/mdtrace/ui_spec.py`
    page layouts) drawn like Monomodule's `Lcd`/`RomArt` code (`ext` clone of shnolk/monomodule; `src/plugin/one/`). Pages: SYN (labels

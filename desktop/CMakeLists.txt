@@ -60,7 +60,13 @@ set(MM_HARDENED_OPTS com.apple.security.cs.allow-jit com.apple.security.cs.allow
 set(MM_SOURCES
   src/core/Resampler.cpp
   src/plugin/MdProcessor.cpp
-  src/plugin/MdEditor.cpp)
+  src/ui/RomArt.cpp
+  src/ui/Spec.cpp
+  src/ui/Lcd.cpp
+  src/ui/Widgets.cpp
+  src/ui/MachinePicker.cpp
+  src/ui/SkinDialog.cpp
+  src/ui/MdEditor.cpp)
 
 juce_add_plugin(Machinemodule
   PRODUCT_NAME "Machinemodule"
@@ -80,7 +86,7 @@ juce_add_plugin(Machinemodule
   HARDENED_RUNTIME_OPTIONS ${MM_HARDENED_OPTS}
   MICROPHONE_PERMISSION_ENABLED FALSE)
 target_sources(Machinemodule PRIVATE ${MM_SOURCES})
-target_include_directories(Machinemodule PRIVATE src/core src/plugin)
+target_include_directories(Machinemodule PRIVATE src/core src/plugin src/ui)
 target_compile_definitions(Machinemodule PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
 target_link_libraries(Machinemodule
   PRIVATE mdcore juce::juce_audio_utils
@@ -89,7 +95,7 @@ target_link_libraries(Machinemodule
 # Offline renderer / test: notes through the processor to a WAV, compared with the bare engine (tests/mm_render.cpp)
 juce_add_console_app(MmRender PRODUCT_NAME "mm-render")
 target_sources(MmRender PRIVATE tests/mm_render.cpp ${MM_SOURCES})
-target_include_directories(MmRender PRIVATE src/core src/plugin)
+target_include_directories(MmRender PRIVATE src/core src/plugin src/ui)
 target_compile_definitions(MmRender PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=0
   JucePlugin_Name="Machinemodule" JucePlugin_VersionString="${PROJECT_VERSION}" JUCE_STANDALONE_APPLICATION=1)
 target_link_libraries(MmRender PRIVATE mdcore juce::juce_audio_utils juce::juce_recommended_config_flags)
@@ -97,7 +103,7 @@ target_link_libraries(MmRender PRIVATE mdcore juce::juce_audio_utils juce::juce_
 # Renders every editor page to a PNG (tests/ui_snapshot.cpp)
 juce_add_console_app(MmSnapshot PRODUCT_NAME "mm-snapshot")
 target_sources(MmSnapshot PRIVATE tests/ui_snapshot.cpp ${MM_SOURCES})
-target_include_directories(MmSnapshot PRIVATE src/core src/plugin)
+target_include_directories(MmSnapshot PRIVATE src/core src/plugin src/ui)
 target_compile_definitions(MmSnapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=1
   JucePlugin_Name="Machinemodule" JucePlugin_VersionString="${PROJECT_VERSION}" JUCE_STANDALONE_APPLICATION=1)
 target_link_libraries(MmSnapshot PRIVATE mdcore juce::juce_audio_utils juce::juce_recommended_config_flags)

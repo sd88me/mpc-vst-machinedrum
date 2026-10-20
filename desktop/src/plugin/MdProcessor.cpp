@@ -268,6 +268,18 @@ namespace mm
 		applyKit(m_kits[size_t(m_kitIndex)]);
 	}
 
+	juce::String MdProcessor::kitName(int i) const
+	{
+		return i >= 0 && i < int(m_kits.size()) ? juce::String(m_kits[size_t(i)].name).trim() : juce::String();
+	}
+
+	void MdProcessor::selectKit(int i)
+	{
+		if(i < 0 || i >= int(m_kits.size())) return;
+		m_kitIndex = i;
+		applyKit(m_kits[size_t(i)]);
+	}
+
 	juce::String MdProcessor::kitLabel() const
 	{
 		if(m_kitIndex < 0 || m_kitIndex >= int(m_kits.size())) return "no kit loaded";
@@ -445,6 +457,13 @@ namespace mm
 		const int64_t e1 = !m_needsResample ? hostEnd : std::max(e0, m_engineAt.floorAt(hostEnd - 1) + 1);
 		const int nEngine = int(e1 - e0);
 		renderFrames(nEngine, e0);
+		for(int t = 0; t < kTracks; ++t)	// the editor's meters
+		{
+			float pk = 0.0f;
+			const float* s = m_eng[size_t(2 + t)].data();
+			for(int i = 0; i < nEngine; ++i) pk = std::max(pk, std::abs(s[i]));
+			m_peak[size_t(t)].store(std::max(pk, m_peak[size_t(t)].load(std::memory_order_relaxed) * 0.9f), std::memory_order_relaxed);
+		}
 
 		struct Stream { int chL, chR; float* outL; float* outR; };
 		Stream streams[1 + kTracks];

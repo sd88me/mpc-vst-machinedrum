@@ -74,6 +74,14 @@ namespace mm
 		bool loadKitFile(const juce::File&, juce::String& error);
 		void stepKit(int dir);
 		juce::String kitLabel() const;
+		int kitCount() const { return int(m_kits.size()); }
+		int kitIndex() const { return m_kitIndex; }
+		juce::String kitName(int i) const;	// the kit's own name, trimmed
+		void selectKit(int i);
+
+		// For the editor: output level of a track (0..1, falls off quickly) and the tempo the engine runs at.
+		float trackPeak(int t) const { return t >= 0 && t < kTracks ? m_peak[size_t(t)].load(std::memory_order_relaxed) : 0.0f; }
+		float hostBpm() const { return m_hostBpm.load(); }
 
 		juce::AudioProcessorValueTreeState apvts;
 
@@ -146,6 +154,7 @@ namespace mm
 		std::array<mnm::dsp::History, kCh> m_hist;
 		std::vector<PendingNote> m_notes;
 		std::atomic<float> m_hostBpm{120.0f};
+		std::array<std::atomic<float>, kTracks> m_peak{};
 		double m_appliedBpm = -1;
 		uint32_t m_dryMute = 0;
 		Engine::Output m_out;

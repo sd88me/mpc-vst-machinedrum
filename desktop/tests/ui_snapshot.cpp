@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 {
 	juce::ScopedJuceInitialiser_GUI init;
 	if(argc < 3) { std::fprintf(stderr, "usage: mm-snapshot <OS.syx> <outdir> [width]\n"); return 2; }
-	const int width = argc > 3 ? juce::String(argv[3]).getIntValue() : 720;
+	const int width = argc > 3 ? juce::String(argv[3]).getIntValue() : 0;
 	MdProcessor proc;
 	proc.setOsPath(argv[1], false);
 	for(int i = 0; i < 600 && !proc.engineReady(); ++i) juce::Thread::sleep(50);
@@ -28,21 +28,30 @@ int main(int argc, char** argv)
 	std::unique_ptr<juce::AudioProcessorEditor> base(proc.createEditor());
 	auto* ed = dynamic_cast<MdEditor*>(base.get());
 	if(!ed) return 2;
-	ed->setSize(width, width * 480 / 720);
+	if(width > 0) ed->setSize(width, width * ed->getHeight() / ed->getWidth());
 	const juce::File out(argv[2]);
 	out.createDirectory();
-	const char* names[MdEditor::kPages] = {"syn", "fx", "route", "lfo", "master", "mixer"};
-	for(int p = 0; p < MdEditor::kPages; ++p)
+	juce::PNGImageFormat png;
+	auto shot = [&](const char* name)
 	{
-		ed->show(MdEditor::Page(p), p == MdEditor::Mixer ? 2 : 1);
 		juce::MessageManager::getInstance()->runDispatchLoopUntil(400);
+		ed->refresh();
 		auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
-		juce::PNGImageFormat png;
-		const auto f = out.getChildFile(juce::String("page-") + names[p] + ".png");
+		const auto f = out.getChildFile(juce::String("page-") + name + ".png");
 		f.deleteFile();
 		juce::FileOutputStream fos(f);
 		png.writeImageToStream(img, fos);
 		std::printf("%s\n", f.getFullPathName().toRawUTF8());
-	}
+	};
+	ed->selectTrack(0);
+	shot("track");
+	ed->setView(MdEditor::View::Mixer);
+	shot("mixer");
+	ed->setView(MdEditor::View::Master);
+	shot("master");
+	ed->setView(MdEditor::View::Track);
+	ed->selectTrack(1);
+	ed->showMachinePicker();
+	shot("picker");
 	return 0;
 }
