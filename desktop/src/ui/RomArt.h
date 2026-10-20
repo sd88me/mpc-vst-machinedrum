@@ -41,6 +41,9 @@ struct Art
 	Bitmap ringPlain;	// 11x11
 	const Bitmap* dialDot[128] = {};	// 7x7 pointer frame per raw value, composite at (2, 4); never null
 	Bitmap toggle[2];	// the two-state icon (OFF / ON), drawn for this project (not in the OS file)
+	// The master effects' 32 parameter labels in the kit's byte order (reverb, echo, EQ, dynamix, 8 each), from the OS's own table;
+	// null until an OS file is read.
+	const char* masterLabel[32] = {};
 	bool fromRom = false;
 };
 
@@ -65,6 +68,7 @@ inline const Bitmap& kDialRing() { return art().dialRing; }
 inline const Bitmap& kGroupTie() { return art().groupTie; }
 inline const Bitmap& kRingPlain() { return art().ringPlain; }
 inline const Bitmap& kDialDot(int raw) { return *art().dialDot[raw < 0 ? 0 : raw > 127 ? 127 : raw]; }
+inline const char* masterLabel(int i) { return i >= 0 && i < 32 ? art().masterLabel[i] : nullptr; }
 inline const Bitmap& kToggle(bool on) { return art().toggle[on ? 1 : 0]; }
 
 }	// namespace mm::uispec

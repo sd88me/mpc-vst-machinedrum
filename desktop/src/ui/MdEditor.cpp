@@ -58,6 +58,7 @@ namespace mm
 		addChildComponent(m_missingOs);
 		m_missingOs.setVisible(!m_proc.engineReady());
 
+		buildMasterParams();
 		bindTrackPages();
 		const int levW = 19 * kScale;
 		setSize(20 + levW + 8 + 3 * ui::KnobPage::kWidth + 2 * kGap, 16 + 16 + 48 + 6 + 30 + 6 + 2 * ui::KnobPage::kHeight + kGap);
@@ -83,6 +84,17 @@ namespace mm
 		return m_paramNames.data();
 	}
 
+	void MdEditor::buildMasterParams()
+	{
+		for(int g = 0; g < 4; ++g)
+			for(int k = 0; k < 8; ++k)
+			{
+				auto p = spec::kMasterPages[g][k];
+				if(const char* l = spec::masterLabel(g * 8 + k)) p.label = l;
+				m_masterParams[size_t(g)][size_t(k)] = p;
+			}
+	}
+
 	void MdEditor::bindTrackPages()
 	{
 		const int t = m_track;
@@ -97,7 +109,7 @@ namespace mm
 			{
 				pages[i]->setTitle(spec::kMasterPageNames[i]);
 				pages[i]->setBadge({});
-				pages[i]->bind(spec::kMasterPages[i], [i](int k) { return masterId(i * 8 + k); });
+				pages[i]->bind(m_masterParams[size_t(i)].data(), [i](int k) { return masterId(i * 8 + k); });
 			}
 		}
 		else
@@ -280,7 +292,7 @@ namespace mm
 		if(m_proc.osPath() != m_artPath)	// OS file chosen or changed: draw with its LCD artwork from now on
 		{
 			m_artPath = m_proc.osPath();
-			if(loadLcdArt(m_artPath)) { resized(); repaint(); }
+			if(loadLcdArt(m_artPath)) { buildMasterParams(); if(m_view == View::Master) bindTrackPages(); resized(); repaint(); }
 		}
 		const bool ready = m_proc.engineReady();
 		if(m_missingOs.isVisible() == ready) m_missingOs.setVisible(!ready);

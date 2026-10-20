@@ -84,7 +84,7 @@ Screenshots: `xvfb-run -a MmSnapshot <OS.syx> <outdir> [width]` (target `MmSnaps
 The reference: shnolk's own desktop UI can be rendered with his tool (`cmake -S <mpc-vst-monomodule>/libs/monomodule -B /b -DMNM_BUILD_TESTS=OFF -DMNM_COPY_PLUGINS=OFF`, build `MnmUiSnapshot`, run `MnmUiSnapshot --one out.png <Monomachine OS.syx>` and `--one-picker`) - build it in a container with the source mounted read-only.
 
 ## Next steps (suggested order)
-0. Phase 3 leftovers: hardware names for the 32 master parameters (the editor shows `REV1`.. `DYN8`; the labels are in the OS strings); mute/lock keys
+0. Phase 3 leftovers (master labels now come from the OS table at `$247cca`, 2026-10-20): mute/lock keys
    on the track panel; the "Import flash image..." menu item (Phase 4); sizing/scale option; try it in a real DAW.
 
 1. **Phase 3: Machinedrum LCD editor.** Use the OS file's own fonts/dials (`tools/mdskin/mdartdump.cpp`, `tools/mdtrace/ui_spec.py`

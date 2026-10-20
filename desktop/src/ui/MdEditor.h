@@ -71,6 +71,8 @@ namespace mm
 		juce::String m_artPath;
 		std::array<const char*, 24> m_paramNames{};
 		std::array<ui::spec::Param, 8> m_synParams{};
+		std::array<std::array<ui::spec::Param, 8>, 4> m_masterParams{};
+		void buildMasterParams();	// the OS's own labels once the artwork is read, else the generic names
 		ui::LcdToggle m_masterOn{"FX ON"};
 		std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> m_masterOnAttach;
 	};

@@ -20,6 +20,7 @@ namespace {
 struct Store {
     std::deque<std::vector<uint64_t>> rows;
     std::deque<Bitmap> bitmaps;
+    std::deque<std::string> strings;
     struct FontData { std::vector<Bitmap> glyphs; std::array<int16_t, 128> index; };
     std::deque<FontData> fonts;
 
@@ -155,6 +156,8 @@ constexpr uint32_t kBase = 0x200000;
 constexpr uint32_t kDialRingAt = 0x2599E0, kRingPlainAt = 0x2599CC, kGroupTieAt = 0x259AF8;
 constexpr uint32_t kDialDotAt = 0x259B0C;	// 128 descriptors back to back
 constexpr uint32_t kDescSize = 20;
+// The master effects' parameter names: 32 pointers to C strings in the order echo, reverb, EQ, dynamix (8 each).
+constexpr uint32_t kMasterLabelsAt = 0x247CCA;
 constexpr uint32_t kFontTiny3x5At = 0x259954, kFontSmall4x5At = 0x259968, kFontSquare5x5At = 0x25997C, kFontBold8At = 0x259990,
                    kFontDigitsTopAt = 0x2599A4, kFontDigitsBottomAt = 0x2599B8;
 
@@ -187,6 +190,23 @@ struct Reader {
 				if ((col >> (32 - h + r)) & 1) rows[r] |= uint64_t(1) << (63 - c);
 		}
 		return st.addBitmap(int(w), int(h), std::move(rows));
+	}
+
+	// A short upper-case label the pointer at `ptrAddr` refers to.
+	const char* label(uint32_t ptrAddr)
+	{
+		const uint32_t s = u32(ptrAddr);
+		std::string out;
+		for(int i = 0; i < 6; ++i)
+		{
+			const char ch = char(*at(s + uint32_t(i), 1));
+			if(ch == 0) break;
+			if(!((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9'))) bad("not a label", s);
+			out += ch;
+		}
+		if(out.empty() || out.size() > 5) bad("not a label", s);
+		st.strings.push_back(out);
+		return st.strings.back().c_str();
 	}
 
 	Font font(uint32_t addr, int wantH)
@@ -262,6 +282,12 @@ bool installRomArt(const std::vector<uint8_t>& mainOs, std::string* error)
 		a.groupTie = *rd.icon(kGroupTieAt, 7, 3);
 		for (int i = 0; i < 128; ++i) a.dialDot[i] = rd.icon(kDialDotAt + uint32_t(i) * kDescSize, 7, 7);
 		buildToggles(*store, a.toggle);
+		// decoration: without the table the UI keeps its own generic names
+		try {
+			const int tableIndex[4] = {8, 0, 16, 24};	// kit order reverb, echo, EQ, dynamix -> position in the OS's table
+			for(int g = 0; g < 4; ++g)
+				for(int k = 0; k < 8; ++k) a.masterLabel[g * 8 + k] = rd.label(kMasterLabelsAt + 4 * uint32_t(tableIndex[g] + k));
+		} catch(const std::exception&) { for(auto& l : a.masterLabel) l = nullptr; }
 	} catch (const std::exception& e) {
 		if (error) *error = std::string("LCD artwork not found in this OS file (") + e.what() + "); Machinedrum UW OS 1.63 is the supported version";
 		return false;
