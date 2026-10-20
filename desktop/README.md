@@ -51,7 +51,7 @@ Linux needs the JUCE development packages (`libasound2-dev libx11-dev libxrandr-
 libxcomposite-dev libxext-dev libxrender-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev`). Without root, build in a container
 (an `ubuntu:24.04` image with those packages, the repo mounted at `/r`, a build folder at `/b`); run anything that starts the engine
 with `--shm-size=4g`, because the JIT's memory tables use shared memory (Docker's default 64 MB makes it die with SIGBUS).
-macOS and Windows (Visual Studio 2022) are expected to build the same way but have not been tried yet.
+CI (`.github/workflows/desktop.yml`) builds Linux, macOS (Apple Silicon) and Windows (Visual Studio 2022); the Windows build also builds `mdProbe` with the static runtime and ships the three import helpers inside the plugin bundle and next to the standalone app. Only Linux has been run; the macOS and Windows builds have not been tried by hand yet.
 The helpers: `cmake --build <build> --target md-import mdsamples` in the repo root build, and `tools/mdtrace/build_mdprobe.sh` for `mdProbe`.
 
 ## Testing

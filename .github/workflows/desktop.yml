@@ -71,18 +71,12 @@ jobs:
           git submodule update --init --depth 1 libs/gearmulator-md-mm
           bash tools/mdtrace/build_mdprobe.sh
       - name: Smoke test (prints its usage and exits 2)
-        shell: bash
-        continue-on-error: true
+        shell: pwsh
         run: |
-          EXE=libs/gearmulator-md-mm/build/source/elektron/md/mdLibTest/mdProbe.exe
-          set +e
-          "$EXE" > out.txt 2>&1
-          code=$?
-          echo "exit code: $code"
-          head -5 out.txt
-          echo "--- dependencies"
-          dumpbin //dependents "$EXE" | sed -n 1,40p
-          test "$code" = "2"
+          $exe = "libs\gearmulator-md-mm\build\source\elektron\md\mdLibTest\mdProbe.exe"
+          & $exe 2>&1 | Select-Object -First 3
+          "exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 2) { exit 1 }
       - uses: actions/upload-artifact@v4
         with:
           name: mdprobe-windows-x64
