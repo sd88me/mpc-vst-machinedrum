@@ -33,6 +33,7 @@
 #include "EngineFeeder.h"
 #include "Firmware.h"
 #include "MdEngine.h"
+#include "Prewarm.h"
 #include "master_worker.h"
 #include "md_shm.h"
 
@@ -203,24 +204,8 @@ int main(int argc, char** argv)
 	eng->enableMasterFx(true);	// after the warm-up: the section must not run before it has its parameters (the first block sets them)
 	eng->host().setSilenceRelease(128, 138);	// a voice below -96 dBFS for 100 ms stops costing DSP time (vst/engine.cpp)
 	{
-		// Pre-warm: play every machine once, so the JIT compiles its code now and not on its first hit (measured on the Move: 15-18 ms
-		// for a first hit, a dropout at any latency). Then back to the empty machine; its tail is released before the first block plays.
 		const auto w0 = Clock::now();
-		auto& h = eng->host();
-		Engine::Output o;
-		int warmed = 0;
-		for(const auto& m : eng->os().machines())
-		{
-			const std::string g = m.name.substr(0, 3);
-			if(m.name.empty() || g == "MID" || g == "RAM" || g == "INP" || (g == "ROM" && (!romRecords || std::atoi(m.name.c_str() + 3) > 32))) continue;
-			h.setMachine(0, m.id);
-			h.trigger(0, 127, false);
-			for(int b = 0; b < 8; ++b) eng->render(o);
-			++warmed;
-		}
-		h.setMachine(0, 0);
-		h.trigger(0, 1, false);
-		for(int b = 0; b < 600; ++b) eng->render(o);	// 0.4 s: every tail released
+		const int warmed = mm::prewarmMachines(*eng, romRecords > 0, false);	// no first-hit compile stalls (desktop/src/core/Prewarm.h)
 		logf("pre-warmed %d machines in %.0f ms", warmed, std::chrono::duration<double, std::milli>(Clock::now() - w0).count());
 	}
 	for(const auto& m : eng->os().machines())
