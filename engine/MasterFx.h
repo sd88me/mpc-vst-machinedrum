@@ -34,6 +34,12 @@ namespace md::engine
 		// DSP does it. False on a DSP fault (then _io is untouched).
 		bool process(Mixer::Output& _io);
 
+		// Reverb and echo only: the section's EQ and dynamix ($67c-$96e, about 45% of its cost: they filter the main mix in place after
+		// the reverb and echo returns are added to it, and touch nothing else) are jumped over. Not the Machinedrum's sound unless its EQ
+		// and dynamix are neutral; a CPU saving for small hosts. A change recompiles that code once.
+		void setReverbEchoOnly(bool _on);
+		bool reverbEchoOnly() const { return m_reverbEchoOnly; }
+
 		const std::string& fault() const { return m_fault; }
 		uint64_t instructionsLastBlock() const { return m_lastInstructions; }
 
@@ -48,6 +54,8 @@ namespace md::engine
 		std::array<uint32_t, kWordsA> m_a{};
 		std::array<uint32_t, kWordsB> m_b{};
 		uint64_t m_lastInstructions = 0;
+		uint32_t m_eqStartWord = 0;	// the original instruction at the EQ's start
+		bool m_reverbEchoOnly = false;
 		std::string m_fault;
 	};
 }

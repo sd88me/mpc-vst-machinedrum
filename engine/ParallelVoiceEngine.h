@@ -10,6 +10,7 @@
 // profiled" for the measurement this answers.
 #pragma once
 #include <array>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -38,6 +39,11 @@ namespace md::engine
 		// Run _fn(group) once on each worker thread (group 1..n-1), on its next block: set its name, priority and
 		// core there (real-time priority only once booted, like the caller's own thread).
 		void tuneWorkers(std::function<void(int)> _fn);
+
+		// Hand-off between the caller and the workers, every 32-frame block: each side waits on a condition variable, which costs a
+		// wake-up (tens of microseconds on a Cortex-A72) twice per block. With _us > 0 each side first spins up to that long, which
+		// a busy engine on otherwise idle cores wants (the Schwung module); 0 (default) never spins.
+		void setSpinUs(int _us) { m_spinUs = _us; }
 
 		void setSlot(int _voice, const uint32_t* _words, int _count = kSlotWords);
 		bool renderBlock(Block& _out);
@@ -87,9 +93,11 @@ namespace md::engine
 		std::vector<std::thread> m_workers;
 		std::mutex m_mx;
 		std::condition_variable m_wake, m_done;
-		uint64_t m_gen = 0, m_tuneGen = 0;
+		std::atomic<uint64_t> m_gen{0};	// written under m_mx; read without it while spinning
+		uint64_t m_tuneGen = 0;
+		int m_spinUs = 0;
 		std::function<void(int)> m_tune;
-		size_t m_pending = 0;
+		std::atomic<size_t> m_pending{0};
 		bool m_stop = false;
 		std::vector<uint8_t> m_ok;
 

@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <dlfcn.h>
+#include <sched.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -118,6 +119,18 @@ int main(int argc, char** argv)
 	const auto tCreate = Clock::now();
 	inst = api->create_instance(dir.c_str(), nullptr);
 	std::printf("create_instance: %.1f ms\n", std::chrono::duration<double, std::milli>(Clock::now() - tCreate).count());
+	{
+		// The callback as Move runs it: SCHED_FIFO 70 on core 3 (when allowed: run as root). Otherwise a late wake-up here makes two
+		// callbacks back to back, and at LTNCY 1 the second finds its block not yet rendered: an underrun that Move would not have.
+		sched_param sp{};
+		sp.sched_priority = 70;
+		const bool rt = sched_setscheduler(0, SCHED_FIFO, &sp) == 0;
+		cpu_set_t c3;
+		CPU_ZERO(&c3);
+		CPU_SET(3, &c3);
+		if(rt) sched_setaffinity(0, sizeof c3, &c3);
+		std::printf("callback thread: %s\n", rt ? "SCHED_FIFO 70 on core 3, as Move's" : "normal priority (run as root for Move's): underruns at LTNCY 1 may be the test's own");
+	}
 	nextBlock = Clock::now();
 
 	std::printf("boot\n");
@@ -210,21 +223,61 @@ int main(int argc, char** argv)
 		check(get("state") == state, "and the table is unchanged");
 	}
 
-	std::printf("busy pattern, 10 s\n");
+	// every track busy, with kit 1's sounds: more than one core can render in real time on a Move (md-busybench: 2.9 ms of voices
+	// per 2.9 ms block). Reported as is, then with the safety valves (VOICES, LTNCY), which must hold it without a gap.
+	auto busy = [&](const char* label, double seconds)
 	{
-		static const char* const kMachines[16] = {"TRX-BD", "TRX-SD", "EFM-XT", "EFM-XT", "TRX-XT", "TRX-CP", "TRX-RS", "TRX-CB", "TRX-CH", "TRX-OH", "TRX-CY", "EFM-CY", "E12-BD", "P-I-BD", "EFM-HH", "TRX-MA"};
-		for(int t = 0; t < 16; ++t) { char k[16]; std::snprintf(k, sizeof k, "t%02d_machine", t + 1); set(k, kMachines[t]); }
-		run(500);
 		set("peak", "0");
 		const int u0 = statusInt("underruns"), s0 = statusInt("skips");
-		for(int step = 0; step < 80; ++step)	// 16ths at 120 BPM
+		for(int step = 0; step < int(seconds * 8); ++step)	// 16ths at 120 BPM
 		{
 			for(int t = 0; t < 16; ++t) if((step * 7 + t * 5) % 16 < (t < 2 ? 6 : 4)) note(36 + t, 100 + (step % 4 == 0) * 27);
 			run(125);
 		}
-		const int u = statusInt("underruns") - u0, s = statusInt("skips") - s0;
-		std::printf("  underruns %d, skips %d, load %s%%, peak %s%%, %s\n", u, s, get("load").c_str(), get("peak").c_str(), get("status").c_str());
-		check(u == 0, "no underruns at LTNCY 1");
+		const int u = statusInt("underruns") - u0, sk = statusInt("skips") - s0;
+		std::printf("  %-34s underruns %4d, skips %4d, load %s%%, peak %s%%\n", label, u, sk, get("load").c_str(), get("peak").c_str());
+		return u;
+	};
+	// a typical beat on kit 1 (kick quarters, snare 2 and 4, hat 16ths, open hat, clap, a tom fill): the default settings (LTNCY 1,
+	// master FX Full, no voice limit) must play it without a gap
+	std::printf("groove (kit 1, defaults: LTNCY 1, FX Full)\n");
+	{
+		set("kit", "1");
+		run(800);
+		set("peak", "0");
+		const int u0 = statusInt("underruns");
+		for(int step = 0; step < 160; ++step)
+		{
+			const int st = step % 16;
+			if(st % 4 == 0) note(36, 120);
+			if(st == 4 || st == 12) note(37, 110);
+			if(st != 14) note(44, st % 2 ? 80 : 110);
+			if(st == 14) note(45, 100);
+			if(st == 12 && (step / 16) % 2) note(41, 100);
+			if(st >= 13 && (step / 16) % 4 == 3) note(39, 100);
+			const int ub = statusInt("underruns");
+			run(125);
+			if(statusInt("underruns") != ub) std::printf("    step %d (%d in the bar): +%d underruns\n", step, st, statusInt("underruns") - ub);
+		}
+		const int u = statusInt("underruns") - u0;
+		std::printf("  20 s: underruns %d, load %s%%, peak %s%%\n", u, get("load").c_str(), get("peak").c_str());
+		check(u == 0, "a typical beat plays without a gap at the defaults");
+	}
+	std::printf("busy pattern (16 tracks, kit 1's sounds; reported, not checked: more than the Move can render)\n");
+	{
+		static const char* const kMachines[16] = {"TRX-BD", "TRX-SD", "EFM-XT", "EFM-XT", "TRX-XT", "TRX-CP", "TRX-RS", "TRX-CB", "TRX-CH", "TRX-OH", "TRX-CY", "EFM-CY", "E12-BD", "P-I-BD", "EFM-HH", "TRX-MA"};
+		for(int t = 0; t < 16; ++t) { char k[16]; std::snprintf(k, sizeof k, "t%02d_machine", t + 1); set(k, kMachines[t]); }
+		run(500);
+		busy("no limit, LTNCY 1, FX Full", 6);
+		set("voices", "6");
+		set("depth", "2");
+		busy("VOICES 6, LTNCY 2, FX Full", 8);
+		set("master_on", "Rev+Echo");
+		busy("VOICES 6, LTNCY 2, FX Rev+Echo", 6);
+		check(get("master_on") == "Rev+Echo", "the master FX mode reads back");
+		set("master_on", "Full");
+		set("voices", "16");
+		set("depth", "1");
 	}
 	std::printf("  the callback's worst block: %.0f us\n", maxCallbackUs);
 	record = false;

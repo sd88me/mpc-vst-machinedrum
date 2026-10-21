@@ -289,3 +289,25 @@ Open, in order:
 3. **The flash import on the Move** (decision 4): mdProbe + mdsamples for aarch64, run once by the supervisor.
 4. Machine picker as DR32's ENGN browser (sections per group) instead of an enum; `split_voices`; Copy/Delete checked on the device.
 
+### M2, second round (2026-10-21)
+
+- **Master FX: Off / Full / Rev+Echo** (the FX knob on the Master page). Rev+Echo jumps over the section's EQ and dynamix (P:$67c ->
+  $96f: they filter the main mix in place after the returns are added, and read only their own parameters Y:$170-$184 and state
+  Y:$18d-$19f): about 25% less CPU (a groove: 1.5 -> 1.1 ms per block with the section run in line). Not the MD's sound: the dynamix
+  at the factory settings adds about +5.6 dB, so Rev+Echo is quieter. The section also runs on its own thread (`MasterWorker`).
+- **VOICES** (Master page, 4-16, 16 = no limit): the engine's voice budget (`HostModel::setMaxActiveVoices`; ROM machines count 2).
+  A heavy voice costs ~230 us per block on the Move, so ~6-8 heavy voices with the master FX is the ceiling of one core.
+- **Real-time threads:** a spawned engine cannot raise its own priority (MoveOriginal has CAP_SYS_NICE; a child does not inherit
+  it), so the engine publishes its thread ids and the supervisor, inside MoveOriginal, sets them to SCHED_FIFO 10 (below Move's own
+  audio, 35/70). Measured: a typical beat on factory kit 1 went from ~500 gaps in 20 s to none.
+- **No locked memory:** the emulator mlocks its maps (~5 GB of address space: a few pages mapped many times). Under MoveOriginal's
+  unlimited RLIMIT_MEMLOCK an engine took >4 s to exit (respawn, unload). The engine now lowers the limit and drops inherited
+  capabilities first.
+- **Voice threads:** `ParallelVoiceEngine::setSpinUs` (default 0: the MPC and desktop builds are unchanged). On the Move 2 voice
+  threads help only a kit too heavy for one core (2.9 -> 2.2 ms of voices) and cost more on a normal one, so the module stays at one.
+- `md-hosttest` now runs its callback as Move does (SCHED_FIFO 70, core 3, when run as root) and has a groove gate: factory kit 1,
+  a typical beat, the defaults (LTNCY 1, FX Full): **no gaps** (twice in a row). The 16-busy-tracks case is reported, not gated:
+  with VOICES 6 + LTNCY 2 it plays with 0-5 gaps.
+- R4 explained: with silence release, voice groups change the noise machines' output only (each DSP instance has its own noise
+  sequence; a released voice starts afresh), as the MPC notes found for release alone.
+

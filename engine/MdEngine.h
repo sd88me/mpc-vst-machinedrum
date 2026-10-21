@@ -61,13 +61,16 @@ namespace md::engine
 		// Output::mix.main is the dry mix, bit-exact with the plain mixer.
 		void enableMasterFx(const bool _on)
 		{
-			if(_on && !m_master) m_master = std::make_unique<MasterFx>(*m_fw);
+			if(_on && !m_master) { m_master = std::make_unique<MasterFx>(*m_fw); m_master->setReverbEchoOnly(m_masterReverbEchoOnly); }
 			m_host->enableMasterParams(_on);
 			if(!_on) m_master.reset();
 		}
 		bool masterFxEnabled() const { return m_master != nullptr; }
 		// Bypassed: the main output is the dry mix again and the section is not run (it keeps its state, so switching back resumes).
 		void setMasterBypass(const bool _b) { m_masterBypass = _b; }
+		// Reverb and echo only (MasterFx::setReverbEchoOnly): kept across enableMasterFx. Call between renders (with a master thread:
+		// while no renderMaster is running).
+		void setMasterReverbEchoOnly(const bool _on) { m_masterReverbEchoOnly = _on; if(m_master) m_master->setReverbEchoOnly(_on); }
 		void setMasterFx(const uint8_t* _bytes32, const bool _snap = false) { m_host->setMasterFx(_bytes32); if(_snap) m_host->snapMasterFx(); }
 
 
@@ -222,7 +225,7 @@ namespace md::engine
 		Mixer m_mixer;
 		const fw::Firmware* m_fw;
 		std::unique_ptr<MasterFx> m_master;
-		bool m_masterBypass = false;
+		bool m_masterBypass = false, m_masterReverbEchoOnly = false;
 		std::array<TrackFx::State, kTracks> m_state{};
 		std::array<TrackFx::State, kTracks> m_settledState{};
 		std::array<bool, kTracks> m_settled{};

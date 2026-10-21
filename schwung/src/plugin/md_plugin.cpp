@@ -78,6 +78,8 @@ namespace
 		int accThr = 100;	// MD mode: a hit at or above this is accented
 		int accAmt = 32;	// MD mode: how much softer (in velocity steps) an unaccented hit is than an accented one
 		int kit = -1;		// the last kit loaded (0 = Init, 1.. = catalog kits), for the Kit page
+		int voices = 16;	// VOICES: how many tracks may sound at once (the oldest is cut past it; a ROM machine counts 2); 16 = no limit
+		int fxMode = 0;		// master effects, when on: 0 the whole section, 1 reverb and echo only (EQ and dynamix skipped: ~25% less CPU)
 	};
 
 	struct Instance
@@ -160,6 +162,8 @@ namespace
 	{
 		for(int i = 0; i < kMasterBytes; ++i) push(in, shm::Op::SetMaster, 0, i, in.table.master[size_t(i)]);
 		push(in, shm::Op::SetMasterOn, 0, 0, in.table.masterOn ? 1 : 0);
+		push(in, shm::Op::SetMasterMode, 0, 0, in.set.fxMode);
+		push(in, shm::Op::SetVoices, 0, 0, in.set.voices >= kTracks ? 0 : in.set.voices);
 	}
 
 	void replay(Instance& in)
@@ -459,19 +463,20 @@ namespace
 
 		// Master: the module's own settings
 		{
-			static const char* const kOffOn[2] = {"Off", "On"};
+			static const char* const kFx[3] = {"Off", "Full", "Rev+Echo"};
 			static const char* const kVel[2] = {"MD", "VEL"};
 			o.put(",\"master\":{\"name\":\"Master\",\"params\":[");
-			putEnum(o, "master_on", "FX", kOffOn, 2, 1); o.put(",");
+			putEnum(o, "master_on", "FX", kFx, 3, 1); o.put(",");
 			putInt(o, "depth", "LTNCY", 1, shm::kMaxDepth, kDefaultDepth); o.put(",");
 			putEnum(o, "vel_mode", "VELMD", kVel, 2, 0); o.put(",");
 			putInt(o, "acc_thr", "ACTHR", 1, 127, 100); o.put(",");
 			putInt(o, "acc_amt", "ACAMT", 0, 127, 32); o.put(",");
+			putInt(o, "voices", "VOICS", 4, 16, 16); o.put(",");
 			o.put("{\"key\":\"load\",\"name\":\"Engine Load\",\"short_name\":\"LOAD\",\"type\":\"int\",\"min\":0,\"max\":200,\"unit\":\"%%\",\"access\":\"read\",\"live\":true},");
 			o.put("{\"key\":\"peak\",\"name\":\"Peak Load\",\"short_name\":\"PEAK\",\"type\":\"int\",\"min\":0,\"max\":200,\"unit\":\"%%\",\"access\":\"read\",\"live\":true}");
 			o.put("]");
-			static const char* const k[] = {"master_on", "depth", "vel_mode", "acc_thr", "acc_amt", "load", "peak"};
-			putKnobs(o, k, 7);
+			static const char* const k[] = {"master_on", "depth", "vel_mode", "acc_thr", "acc_amt", "voices", "load", "peak"};
+			putKnobs(o, k, 8);
 		}
 		o.put("}}");
 		if(!o.ok) return -1;
@@ -542,7 +547,7 @@ namespace
 		}
 		o.put(";");
 		for(int i = 0; i < kMasterBytes; ++i) o.put("%s%d", i ? "," : "", in.table.master[size_t(i)]);
-		o.put(";%d,%d,%d,%d,%d,%d,%d,%d\"}", in.table.masterOn ? 1 : 0, in.set.depth, in.set.velMode, in.set.accThr, in.set.accAmt, in.set.kit, in.focus + 1, 0);
+		o.put(";%d,%d,%d,%d,%d,%d,%d,%d,%d\"}", in.table.masterOn ? 1 : 0, in.set.depth, in.set.velMode, in.set.accThr, in.set.accAmt, in.set.kit, in.focus + 1, in.set.fxMode, in.set.voices);
 		return o.ok ? o.n : -1;
 	}
 
@@ -576,8 +581,9 @@ namespace
 			tr.mute = x[26] != 0;
 			for(int i = 0; i < kNumLfo; ++i) tr.lfo[size_t(i)] = std::clamp(x[27 + i], 0, kLfoMax[i]);
 		}
-		int m[kMasterBytes], s[8];
+		int m[kMasterBytes], s[9] = {};
 		if(!readInts(p, m, kMasterBytes) || !readInts(p, s, 8)) return;
+		if(!readInts(p, s + 8, 1)) s[8] = 16;	// a state from before VOICES
 		for(int i = 0; i < kMasterBytes; ++i) v.master[size_t(i)] = std::clamp(m[i], 0, 127);
 		v.masterOn = s[0] != 0;
 		in.table = v;
@@ -587,6 +593,8 @@ namespace
 		in.set.accAmt = std::clamp(s[4], 0, 127);
 		in.set.kit = s[5];
 		in.focus = std::clamp(s[6] - 1, 0, kTracks - 1);
+		in.set.fxMode = s[7] == 1 ? 1 : 0;
+		in.set.voices = std::clamp(s[8], 4, kTracks);
 		if(auto* sg = in.seg.load()) sg->depth.store(uint32_t(in.set.depth));
 		in.rules.resync(in.table);
 		replay(in);
@@ -624,7 +632,7 @@ namespace
 		posix_spawn_file_actions_t fa;
 		posix_spawn_file_actions_init(&fa);
 		posix_spawn_file_actions_adddup2(&fa, fd, 3);
-		posix_spawn_file_actions_addopen(&fa, 1, log, O_WRONLY | O_CREAT | O_TRUNC, 0644);	// the emulator prints; one boot's worth
+		posix_spawn_file_actions_addopen(&fa, 1, log, O_WRONLY | O_CREAT | O_APPEND, 0644);	// the emulator prints; cleared per instance (supervise)
 		posix_spawn_file_actions_adddup2(&fa, 1, 2);
 		char* argv[] = {exe, const_cast<char*>(os), const_cast<char*>(rom), log, ppid, prio, nullptr};
 		const int rc = posix_spawn(&pid, exe, &fa, nullptr, argv, environ);
@@ -643,6 +651,8 @@ namespace
 		s.error[0] = 0;
 		s.depth.store(uint32_t(depth));
 		s.cmd_read.store(s.cmd_write.load());	// a respawned engine starts from the table replay, not stale commands
+		for(auto& t : s.tids) t.store(0);
+		s.rt.store(0);
 	}
 
 	// destroy_instance returns without waiting, so the supervisor frees the instance itself once destroy has handed it over.
@@ -679,6 +689,11 @@ namespace
 		CPU_SET(0, &cpus); CPU_SET(1, &cpus); CPU_SET(2, &cpus);
 		sched_setaffinity(0, sizeof cpus, &cpus);
 
+		{
+			char log[600];
+			std::snprintf(log, sizeof log, "%s/md-engine.log", in.moduleDir);
+			if(const int lf = open(log, O_WRONLY | O_CREAT | O_TRUNC, 0644); lf >= 0) close(lf);	// this instance's engines append
+		}
 		char dir[600], os[700], rom[700], kits[700];
 		std::snprintf(dir, sizeof dir, "%s/os", in.moduleDir);
 		while(!findFile(dir, ".syx", os, sizeof os))	// the user may upload it after adding the module
@@ -786,6 +801,18 @@ namespace
 				++failures;
 				in.respawns.fetch_add(1);
 				continue;
+			}
+			if(ready && !seg->rt.load())	// the engine's threads to SCHED_FIFO, below Move's own audio (35, 70): this process has CAP_SYS_NICE
+			{
+				bool ok = true;
+				for(auto& t : seg->tids)
+					if(const uint32_t tid = t.load())
+					{
+						sched_param rp{};
+						rp.sched_priority = kDefaultFifo;
+						ok &= sched_setscheduler(pid_t(tid), SCHED_FIFO, &rp) == 0;
+					}
+				seg->rt.store(ok ? 1 : 2);
 			}
 			if(ready && !failures && !std::strncmp(in.error, "engine", 6)) in.error[0] = 0;
 			lastHeartbeat = hb;
@@ -1002,7 +1029,16 @@ namespace
 			push(in, shm::Op::SetMaster, 0, i, in.table.master[size_t(i)]);
 			return;
 		}
-		if(!std::strcmp(k, "master_on")) { in.table.masterOn = !std::strcmp(val, "On") || std::atoi(val) == 1; push(in, shm::Op::SetMasterOn, 0, 0, in.table.masterOn ? 1 : 0); return; }
+		if(!std::strcmp(k, "master_on"))	// Off / Full / Rev+Echo (or the index; "On" = Full)
+		{
+			static const char* const kFx[3] = {"Off", "Full", "Rev+Echo"};
+			const int v = !std::strcmp(val, "On") ? 1 : enumValue(val, kFx, 3);
+			in.table.masterOn = v != 0;
+			if(v) in.set.fxMode = v - 1;
+			push(in, shm::Op::SetMasterOn, 0, 0, in.table.masterOn ? 1 : 0);
+			push(in, shm::Op::SetMasterMode, 0, 0, in.set.fxMode);
+			return;
+		}
 		if(!std::strcmp(k, "depth"))
 		{
 			in.set.depth = std::clamp(std::atoi(val), 1, shm::kMaxDepth);
@@ -1012,6 +1048,7 @@ namespace
 		if(!std::strcmp(k, "vel_mode")) { in.set.velMode = (!std::strcmp(val, "VEL") || std::atoi(val) == 1) ? 1 : 0; return; }
 		if(!std::strcmp(k, "acc_thr")) { in.set.accThr = std::clamp(std::atoi(val), 1, 127); return; }
 		if(!std::strcmp(k, "acc_amt")) { in.set.accAmt = std::clamp(std::atoi(val), 0, 127); return; }
+		if(!std::strcmp(k, "voices")) { in.set.voices = std::clamp(std::atoi(val), 4, kTracks); push(in, shm::Op::SetVoices, 0, 0, in.set.voices >= kTracks ? 0 : in.set.voices); return; }
 		if(!std::strcmp(k, "peak")) { if(auto* s = in.seg.load()) s->stats.maxUs.store(0); return; }	// a write resets it
 	}
 
@@ -1053,11 +1090,12 @@ namespace
 			const int i = std::atoi(k + 3) - 1;
 			return i >= 0 && i < kMasterBytes ? std::snprintf(buf, size_t(len), "%d", in.table.master[size_t(i)]) : -1;
 		}
-		if(!std::strcmp(k, "master_on")) return std::snprintf(buf, size_t(len), "%s", in.table.masterOn ? "On" : "Off");
+		if(!std::strcmp(k, "master_on")) return std::snprintf(buf, size_t(len), "%s", !in.table.masterOn ? "Off" : in.set.fxMode ? "Rev+Echo" : "Full");
 		if(!std::strcmp(k, "depth")) return std::snprintf(buf, size_t(len), "%d", in.set.depth);
 		if(!std::strcmp(k, "vel_mode")) return std::snprintf(buf, size_t(len), "%s", in.set.velMode ? "VEL" : "MD");
 		if(!std::strcmp(k, "acc_thr")) return std::snprintf(buf, size_t(len), "%d", in.set.accThr);
 		if(!std::strcmp(k, "acc_amt")) return std::snprintf(buf, size_t(len), "%d", in.set.accAmt);
+		if(!std::strcmp(k, "voices")) return std::snprintf(buf, size_t(len), "%d", in.set.voices);
 		if(!std::strcmp(k, "load")) return std::snprintf(buf, size_t(len), "%d", loadPercent(in, false));
 		if(!std::strcmp(k, "peak")) return std::snprintf(buf, size_t(len), "%d", loadPercent(in, true));
 		if(!std::strcmp(k, "status"))	// diagnostics
@@ -1065,8 +1103,8 @@ namespace
 			auto* s = in.seg.load();
 			if(!s) return std::snprintf(buf, size_t(len), "{\"phase\":\"none\",\"error\":\"%s\"}", in.error);
 			return std::snprintf(buf, size_t(len),
-				"{\"phase\":%u,\"pid\":%u,\"underruns\":%u,\"skips\":%u,\"respawns\":%u,\"last_us\":%u,\"max_us\":%u,\"releases\":%u,\"rom\":%u,\"depth\":%d,\"focus\":%d,\"error\":\"%s\"}",
-				s->phase.load(), s->child_pid.load(), s->underruns.load(), s->skips.load(), in.respawns.load(), s->stats.lastUs.load(),
+				"{\"phase\":%u,\"rt\":%u,\"pid\":%u,\"underruns\":%u,\"skips\":%u,\"respawns\":%u,\"last_us\":%u,\"max_us\":%u,\"releases\":%u,\"rom\":%u,\"depth\":%d,\"focus\":%d,\"error\":\"%s\"}",
+				s->phase.load(), s->rt.load(), s->child_pid.load(), s->underruns.load(), s->skips.load(), in.respawns.load(), s->stats.lastUs.load(),
 				s->stats.maxUs.load(), s->stats.releases.load(), s->romSamples.load(), in.set.depth, in.focus + 1, in.error);
 		}
 		return -1;

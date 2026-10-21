@@ -23,6 +23,8 @@ namespace md::engine
 		constexpr TWord kAfterInit = 0x2d;
 		constexpr TWord kMasterStart = 0x342;	// the master section; the mix before it is engine/Mixer
 		constexpr TWord kOutputEnd = 0x9a8;		// after the output stage's last store (a `bra` back to the main loop)
+		constexpr TWord kEqStart = 0x67c;		// the EQ's coefficients, after the reverb and echo returns are added to the main mix
+		constexpr TWord kDynamixEnd = 0x96f;	// after the dynamix: the output stage follows
 		constexpr TWord kMain = 0x180, kRev = 0x1c0, kDel = 0x600, kFrames = 0x400, kFramePtr = 0x640;
 		constexpr TWord kParamA = 0x150, kParamB = 0x170;
 	}
@@ -74,9 +76,17 @@ namespace md::engine
 		// `bra` back to the main loop) never runs here. Patching it in and out every block made the JIT recompile that code twice per
 		// 32 frames, which was most of the section's cost on ARM (Move: 2.4 ms per 128-frame block).
 		m_dsp->memWriteP(kOutputEnd, 0x0c0000 | kOutputEnd);
+		m_eqStartWord = m_dsp->memory().get(MemArea_P, kEqStart);
 	}
 
 	MasterFx::~MasterFx() = default;
+
+	void MasterFx::setReverbEchoOnly(const bool _on)
+	{
+		if(_on == m_reverbEchoOnly) return;
+		m_reverbEchoOnly = _on;
+		m_dsp->memWriteP(kEqStart, _on ? (0x0c0000 | kDynamixEnd) : m_eqStartWord);	// jmp <$96f, or the original instruction back
+	}
 
 	bool MasterFx::runUntil(const uint32_t _pc, const uint64_t _max)
 	{

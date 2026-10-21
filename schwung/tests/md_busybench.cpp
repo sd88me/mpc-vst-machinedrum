@@ -5,6 +5,7 @@
 //   md-busybench <OS.syx> [ROM_SAMPLES.bin] [seconds=10]
 // Prints the mean and the worst block after a 2 s warm-up (the JIT compiles each machine's code on its first blocks).
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -48,10 +49,19 @@ namespace
 
 	const bool groove = std::getenv("MD_BENCH_GROOVE") != nullptr;	// the typical beat instead of every track busy
 
-	template<class E> void bench(E& eng, const char* label, bool master, double seconds, mm::MasterWorker* pipe = nullptr)
+	template<class E> void bench(E& eng, const char* label, bool master, double seconds, mm::MasterWorkerT<E>* pipe = nullptr)
 	{
 		static const char* const kMachines[16] = {"TRXBD", "TRXSD", "EFMXT", "EFMXT", "TRXXT", "TRXCP", "TRXRS", "TRXCB", "TRXCH", "TRXOH", "TRXCY", "EFMCY", "E12BD", "P-IBD", "EFMHH", "TRXMA"};
 		mm::KitValues v = mm::KitValues::defaults();
+		if(const char* kf = std::getenv("MD_BENCH_KIT"))	// a kit file's first kit: its sounds' decays, sends and effects (machines below)
+			if(std::FILE* f = std::fopen(kf, "rb"))
+			{
+				std::vector<uint8_t> d(1 << 20);
+				d.resize(std::fread(d.data(), 1, d.size(), f));
+				std::fclose(f);
+				const auto kits = mm::parseKits(d);
+				if(!kits.empty()) v.load(kits[0]);
+			}
 		for(int t = 0; t < 16; ++t)
 			for(const auto& m : eng.os().machines())
 				if(m.name == kMachines[t]) v.track[size_t(t)].machine = m.id;
@@ -61,12 +71,17 @@ namespace
 		}
 		if(master) eng.enableMasterFx(true);
 		eng.host().setSilenceRelease(128, 138);
+		if(const char* vb = std::getenv("MD_BENCH_VOICES")) eng.host().setMaxActiveVoices(std::atoi(vb));
+		double voiceSum = 0;
+		int voiceMax = 0;
 		mm::EngineFeeder feeder;
 		NoHost host;
 		typename E::Output out;
 		const int blocks = int(seconds * 44100 / 128), warm = int(2.0 * 44100 / 128);
 		double sum = 0, worst = 0;
 		uint64_t hash = 1469598103934665603ull;	// of the main output: equal = identical audio
+		double energy = 0;
+		uint64_t samples = 0;
 		std::vector<double> all;
 		for(int b = 0; b < blocks; ++b)
 		{
@@ -89,27 +104,32 @@ namespace
 					for(int t = 0; t < 16; ++t)
 						if((step * 7 + t * 5) % 16 < (t < 2 ? 6 : 4)) eng.host().trigger(t, 100 + (step % 4 == 0) * 27, false);
 			}
-			if constexpr(std::is_same_v<E, md::engine::Engine>)
-				if(pipe)	// the engine process's way: the master effects one 32-frame block behind, on the worker thread
+			if(pipe)	// the engine process's way: the master effects one 32-frame block behind, on the worker thread
 				{
 					for(int sb = 0; sb < mm::kSub; ++sb) { feeder.apply(eng, v, 120.0, host); eng.renderDry(pipe->outs[sb], pipe->jobs[sb]); pipe->post(); }
 					mm::waitFor(pipe->done, pipe->posted.load());
-					for(const auto& o : pipe->outs) for(const auto& fr : o.mix.main) for(int32_t x : fr) { hash ^= uint64_t(uint32_t(x)); hash *= 1099511628211ull; }
+					for(const auto& o : pipe->outs) for(const auto& fr : o.mix.main) for(int32_t x : fr) { hash ^= uint64_t(uint32_t(x)); hash *= 1099511628211ull; energy += double(x) * x; ++samples; }
 				}
 			if(!pipe)
 				for(int sb = 0; sb < 4; ++sb)
 				{
 					feeder.apply(eng, v, 120.0, host);
 					eng.render(out);
-					for(const auto& fr : out.mix.main) for(int32_t x : fr) { hash ^= uint64_t(uint32_t(x)); hash *= 1099511628211ull; }
+					for(const auto& fr : out.mix.main) for(int32_t x : fr) { hash ^= uint64_t(uint32_t(x)); hash *= 1099511628211ull; energy += double(x) * x; ++samples; }
 				}
 			const double us = std::chrono::duration<double, std::micro>(Clock::now() - t0).count();
-			if(b >= warm) { sum += us; worst = std::max(worst, us); all.push_back(us); }
+			if(b >= warm)
+			{
+				sum += us; worst = std::max(worst, us); all.push_back(us);
+				const int nv = eng.voices().activeVoicesLastBlock();
+				voiceSum += nv; voiceMax = std::max(voiceMax, nv);
+			}
 		}
 		std::sort(all.begin(), all.end());
 		const double mean = sum / double(all.size());
-		std::printf("%-28s master %-3s  mean %5.0f us (%3.0f%%)  p99 %5.0f  worst %6.0f  releases %u  hash %016llx\n", label, master ? "on" : "off", mean,
-			100.0 * mean / 2902.0, all[all.size() * 99 / 100], worst, eng.host().silenceReleases(), static_cast<unsigned long long>(hash));
+		std::printf("%-28s master %-3s  mean %5.0f us (%3.0f%%)  p99 %5.0f  worst %6.0f  voices %4.1f/%d  rms %5.1f dBFS  hash %016llx\n", label, master ? "on" : "off", mean,
+			100.0 * mean / 2902.0, all[all.size() * 99 / 100], worst, voiceSum / double(all.size()), voiceMax, 10 * std::log10(energy / double(samples) / (8388608.0 * 8388608.0) + 1e-30),
+			static_cast<unsigned long long>(hash));
 	}
 }
 
@@ -129,6 +149,13 @@ int main(int argc, char** argv)
 			loadRom(eng, rom);
 			bench(eng, "1 voice thread", master != 0, seconds);
 		}
+		if(master && (!only || !std::strcmp(only, "g1") || !std::strcmp(only, "re")))
+		{
+			md::engine::Engine eng(fw, std::vector<uint8_t>(section0));
+			loadRom(eng, rom);
+			eng.setMasterReverbEchoOnly(true);
+			bench(eng, "1 voice thread, rev+echo", true, seconds);
+		}
 		if(master && (!only || !std::strcmp(only, "g1") || !std::strcmp(only, "pipe")))
 		{
 			md::engine::Engine eng(fw, std::vector<uint8_t>(section0));
@@ -146,9 +173,18 @@ int main(int argc, char** argv)
 			if(only && std::strcmp(only, id)) continue;
 			md::engine::ParallelEngine eng(fw, std::vector<uint8_t>(section0), g);
 			loadRom(eng, rom);
-			char label[32];
+			char label[40];
 			std::snprintf(label, sizeof label, "%d voice threads", g);
 			bench(eng, label, master != 0, seconds);
+			md::engine::ParallelEngine eng2(fw, std::vector<uint8_t>(section0), g);
+			loadRom(eng2, rom);
+			eng2.voices().setSpinUs(500);
+			std::snprintf(label, sizeof label, "%d voice thr, spin%s", g, master ? " + master thr" : "");
+			mm::ParallelMasterWorker w;
+			w.eng = &eng2;
+			if(master) w.start();
+			bench(eng2, label, master != 0, seconds, master ? &w : nullptr);
+			if(master) w.stop();
 		}
 	}
 	return 0;

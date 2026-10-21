@@ -16,7 +16,7 @@
 namespace mm::shm
 {
 	constexpr uint32_t kMagic = 0x4D444D31;	// "MDM1"
-	constexpr uint32_t kVersion = 1;
+	constexpr uint32_t kVersion = 4;	// 2: SetMasterMode, 3: SetVoices, 4: tids / rt
 	constexpr int kFrames = 128;	// one Move block
 	constexpr int kSlots = 8;		// power of two, > kMaxDepth
 	constexpr int kMaxDepth = 4;
@@ -38,6 +38,8 @@ namespace mm::shm
 		SetAccent,		// c = the kit's accent amount 0-127
 		SetBpm,			// c = bpm x 100
 		SetTrackOuts,	// c = bit t: track t is rendered apart (split_voices) and leaves the dry main mix
+		SetMasterMode,	// c = 0: the whole master section, 1: reverb and echo only (MasterFx::setReverbEchoOnly)
+		SetVoices,		// c = the voice budget (HostModel::setMaxActiveVoices: ROM machines count 2), 0 = no limit
 	};
 
 	struct Cmd
@@ -88,6 +90,10 @@ namespace mm::shm
 		std::atomic<uint32_t> phase;
 		std::atomic<uint32_t> child_pid;
 		std::atomic<uint32_t> romSamples;	// 1: the ROM machines have their samples
+		// The engine's rendering threads (Linux thread ids), published before phase = Ready. The engine cannot make itself real-time
+		// (a spawned child does not inherit MoveOriginal's CAP_SYS_NICE), so the plugin's supervisor does it for these threads.
+		std::atomic<uint32_t> tids[4];
+		std::atomic<uint32_t> rt;	// supervisor: 0 not yet, 1 SCHED_FIFO set, 2 refused
 		char error[160];
 
 		// ---- commands (callback -> child)

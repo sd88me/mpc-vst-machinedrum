@@ -27,8 +27,10 @@ namespace mm
 
 	// Waits until *addr reaches target: spinning for up to about a 32-frame block's work (the other side is usually that close: a futex
 	// wake-up costs tens of microseconds on the Move's A72, four times per block), then the futex. Between Move blocks it sleeps.
-	inline void waitFor(std::atomic<uint32_t>& a, uint32_t target, int spinUs = 500)
+	inline int g_spinUs = 50;	// md-engine sets it (MD_SPIN_US)
+	inline void waitFor(std::atomic<uint32_t>& a, uint32_t target, int spinUs = -1)
 	{
+		if(spinUs < 0) spinUs = g_spinUs;
 		const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(spinUs);
 		for(int i = 0;; ++i)
 		{
@@ -46,12 +48,13 @@ namespace mm
 	// larger of the two instead of their sum. Same audio as Engine::render.
 	constexpr int kSub = 128 / md::engine::Engine::kBlock;	// engine blocks (32 frames) per Move block (128 frames)
 
-	struct MasterWorker
+	template<class E> struct MasterWorkerT
 	{
-		md::engine::Engine* eng = nullptr;
-		md::engine::Engine::Output outs[kSub];
-		md::engine::Engine::MasterJob jobs[kSub];
+		E* eng = nullptr;
+		typename E::Output outs[kSub];
+		typename E::MasterJob jobs[kSub];
 		std::atomic<uint32_t> posted{0}, done{0}, quit{0}, failed{0};
+		std::atomic<uint32_t>* tidOut = nullptr;	// gets the thread's Linux thread id
 		std::thread thread;
 
 		void start()
@@ -59,6 +62,7 @@ namespace mm
 			thread = std::thread([this]
 			{
 				prctl(PR_SET_NAME, "md-master");
+				if(tidOut) tidOut->store(uint32_t(syscall(SYS_gettid)), std::memory_order_release);
 				for(uint32_t n = 0;; ++n)
 				{
 					waitFor(posted, n + 1);
@@ -77,4 +81,6 @@ namespace mm
 			if(thread.joinable()) thread.join();
 		}
 	};
+	using MasterWorker = MasterWorkerT<md::engine::Engine>;
+	using ParallelMasterWorker = MasterWorkerT<md::engine::ParallelEngine>;
 }

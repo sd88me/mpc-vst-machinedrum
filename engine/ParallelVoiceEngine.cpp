@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <thread>
 
 namespace md::engine
 {
@@ -51,12 +52,30 @@ namespace md::engine
 		++m_tuneGen;
 	}
 
+	namespace
+	{
+		// Spins up to _us microseconds for _ready() (see ParallelVoiceEngine::setSpinUs).
+		template<class F> void spinFor(const int _us, F _ready)
+		{
+			if(_us <= 0) return;
+			const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(_us);
+			for(int i = 0; !_ready(); ++i)
+			{
+				if((i & 63) == 63 && std::chrono::steady_clock::now() > until) return;
+#if defined(__aarch64__)
+				asm volatile("yield");
+#endif
+			}
+		}
+	}
+
 	void ParallelVoiceEngine::workerMain(const size_t _g)
 	{
 		uint64_t seen = 0, tuned = 0;
 		for(;;)
 		{
 			std::function<void(int)> tune;
+			spinFor(m_spinUs, [&] { return m_gen.load(std::memory_order_acquire) != seen; });
 			{
 				std::unique_lock<std::mutex> l(m_mx);
 				m_wake.wait(l, [&] { return m_stop || m_gen != seen; });
@@ -115,6 +134,7 @@ namespace md::engine
 		runGroup(0);
 		if(n > 1)
 		{
+			spinFor(m_spinUs, [&] { return m_pending.load(std::memory_order_acquire) == 0; });
 			std::unique_lock<std::mutex> l(m_mx);
 			m_done.wait(l, [&] { return m_pending == 0; });
 		}

@@ -20,11 +20,13 @@
 #include <thread>
 #include <vector>
 
+#include <linux/capability.h>
 #include <linux/futex.h>
 #include <sched.h>
 #include <signal.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -136,6 +138,8 @@ namespace
 		case Op::SetAccent: eng.host().setAccentAmount(c.c); break;
 		case Op::SetBpm: bpm = c.c / 100.0; break;
 		case Op::SetTrackOuts: trackOuts = uint32_t(c.c) & 0xffff; break;
+		case Op::SetMasterMode: eng.setMasterReverbEchoOnly(c.c == 1); break;	// between blocks: the master thread is idle
+		case Op::SetVoices: eng.host().setMaxActiveVoices(c.c > 0 ? c.c : 2 * mm::kTracks); break;
 		case Op::None: break;
 		}
 	}
@@ -150,6 +154,17 @@ int main(int argc, char** argv)
 	prctl(PR_SET_PDEATHSIG, SIGKILL);	// die with the plugin's supervisor thread
 	if(getppid() != parent) { logf("parent %d is gone (ppid %d): exiting", int(parent), int(getppid())); return 1; }
 	prctl(PR_SET_NAME, "md-engine");
+	{
+		// No locked memory: the emulator mlocks its memory maps (dsp56kBase/mmuhelper.cpp, failure ignored), which map a few pages
+		// many times over: ~5 GB of address space. MoveOriginal's RLIMIT_MEMLOCK is unlimited and we inherit it; locked like that, an
+		// engine took seconds to exit (respawns, unloading). The Move has no swap, so locking buys nothing. Any capabilities
+		// inherited are dropped too (CAP_IPC_LOCK would bypass the limit); the supervisor makes the threads real-time.
+		const rlimit rl{64 * 1024, 64 * 1024};
+		setrlimit(RLIMIT_MEMLOCK, &rl);
+		__user_cap_header_struct hdr{_LINUX_CAPABILITY_VERSION_3, 0};
+		__user_cap_data_struct data[2] = {};
+		syscall(SYS_capset, &hdr, data);
+	}
 
 	auto* seg = static_cast<mm::shm::Segment*>(mmap(nullptr, sizeof(mm::shm::Segment), PROT_READ | PROT_WRITE, MAP_SHARED, 3, 0));
 	if(seg == MAP_FAILED) { logf("cannot map the shared segment"); return 3; }
@@ -236,9 +251,13 @@ int main(int argc, char** argv)
 	eng->timingOn = diag;
 	double diagUs = 0, feedUs = 0;
 	uint32_t diagBlocks = 0, diagMax = 0;
+	if(const char* sp = std::getenv("MD_SPIN_US")) mm::g_spinUs = std::atoi(sp);
 	mm::MasterWorker master;	// created after the FIFO switch above: the thread inherits it
 	master.eng = eng.get();
+	master.tidOut = &s.tids[1];
 	master.start();
+	s.tids[0].store(uint32_t(syscall(SYS_gettid)), std::memory_order_release);
+	while(!s.tids[1].load(std::memory_order_acquire)) usleep(100);
 	uint32_t posted = 0;
 
 	// start in step with the callback: the first block rendered is the one it will play next
