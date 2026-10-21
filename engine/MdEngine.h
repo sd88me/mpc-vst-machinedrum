@@ -68,6 +68,7 @@ namespace md::engine
 		bool masterFxEnabled() const { return m_master != nullptr; }
 		// Bypassed: the main output is the dry mix again and the section is not run (it keeps its state, so switching back resumes).
 		void setMasterBypass(const bool _b) { m_masterBypass = _b; }
+		const Mixer& mixer() const { return m_mixer; }
 		// Reverb and echo only (MasterFx::setReverbEchoOnly): kept across enableMasterFx. Call between renders (with a master thread:
 		// while no renderMaster is running).
 		void setMasterReverbEchoOnly(const bool _on) { m_masterReverbEchoOnly = _on; if(m_master) m_master->setReverbEchoOnly(_on); }

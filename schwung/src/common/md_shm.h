@@ -16,7 +16,7 @@
 namespace mm::shm
 {
 	constexpr uint32_t kMagic = 0x4D444D31;	// "MDM1"
-	constexpr uint32_t kVersion = 4;	// 2: SetMasterMode, 3: SetVoices, 4: tids / rt
+	constexpr uint32_t kVersion = 5;	// 2: SetMasterMode, 3: SetVoices, 4: tids / rt, 5: stereo track outputs
 	constexpr int kFrames = 128;	// one Move block
 	constexpr int kSlots = 8;		// power of two, > kMaxDepth
 	constexpr int kMaxDepth = 4;
@@ -105,12 +105,11 @@ namespace mm::shm
 		Defaults defaults[kTracks];
 		Machine machines[kMachineIds];
 		Stats stats;
-		std::atomic<uint32_t> peak[kTracks];	// each track's output peak (24-bit), max since the plugin last cleared it
 
-		// ---- audio: 24-bit in int32. main: L/R interleaved (after the master effects); track: each track's mono signal after its
-		// effects and VOL, no pan (Mixer::solo), for split_voices
+		// ---- audio: 24-bit in int32, L/R interleaved. main: after the master effects; track: for split_voices, each track rendered
+		// apart (SetTrackOuts) as its share of the dry main mix, gain and pan included (Mixer::trackMain); the others are not written
 		alignas(64) int32_t main[kSlots][kFrames * 2];
-		int32_t track[kSlots][kTracks][kFrames];
+		int32_t track[kSlots][kTracks][kFrames * 2];
 	};
 
 	// Callback side: never blocks. Returns false (the command is dropped) when the ring is full.

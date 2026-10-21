@@ -34,6 +34,8 @@ namespace
 	int clockStatus() { return MOVE_CLOCK_STATUS_STOPPED; }
 
 	plugin_api_v2_t* api = nullptr;
+	using SplitFn = void (*)(void*, int16_t* const*, int, int16_t*, int);
+	SplitFn renderSplit = nullptr;
 	void* inst = nullptr;
 	std::vector<int16_t> recording;
 	bool record = false;
@@ -116,6 +118,7 @@ int main(int argc, char** argv)
 	auto init = reinterpret_cast<move_plugin_init_v2_fn>(dlsym(so, MOVE_PLUGIN_INIT_V2_SYMBOL));
 	if(!init) { std::fprintf(stderr, "no %s\n", MOVE_PLUGIN_INIT_V2_SYMBOL); return 3; }
 	api = init(&host);
+	renderSplit = reinterpret_cast<SplitFn>(dlsym(so, "move_plugin_render_split"));
 	const auto tCreate = Clock::now();
 	inst = api->create_instance(dir.c_str(), nullptr);
 	std::printf("create_instance: %.1f ms\n", std::chrono::duration<double, std::milli>(Clock::now() - tCreate).count());
@@ -186,6 +189,38 @@ int main(int argc, char** argv)
 	std::printf("  VEL mode: 127 -> %d, 64 -> %d (ratio %.2f, want ~0.50)\n", v127, v64, double(v64) / std::max<int16_t>(v127, 1));
 	check(v64 < v127 * 0.6 && v64 > v127 * 0.4, "VEL mode scales the level with velocity");
 	set("vel_mode", "MD");
+
+	std::printf("split voices (track 1 on its own bus)\n");
+	{
+		const std::string sv = get("split_voices");
+		std::printf("  %.90s...\n", sv.c_str());
+		check(renderSplit && sv.find("\"id\":\"t16\"") != std::string::npos, "split_voices lists the 16 tracks, render_split is exported");
+		int16_t bus[256], mainb[256];
+		int16_t* outs[16];
+		auto splitRun = [&](double ms, int16_t& busPeak, int16_t& mainPeak)
+		{
+			busPeak = mainPeak = 0;
+			for(int b = 0; b < int(ms / 2.902); ++b)
+			{
+				std::this_thread::sleep_until(nextBlock);
+				nextBlock += std::chrono::microseconds(2902);
+				std::memset(bus, 0, sizeof bus);
+				std::memset(mainb, 0, sizeof mainb);
+				for(int v = 0; v < 16; ++v) outs[v] = v == 0 ? bus : mainb;
+				renderSplit(inst, outs, 16, mainb, 128);
+				for(int i = 0; i < 256; ++i) { busPeak = std::max<int16_t>(busPeak, int16_t(std::abs(int(bus[i])))); mainPeak = std::max<int16_t>(mainPeak, int16_t(std::abs(int(mainb[i])))); }
+			}
+		};
+		int16_t bp, mp;
+		splitRun(100, bp, mp);	// the engine hears the new routing
+		note(36, 127);
+		splitRun(400, bp, mp);
+		std::printf("  kick: bus peak %d, main peak %d\n", bp, mp);
+		check(bp > 1000 && mp < bp / 20, "the kick is on its bus and not in the main mix");
+		run(100);	// back to render_block: all tracks in the main mix again
+		note(36, 127);
+		check(run(400) > 1000, "back in the main mix after the bus is gone");
+	}
 
 	std::printf("kits\n");
 	{

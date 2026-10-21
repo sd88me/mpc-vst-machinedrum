@@ -300,18 +300,13 @@ int main(int argc, char** argv)
 			}
 			master.post();	// the master effects of this 32 frames run while the next 32 frames' voices render
 			++posted;
-			for(int t = 0; t < mm::kTracks; ++t)
+			for(int t = 0; t < mm::kTracks; ++t)	// the tracks on their own buses (split_voices): their share of the dry main mix
 			{
-				int32_t* dst = s.track[slot][t] + f0;
-				const uint32_t vol = eng->host().mixerInput(t).mix[1];
-				uint32_t pk = 0;
-				for(int f = 0; f < Engine::kBlock; ++f)
-				{
-					const int32_t x = md::engine::Mixer::solo(out.tracks[size_t(t)][size_t(f)], vol);
-					dst[f] = x;
-					pk = std::max(pk, uint32_t(x < 0 ? -x : x));
-				}
-				if(pk > s.peak[t].load(std::memory_order_relaxed)) s.peak[t].store(pk, std::memory_order_relaxed);
+				if(!((trackOuts >> t) & 1)) continue;
+				md::engine::Mixer::Stereo st;
+				eng->mixer().trackMain(out.tracks[size_t(t)].data(), eng->host().mixerInput(t).mix, st);
+				int32_t* dst = s.track[slot][t] + 2 * f0;
+				for(int f = 0; f < Engine::kBlock; ++f) { dst[2 * f] = st[size_t(f)][0]; dst[2 * f + 1] = st[size_t(f)][1]; }
 			}
 		}
 		mm::waitFor(master.done, posted);

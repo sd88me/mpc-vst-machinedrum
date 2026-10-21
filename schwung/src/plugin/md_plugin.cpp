@@ -1124,6 +1124,19 @@ namespace
 			return n;
 		}
 		if(!std::strcmp(k, "chain_params")) return buildChainParams(buf, len);
+		if(!std::strcmp(k, "split_voices"))	// the 16 tracks; ids are permanent (a bus stores them), labels follow the machines
+		{
+			Out o{buf, len};
+			o.put("[");
+			for(int t = 0; t < kTracks; ++t)
+			{
+				char name[24] = "";
+				if(const auto* m = machineOf(in, in.table.track[size_t(t)].machine)) displayName(*m, name, sizeof name);
+				o.put("%s{\"id\":\"t%02d\",\"label\":\"T%02d %s\"}", t ? "," : "", t + 1, t + 1, name);
+			}
+			o.put("]");
+			return o.ok ? o.n : -1;
+		}
 		if(!std::strcmp(k, "state")) return writeState(in, buf, len);
 		if(!std::strcmp(k, "is_loading"))
 		{
@@ -1208,25 +1221,66 @@ namespace
 		return int16_t(std::clamp<int32_t>((v24 + 128) >> 8, -32768, 32767));
 	}
 
+	inline void addS16(int16_t& d, int32_t v24)
+	{
+		d = int16_t(std::clamp<int32_t>(int32_t(d) + ((v24 + 128) >> 8), -32768, 32767));
+	}
+
+	// Which tracks are rendered apart (their own Schwung bus): they leave the dry main mix in the engine. The engine hears a change
+	// from its next block, so for one block a track moving onto (or off) a bus is in both places (or neither).
+	void setTrackOuts(Instance& in, uint32_t mask)
+	{
+		if(mask == in.trackOuts) return;
+		in.trackOuts = mask;
+		push(in, shm::Op::SetTrackOuts, 0, 0, int(mask));
+	}
+
+	// Plays block host_block: calls _play(slot) when the engine has produced it, else counts an underrun; then advances the clock.
+	template<class F> void playBlock(shm::Segment& s, F _play)
+	{
+		const uint32_t hb = s.host_block.load(std::memory_order_relaxed);
+		const uint32_t produced = s.produced.load(std::memory_order_acquire);
+		if(int32_t(produced - hb) <= 0 || int32_t(produced - hb) > shm::kSlots) s.underruns.fetch_add(1, std::memory_order_relaxed);
+		else _play(int(hb & (shm::kSlots - 1)));
+		s.host_block.store(hb + 1, std::memory_order_release);
+		futexWakeShared(&s.host_block);
+	}
+
 	void renderBlock(void* ptr, int16_t* out, int frames)
 	{
 		auto& in = *static_cast<Instance*>(ptr);
+		std::memset(out, 0, size_t(frames) * 2 * sizeof(int16_t));
 		auto* s = tick(in);
-		if(!s || frames != shm::kFrames) { std::memset(out, 0, size_t(frames) * 2 * sizeof(int16_t)); return; }
-		const uint32_t hb = s->host_block.load(std::memory_order_relaxed);
-		const uint32_t produced = s->produced.load(std::memory_order_acquire);
-		if(int32_t(produced - hb) <= 0 || int32_t(produced - hb) > shm::kSlots)
+		if(!s || frames != shm::kFrames) return;
+		setTrackOuts(in, 0);	// no track on a bus: all in the main mix
+		playBlock(*s, [&](int slot) { const int32_t* src = s->main[slot]; for(int i = 0; i < frames * 2; ++i) out[i] = toS16(src[i]); });
+	}
+
+	// Schwung's per-voice render (split_voices): a track on a bus is handed its own buffer and gets its share of the dry main mix
+	// (its effects, VOL and pan: the level it had in the mix; the master effects are the main mix's); a track on no bus is handed
+	// main_out and stays in the main mix. Accumulates,
+	// never clears (the buffers alias). The same clock and engine as renderBlock: the host may switch between the two at any block.
+	void renderSplit(void* ptr, int16_t* const* voiceOut, int nVoices, int16_t* mainOut, int frames)
+	{
+		auto& in = *static_cast<Instance*>(ptr);
+		auto* s = tick(in);
+		if(!s || frames != shm::kFrames) return;
+		uint32_t mask = 0;
+		for(int v = 0; v < std::min(nVoices, kTracks); ++v)
+			if(voiceOut[v] && voiceOut[v] != mainOut) mask |= 1u << v;
+		setTrackOuts(in, mask);
+		playBlock(*s, [&](int slot)
 		{
-			std::memset(out, 0, size_t(frames) * 2 * sizeof(int16_t));
-			s->underruns.fetch_add(1, std::memory_order_relaxed);
-		}
-		else
-		{
-			const int32_t* src = s->main[hb & (shm::kSlots - 1)];
-			for(int i = 0; i < frames * 2; ++i) out[i] = toS16(src[i]);
-		}
-		s->host_block.store(hb + 1, std::memory_order_release);
-		futexWakeShared(&s->host_block);
+			const int32_t* src = s->main[slot];
+			for(int i = 0; i < frames * 2; ++i) addS16(mainOut[i], src[i]);
+			for(int v = 0; v < kTracks; ++v)
+			{
+				if(!((mask >> v) & 1)) continue;
+				const int32_t* t = s->track[slot][v];
+				int16_t* d = voiceOut[v];
+				for(int i = 0; i < frames * 2; ++i) addS16(d[i], t[i]);
+			}
+		});
 	}
 
 	plugin_api_v2_t g_api = {
@@ -1238,4 +1292,9 @@ extern "C" __attribute__((visibility("default"))) plugin_api_v2_t* move_plugin_i
 {
 	g_host = host;
 	return &g_api;
+}
+
+extern "C" __attribute__((visibility("default"))) void move_plugin_render_split(void* instance, int16_t* const* voiceOut, int nVoices, int16_t* mainOut, int frames)
+{
+	renderSplit(instance, voiceOut, nVoices, mainOut, frames);
 }

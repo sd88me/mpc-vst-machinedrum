@@ -40,6 +40,10 @@ namespace md::engine
 		// One track on its own (no pan, no sends): the individual-output formula, sample x VOL << 4 limited (24-bit).
 		// _volWord: the track's mix word 1 (HostModel::MixerInput::mix[1]).
 		static int32_t solo(int32_t _sample, uint32_t _volWord);
+		// One track's share of the dry main mix, on its own: its 32 samples with the gain and pan process() gives them, and the main
+		// sum's final shift, without the other tracks (the Schwung module's per-track buses: moving a track to a bus keeps its level
+		// and pan). A track not routed to the main mix: solo() on both sides.
+		void trackMain(const int32_t* _track, const std::array<uint32_t, 5>& _mix, Stereo& _out) const;
 
 	private:
 		const TrackFx::Tables& m_t;
