@@ -6,7 +6,10 @@
 // files: per-user output, never committed or distributed.
 //   md-import <flash image .bin> <MD OS .syx> <out dir>
 // Exit code 0 = done; on failure the last line printed says what went wrong. What the helpers print is kept in <out dir>/import.log.
-// On Windows the helpers are started with CreateProcess (no shell, so no quoting trouble) and paths are Unicode.
+// On Windows the helpers are started with CreateProcess (no shell, so no quoting trouble) and paths are Unicode. The working files (a
+// 32 MB DSP dump) go to a folder inside <out dir>, never the system's temp folder (a Move's root filesystem is nearly full).
+// On Linux it lowers its own priority and its locked-memory limit first (the Schwung module runs it on the Move; the helpers inherit
+// both): the emulator mlocks ~5 GB of address space where it may, which makes it slow to exit.
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -21,7 +24,13 @@
 #include <windows.h>
 #include <shellapi.h>
 #else
+#include <sys/resource.h>
 #include <sys/wait.h>
+#endif
+#ifdef __linux__
+#include <linux/capability.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
 
 namespace fs = std::filesystem;
@@ -164,6 +173,16 @@ int fail(const std::string& what, const fs::path& log)
 
 int main(int argc, char** argv)
 {
+#ifdef __linux__
+	{
+		const rlimit rl{64 * 1024, 64 * 1024};
+		setrlimit(RLIMIT_MEMLOCK, &rl);
+		__user_cap_header_struct hdr{_LINUX_CAPABILITY_VERSION_3, 0};
+		__user_cap_data_struct data[2] = {};
+		syscall(SYS_capset, &hdr, data);	// CAP_IPC_LOCK would bypass the limit
+		setpriority(PRIO_PROCESS, 0, 10);
+	}
+#endif
 	const auto args = arguments(argc, argv);
 	if(args.size() != 4) { std::fprintf(stderr, "usage: md-import <flash image .bin> <MD OS .syx> <out dir>\n"); return 2; }
 	const fs::path flash = args[1], os = args[2], out = args[3];
@@ -177,16 +196,19 @@ int main(int argc, char** argv)
 	if(!fs::exists(os, ec)) { std::fprintf(stderr, "cannot read the OS file %s\n", os.string().c_str()); return 1; }
 	if(fs::file_size(flash, ec) != 8u * 1024 * 1024) { std::fprintf(stderr, "that is not an 8 MB Machinedrum flash image\n"); return 1; }
 	if(!fs::exists(probe, ec) || !fs::exists(samples, ec)) { std::fprintf(stderr, "mdProbe and mdsamples must be next to md-import (%s)\n", self.parent_path().string().c_str()); return 1; }
-	const fs::path tmp = fs::temp_directory_path(ec) / ("md-import-" + std::to_string(std::rand()));
+	const fs::path tmp = out / ".md-import-work";
+	fs::remove_all(tmp, ec);
 	fs::create_directories(tmp, ec);
 	struct Cleanup { fs::path p; ~Cleanup() { std::error_code e; fs::remove_all(p, e); } } cleanup{tmp};
 
 	const fs::path dump = tmp / "dsp2_p.bin";
 	std::string why;
 #ifdef _WIN32
-	const std::vector<std::wstring> probeArgs = {S(probe), S(flash), S(tmp / "flash.bin"), L"kitdump:" + S(tmp), L"dspdump:1:0:800000:" + S(dump)};
+	const std::vector<std::wstring> probeArgs = {S(probe), S(flash), S(tmp / "flash.bin"), L"kitdump:" + S(tmp), L"wait:441000", L"dspdump:1:0:800000:" + S(dump)};
 #else
-	const std::vector<std::string> probeArgs = {S(probe), S(flash), S(tmp / "flash.bin"), "kitdump:" + S(tmp), "dspdump:1:0:800000:" + S(dump)};
+	// wait: 10 s of the emulated Machinedrum's time between the kits and the DSP dump: the OS uploads the ROM samples to the voice DSP
+	// after it has booted, and on a slow host (a Move) the dump came before they were all there
+	const std::vector<std::string> probeArgs = {S(probe), S(flash), S(tmp / "flash.bin"), "kitdump:" + S(tmp), "wait:441000", "dspdump:1:0:800000:" + S(dump)};
 #endif
 	const int pr = run(probeArgs, log, why);
 	if(pr != 0) return fail("booting the emulated Machinedrum failed (" + (why.empty() ? "exit code " + std::to_string(pr) : why) + "; log: " + log.string() + ")", log);

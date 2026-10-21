@@ -53,3 +53,11 @@ add_executable(md-busybench tests/md_busybench.cpp ${MD_CORE}/EngineFeeder.cpp $
 target_include_directories(md-busybench PRIVATE ${MD_CORE} src/child)
 target_link_libraries(md-busybench PRIVATE mdcore pthread dl)
 target_link_options(md-busybench PRIVATE -static)
+
+# the flash-image import on the Move: md-import runs mdProbe (the full emulated Machinedrum, built from libs/gearmulator-md-mm by
+# scripts/build.sh) and mdsamples, which sit next to it (tools/mdimport)
+add_executable(mdsamples ${MD_ROOT}/tools/mdkits/mdsamples.cpp)
+target_link_libraries(mdsamples PRIVATE mdcore pthread dl)
+target_link_options(mdsamples PRIVATE -static)
+add_executable(md-import ${MD_ROOT}/tools/mdimport/md_import.cpp)
+target_link_options(md-import PRIVATE -static)

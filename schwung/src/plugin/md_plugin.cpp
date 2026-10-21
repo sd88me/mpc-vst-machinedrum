@@ -622,6 +622,53 @@ namespace
 		return found;
 	}
 
+	bool sleepOrStop(Instance& in, int ms);
+
+	// The factory kits and ROM samples from the user's flash image (the "flash" upload): bin/md-import boots the emulated Machinedrum
+	// once (about 6 minutes on a Move) and writes factory/FACTORY.syx and factory/ROM_SAMPLES.bin. Run before the engine starts (both at
+	// once could run the Move out of memory), and only for an image not imported yet (factory/.flash-signature). Returns false when
+	// destroy asked the supervisor to stop meanwhile.
+	bool importFlash(Instance& in, const char* os)
+	{
+		char flashDir[600], flash[700], factory[600], sigPath[700], exe[600], log[700];
+		std::snprintf(flashDir, sizeof flashDir, "%s/flash", in.moduleDir);
+		if(!findFile(flashDir, ".bin", flash, sizeof flash)) return true;
+		std::snprintf(factory, sizeof factory, "%s/factory", in.moduleDir);
+		std::snprintf(sigPath, sizeof sigPath, "%s/.flash-signature", factory);
+		char want[64];
+		std::snprintf(want, sizeof want, "%llu", static_cast<unsigned long long>(fileSignature(flash)));
+		if(std::FILE* f = std::fopen(sigPath, "r"))
+		{
+			char have[64] = {};
+			const bool same = std::fgets(have, sizeof have, f) && !std::strcmp(have, want);
+			std::fclose(f);
+			if(same) return true;
+		}
+		mkdir(factory, 0755);
+		std::snprintf(exe, sizeof exe, "%s/bin/md-import", in.moduleDir);
+		std::snprintf(log, sizeof log, "%s/import.log", factory);
+		std::snprintf(in.error, sizeof in.error, "Importing your flash image (factory kits, ROM samples): about 6 minutes, first time only");
+		posix_spawn_file_actions_t fa;
+		posix_spawn_file_actions_init(&fa);
+		posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+		posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);	// md-import keeps its own log (factory/import.log)
+		char* argv[] = {exe, flash, const_cast<char*>(os), factory, nullptr};
+		pid_t pid = -1;
+		const int rc = posix_spawn(&pid, exe, &fa, nullptr, argv, environ);
+		posix_spawn_file_actions_destroy(&fa);
+		if(rc != 0) { std::snprintf(in.error, sizeof in.error, "cannot start the flash import: %s", std::strerror(rc)); return true; }
+		int status = 0;
+		while(waitpid(pid, &status, WNOHANG) != pid)
+			if(sleepOrStop(in, 1000)) { kill(pid, SIGKILL); waitpid(pid, &status, 0); return false; }
+		if(WIFEXITED(status) && WEXITSTATUS(status) == 0)
+		{
+			if(std::FILE* f = std::fopen(sigPath, "w")) { std::fputs(want, f); std::fclose(f); }
+			in.error[0] = 0;
+		}
+		else std::snprintf(in.error, sizeof in.error, "The flash image import failed: see factory/import.log (is it a Machinedrum UW flash image?)");
+		return true;
+	}
+
 	bool spawnChild(Instance& in, int fd, const char* os, const char* rom, pid_t& pid)
 	{
 		char exe[600], log[600], prio[8], ppid[16];
@@ -702,6 +749,7 @@ namespace
 			if(sleepOrStop(in, 2000)) { freeWhenStopped(in); return nullptr; }
 		}
 		in.error[0] = 0;
+		if(!importFlash(in, os)) { freeWhenStopped(in); return nullptr; }
 		std::snprintf(rom, sizeof rom, "%s/factory/ROM_SAMPLES.bin", in.moduleDir);
 		if(fileSignature(rom) == 0) std::snprintf(rom, sizeof rom, "-");
 		std::snprintf(kits, sizeof kits, "%s/factory/FACTORY.syx", in.moduleDir);

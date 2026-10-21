@@ -24,11 +24,11 @@
       ]
     },
     {
-      "path": "factory",
-      "label": "Factory kits and ROM samples",
-      "extensions": [".syx", ".bin"],
+      "path": "flash",
+      "label": "Machinedrum flash image",
+      "extensions": [".bin"],
       "optional": true,
-      "description": "Optional, for this test build: FACTORY.syx and ROM_SAMPLES.bin as the desktop Machinemodule's Import flash image makes them (in its data folder, factory/). They come from your own Machinedrum's flash image and are never shipped."
+      "description": "Optional: the Machinedrum UW 1.63 flash image (.bin, 8 MB). Machinemodule boots it once in the emulated Machinedrum (about 6 minutes, the first time the module starts after the upload) and keeps the 16 factory kits and the ROM machines' samples. Nothing from it is shipped."
     }
   ],
   "capabilities": {

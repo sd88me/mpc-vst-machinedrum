@@ -135,7 +135,8 @@ int main(int argc, char** argv)
 
 	std::printf("boot\n");
 	const auto t0 = Clock::now();
-	while(statusInt("phase") != 2 && Clock::now() - t0 < std::chrono::seconds(60)) run(100);
+	const int bootWait = std::getenv("MD_BOOT_WAIT_S") ? std::atoi(std::getenv("MD_BOOT_WAIT_S")) : 60;	// a first flash import: ~6 min
+	while(statusInt("phase") != 2 && Clock::now() - t0 < std::chrono::seconds(bootWait)) run(100);
 	const double bootMs = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
 	std::printf("  %s\n", get("status").c_str());
 	check(statusInt("phase") == 2, "the engine is ready");
