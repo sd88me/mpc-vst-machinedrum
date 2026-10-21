@@ -1,7 +1,0 @@
-# Cross-compiler image for Ableton Move (aarch64, Cortex-A72). Built automatically on first use by schwung/scripts/build.sh.
-# ubuntu:22.04's toolchain links against glibc 2.35, the Move's own, so dsp.so (loaded into MoveOriginal) needs nothing newer.
-FROM ubuntu:22.04
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    g++-aarch64-linux-gnu gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross \
-    cmake ninja-build python3 file ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
