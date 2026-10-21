@@ -7,14 +7,6 @@
 
 namespace mm
 {
-	const char* const kRawKeys[kRaw] = {"syn1", "syn2", "syn3", "syn4", "syn5", "syn6", "syn7", "syn8",
-		"amd", "amf", "eqf", "eqg", "fltf", "fltw", "fltq", "srr", "dist", "vol", "pan", "del", "rev", "lfos", "lfod", "lfom"};
-	const int kRawDefault[kRaw] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 64, 0, 127, 0, 0, 0, 100, 64, 0, 0, 0, 0, 0};
-	const char* const kLfoKeys[kNumLfo] = {"lfo_track", "lfo_param", "lfo_shp1", "lfo_shp2", "lfo_type"};
-
-	// The default kit's master effects (the factory kit TRX UW, as a unit has them after the first-run initialisation)
-	const int kMasterDefault[kMasterBytes] = {0x00, 0x00, 0x44, 0x32, 0x01, 0x52, 0x47, 0x6d, 0x10, 0x00, 0x20, 0x1b, 0x00, 0x2c, 0x00, 0x47,
-		0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x00, 0x00};
 	juce::String masterId(int i) { return juce::String::formatted("mfx%02d", i + 1); }
 
 	juce::String paramId(int track, const juce::String& key) { return juce::String::formatted("t%02d_", track + 1) + key; }
@@ -86,7 +78,6 @@ namespace mm
 		for(int i = 0; i < kMasterBytes; ++i) m_master[size_t(i)] = apvts.getRawParameterValue(masterId(i));
 		m_masterOn = apvts.getRawParameterValue("master_on");
 		m_notes.reserve(1024);
-		resetApplied();
 
 		loadFactoryKits();
 
@@ -184,20 +175,6 @@ namespace mm
 		});
 	}
 
-	void MdProcessor::resetApplied()
-	{
-		for(int t = 0; t < kTracks; ++t)
-		{
-			m_appliedMachine[t] = -1;
-			m_appliedLevel[t] = -1;
-			for(int i = 0; i < kRaw; ++i) m_appliedRaw[t][i] = -1;
-			for(int i = 0; i < kNumLfo; ++i) m_appliedLfo[t][i] = -1;
-		}
-		m_appliedBpm = -1;
-		for(int& v : m_appliedMaster) v = -1;
-		m_masterSnap = true;
-	}
-
 	// ---- engine loading ---------------------------------------------------------------------------------------------
 
 	void MdProcessor::joinLoader()
@@ -261,7 +238,7 @@ namespace mm
 					m_engine.reset();
 					m_fw = std::move(fw);
 					m_engine = std::move(eng);
-					resetApplied();
+					m_feeder.reset();
 					m_hostPos = m_enginePos = m_renderPos = 0;
 					m_carryN = 0;
 					m_notes.clear();
@@ -318,68 +295,80 @@ namespace mm
 					if(auto* p = apvts.getParameter(paramId(t, kRawKeys[i])))
 						p->setValueNotifyingHost(p->convertTo0to1(float(m_defaultSyn[size_t(t)][size_t(i)].load())));
 				m_suppressDefaults = false;
-				for(int i = 0; i < 8; ++i) m_ctrAllLast[size_t(t)][size_t(i)] = m_defaultSyn[size_t(t)][size_t(i)].load();
+				int syn[8];
+				for(int i = 0; i < 8; ++i) syn[i] = m_defaultSyn[size_t(t)][size_t(i)].load();
+				m_rules.machineDefaults(t, syn);
 				m_ctrDirty[size_t(t)] = 0;
 			}
 		applyControlMachines();
 	}
 
-	static int rawOf(juce::AudioProcessorValueTreeState& apvts, int t, int i)
+	static void setInt(juce::AudioProcessorValueTreeState& apvts, const juce::String& id, int v)
 	{
-		return int(std::lround(apvts.getRawParameterValue(paramId(t, kRawKeys[i]))->load()));
+		if(auto* p = apvts.getParameter(id)) p->setValueNotifyingHost(p->convertTo0to1(float(v)));
 	}
 
-	static int machineOf(juce::AudioProcessorValueTreeState& apvts, int t)
+	void MdProcessor::readValues(KitValues& v) const
 	{
-		return int(std::lround(apvts.getRawParameterValue(paramId(t, "machine"))->load()));
+		auto get = [](const std::atomic<float>* p) { return int(std::lround(p->load())); };
+		for(int t = 0; t < kTracks; ++t)
+		{
+			const auto& p = m_par[size_t(t)];
+			auto& tr = v.track[size_t(t)];
+			tr.machine = get(p.machine);
+			for(int i = 0; i < kRaw; ++i) tr.raw[size_t(i)] = get(p.raw[i]);
+			tr.level = get(p.level);
+			tr.mute = p.mute->load() >= 0.5f;
+			for(int i = 0; i < kNumLfo; ++i) tr.lfo[size_t(i)] = get(p.lfo[i]);
+		}
+		for(int i = 0; i < kMasterBytes; ++i) v.master[size_t(i)] = get(m_master[size_t(i)]);
+		v.masterOn = m_masterOn->load() >= 0.5f;
+	}
+
+	void MdProcessor::writeValues(const KitValues& now, const KitValues& was)
+	{
+		for(int t = 0; t < kTracks; ++t)
+		{
+			const auto &a = now.track[size_t(t)], &b = was.track[size_t(t)];
+			if(a.machine != b.machine) setInt(apvts, paramId(t, "machine"), a.machine);
+			for(int i = 0; i < kRaw; ++i) if(a.raw[size_t(i)] != b.raw[size_t(i)]) setInt(apvts, paramId(t, kRawKeys[i]), a.raw[size_t(i)]);
+			if(a.level != b.level) setInt(apvts, paramId(t, "level"), a.level);
+			if(a.mute != b.mute) setInt(apvts, paramId(t, "mute"), a.mute ? 1 : 0);
+			for(int i = 0; i < kNumLfo; ++i) if(a.lfo[size_t(i)] != b.lfo[size_t(i)]) setInt(apvts, paramId(t, kLfoKeys[i]), a.lfo[size_t(i)]);
+		}
+		for(int i = 0; i < kMasterBytes; ++i) if(now.master[size_t(i)] != was.master[size_t(i)]) setInt(apvts, masterId(i), now.master[size_t(i)]);
+		if(now.masterOn != was.masterOn) setInt(apvts, "master_on", now.masterOn ? 1 : 0);
+	}
+
+	void MdProcessor::defaultsChosen(int t, const int* values, int count)
+	{
+		for(int i = 0; i < count; ++i) m_defaultSyn[size_t(t)][size_t(i)] = values[i];
+		m_defaultCount[size_t(t)] = count;
+		m_defaultsReady[size_t(t)] = true;
+		triggerAsyncUpdate();
 	}
 
 	void MdProcessor::resyncControlMachines()
 	{
-		for(int t = 0; t < kTracks; ++t)
-		{
-			for(int k = 0; k < 8; ++k) m_ctrAllLast[size_t(t)][size_t(k)] = rawOf(apvts, t, k);
-			m_ctrDirty[size_t(t)] = 0;
-		}
+		KitValues v;
+		readValues(v);
+		m_rules.resync(v);
+		for(auto& d : m_ctrDirty) d = 0;
 	}
 
-	static void setInt(juce::AudioProcessorValueTreeState& apvts, const juce::String& id, int v);
-
-	// CTR-AL (the OS's $207e0e): a knob move of delta adds delta to the same SYN on every track that makes sound; the knob itself is kept
-	// in 1-126 (the next move is measured from there). CTR-RE / GB / EQ / DX: SYN k is the master effect block's parameter k.
+	// The SYN knobs of control machines that moved: their rules (KitModel's ControlRules) change other parameters.
 	void MdProcessor::applyControlMachines()
 	{
+		KitValues v;
+		readValues(v);
+		const KitValues was = v;
 		for(int t = 0; t < kTracks; ++t)
 		{
 			const unsigned dirty = m_ctrDirty[size_t(t)].exchange(0);
-			if(!dirty) continue;
-			const int mid = machineOf(apvts, t);
 			for(int k = 0; k < 8; ++k)
-			{
-				if(!((dirty >> k) & 1)) continue;
-				const int v = rawOf(apvts, t, k);
-				if(mid == kCtrAll)
-				{
-					const int delta = v - m_ctrAllLast[size_t(t)][size_t(k)];
-					m_ctrAllLast[size_t(t)][size_t(k)] = std::clamp(v, 1, 126);
-					if(delta == 0) continue;
-					for(int d = 0; d < kTracks; ++d)
-					{
-						const int dm = machineOf(apvts, d);
-						if(isControlMachine(dm) || (dm & 0xf0) == 0x60) continue;	// CTR and MID tracks make no sound
-						if(dm == 160 || dm == 161 || dm == 165 || dm == 166) continue;	// the OS leaves these (SYN 1-8 are not parameters there)
-						setInt(apvts, paramId(d, kRawKeys[k]), std::clamp(rawOf(apvts, d, k) + delta, 0, 127));
-					}
-				}
-				else if(mid >= kCtrEcho && mid <= kCtrDynamix)
-					setInt(apvts, masterId(kCtrMasterBlock[mid - kCtrEcho] * 8 + k), v);
-			}
+				if((dirty >> k) & 1) m_rules.synMoved(v, t, k);
 		}
-	}
-
-	static void setInt(juce::AudioProcessorValueTreeState& apvts, const juce::String& id, int v)
-	{
-		if(auto* p = apvts.getParameter(id)) p->setValueNotifyingHost(p->convertTo0to1(float(v)));
+		writeValues(v, was);
 	}
 
 	void MdProcessor::applyKit(const Kit& k)
@@ -509,88 +498,8 @@ namespace mm
 
 	void MdProcessor::applyParameters()
 	{
-		auto& h = m_engine->host();
-		const double bpm = std::clamp<double>(m_hostBpm.load(), 30.0, 300.0);
-		if(bpm != m_appliedBpm) { m_appliedBpm = bpm; h.setTempo(bpm); }
-		m_engine->setMasterBypass(m_masterOn->load() < 0.5f);
-		{
-			uint8_t bytes[kMasterBytes];
-			bool changed = false;
-			for(int i = 0; i < kMasterBytes; ++i)
-			{
-				bytes[i] = uint8_t(std::clamp(int(std::lround(m_master[size_t(i)]->load())), 0, 127));
-				changed |= bytes[i] != m_appliedMaster[i];
-				m_appliedMaster[i] = bytes[i];
-			}
-			// a change is a target for the OS's smoother (the master effects glide to it, as on the unit); the very first set settles at once
-			if(changed) { m_engine->setMasterFx(bytes, m_masterSnap); m_masterSnap = false; }
-		}
-		int mach[kTracks];
-		for(int t = 0; t < kTracks; ++t) mach[t] = std::clamp(int(std::lround(m_par[size_t(t)].machine->load())), 0, 191);
-		auto rawNow = [&](int t, int i) { return std::clamp(int(std::lround(m_par[size_t(t)].raw[i]->load())), 0, 127); };
-		// CTR-8P: P1-P8 (its SYN1-8) are written, every tick on the unit, into the (track, parameter) targets its parameters 9-24 name
-		// (track 1-16 and parameter 1-24 as the OS keeps them, clamped), except into control machines.
-		int target[kTracks][kRaw];
-		for(auto& row : target) for(int& v : row) v = -1;
-		for(int c = 0; c < kTracks; ++c)
-		{
-			if(mach[c] != kCtr8P) continue;
-			for(int k = 0; k < 8; ++k)
-			{
-				const int dt = std::min(rawNow(c, 8 + 2 * k), kTracks - 1), dp = std::min(rawNow(c, 9 + 2 * k), kRaw - 1);
-				if(!isControlMachine(mach[dt])) target[dt][dp] = rawNow(c, k);
-			}
-		}
-		for(int t = 0; t < kTracks; ++t)
-		{
-			const auto& p = m_par[size_t(t)];
-			const int m = mach[t];
-			if(m != m_appliedMachine[t])
-			{
-				m_appliedMachine[t] = m;
-				h.setMachine(t, uint8_t(m));	// raw SYN1-8 take the machine's defaults
-				if(m_needsDefaults[size_t(t)].exchange(false))
-				{
-					int count = 8;
-					for(int i = 0; i < 8; ++i) m_defaultSyn[size_t(t)][size_t(i)] = h.param(t, i);
-					if(m >= kCtrEcho && m <= kCtrDynamix)	// as the OS assigns them: SYN1-8 start at the master block's current values
-						for(int i = 0; i < 8; ++i) m_defaultSyn[size_t(t)][size_t(i)] = std::clamp(int(std::lround(m_master[size_t(kCtrMasterBlock[m - kCtrEcho] * 8 + i)]->load())), 0, 127);
-					else if(m == kCtr8P)	// P1-P8 -> SYN1 of tracks 1-8 (the OS's own assignment), starting at their current values
-					{
-						count = kRaw;
-						for(int k = 0; k < 8; ++k)
-						{
-							m_defaultSyn[size_t(t)][size_t(8 + 2 * k)] = k;
-							m_defaultSyn[size_t(t)][size_t(9 + 2 * k)] = 0;
-							m_defaultSyn[size_t(t)][size_t(k)] = rawNow(k, 0);
-						}
-					}
-					m_defaultCount[size_t(t)] = count;
-					for(int i = 0; i < count; ++i) { m_appliedRaw[t][i] = m_defaultSyn[size_t(t)][size_t(i)]; if(count > 8 || (m >= kCtrEcho && m <= kCtrDynamix)) h.setParam(t, i, m_appliedRaw[t][i]); }
-					m_defaultsReady[size_t(t)] = true;
-					triggerAsyncUpdate();
-				}
-				else
-					for(int i = 0; i < 8; ++i) m_appliedRaw[t][i] = -1;	// the parameters' own SYN values win (a kit or a restored project)
-			}
-			for(int i = 0; i < kRaw; ++i)
-			{
-				const int v = target[t][i] >= 0 ? target[t][i] : rawNow(t, i);
-				if(v != m_appliedRaw[t][i]) { m_appliedRaw[t][i] = v; h.setParam(t, i, v); }
-			}
-			const int lev = std::clamp(int(std::lround(p.level->load())), 0, 127);
-			if(lev != m_appliedLevel[t]) { m_appliedLevel[t] = lev; h.setLevel(t, lev); }
-			h.setMute(t, p.mute->load() >= 0.5f);
-			int v[kNumLfo];
-			bool changed = false;
-			for(int i = 0; i < kNumLfo; ++i)
-			{
-				v[i] = std::clamp(int(std::lround(p.lfo[i]->load())), 0, kLfoMax[i]);
-				changed |= v[i] != m_appliedLfo[t][i];
-				m_appliedLfo[t][i] = v[i];
-			}
-			if(changed) h.setLfo(t, v[0], v[1], v[2], v[3], v[4]);
-		}
+		readValues(m_now);
+		m_feeder.apply(*m_engine, m_now, m_hostBpm.load(), *this);
 	}
 
 	// The host's input channels (L, or L twice for a mono bus) into the ring, n samples; zeros while the bus is off once it has been used.

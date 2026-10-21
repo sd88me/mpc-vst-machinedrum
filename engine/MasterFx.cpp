@@ -23,6 +23,8 @@ namespace md::engine
 		constexpr TWord kAfterInit = 0x2d;
 		constexpr TWord kMasterStart = 0x342;	// the master section; the mix before it is engine/Mixer
 		constexpr TWord kOutputEnd = 0x9a8;		// after the output stage's last store (a `bra` back to the main loop)
+		constexpr TWord kEqStart = 0x67c;		// the EQ's coefficients, after the reverb and echo returns are added to the main mix
+		constexpr TWord kDynamixEnd = 0x96f;	// after the dynamix: the output stage follows
 		constexpr TWord kMain = 0x180, kRev = 0x1c0, kDel = 0x600, kFrames = 0x400, kFramePtr = 0x640;
 		constexpr TWord kParamA = 0x150, kParamB = 0x170;
 	}
@@ -39,7 +41,7 @@ namespace md::engine
 			auto cfg = m_dsp->getJit().getConfig();
 			cfg.dynamicFastInterrupts = true;
 			cfg.aguSupportBitreverse = true;
-			cfg.linkJitBlocks = false;
+			cfg.linkJitBlocks = true;	// the section runs with interrupts masked, start to end: linking is bit-exact here, and ~6% faster
 			cfg.interruptRegionIsCode = true;	// as VoiceEngine: code below $100 is code, not interrupt vectors
 			m_dsp->getJit().setConfig(cfg);
 		}
@@ -70,9 +72,21 @@ namespace md::engine
 		if(!runUntil(kAfterInit, 100'000'000))
 			throw std::runtime_error("mixer DSP init did not complete: " + m_fault);
 		m_dsp->memWriteP(kAfterInit, 0x0c0000 | kAfterInit);
+		// The section ends in a jmp to itself, written once: process() stops when the PC gets there, so the original instruction (a
+		// `bra` back to the main loop) never runs here. Patching it in and out every block made the JIT recompile that code twice per
+		// 32 frames, which was most of the section's cost on ARM (Move: 2.4 ms per 128-frame block).
+		m_dsp->memWriteP(kOutputEnd, 0x0c0000 | kOutputEnd);
+		m_eqStartWord = m_dsp->memory().get(MemArea_P, kEqStart);
 	}
 
 	MasterFx::~MasterFx() = default;
+
+	void MasterFx::setReverbEchoOnly(const bool _on)
+	{
+		if(_on == m_reverbEchoOnly) return;
+		m_reverbEchoOnly = _on;
+		m_dsp->memWriteP(kEqStart, _on ? (0x0c0000 | kDynamixEnd) : m_eqStartWord);	// jmp <$96f, or the original instruction back
+	}
 
 	bool MasterFx::runUntil(const uint32_t _pc, const uint64_t _max)
 	{
@@ -117,12 +131,8 @@ namespace md::engine
 		}
 		d.memWrite(MemArea_X, kFramePtr, kFrames);
 		d.writeReg(Reg_SR, TReg24(d.getSR().toWord() | 0x300));	// interrupts masked: only this code runs
-		const TWord saved = d.memory().get(MemArea_P, kOutputEnd);
-		d.memWriteP(kOutputEnd, 0x0c0000 | kOutputEnd);	// jmp to itself
 		d.setPC(kMasterStart);
-		const bool ok = runUntil(kOutputEnd, 10'000'000);
-		d.memWriteP(kOutputEnd, saved);
-		if(!ok) return false;
+		if(!runUntil(kOutputEnd, 10'000'000)) return false;	// kOutputEnd holds a jmp to itself (see the constructor)
 		// The main output is X:$180 after the section has run in place on it: the output routine ($270) copies those 64 words to the
 		// serial port's DMA buffer (the individual outputs come from the 6-channel frames, where the section adds its output
 		// with the opposite sign).

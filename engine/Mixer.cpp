@@ -14,6 +14,22 @@ namespace md::engine
 		return lim(asl(mpy(_sample, sx24(_volWord)), 4));
 	}
 
+	void Mixer::trackMain(const int32_t* _track, const std::array<uint32_t, 5>& _mix, Stereo& _out) const
+	{
+		if(sx24(_mix[0]) != kRouteMain)
+		{
+			for(int i = 0; i < kBlock; ++i) _out[i][0] = _out[i][1] = solo(_track[i], _mix[1]);
+			return;
+		}
+		const int32_t vol = sx24(_mix[1]);
+		Acc a = acc(sx24(_mix[2]));
+		if(a > acc(0x7ecccd)) a = acc(0x7fffff);
+		const auto idx = static_cast<uint32_t>(lim(asr(a, 10)));
+		const int32_t r = lim(mpy(m_t[0x148000 + idx], vol)), l = lim(mpy(m_t[0x14a000 + idx], vol));	// as process(): sin R, cos L
+		for(int i = 0; i < kBlock; ++i)
+			_out[i] = {lim(asl(mpy(l, _track[i]), 3)), lim(asl(mpy(r, _track[i]), 3))};
+	}
+
 	int Mixer::frameChannel(const int _route)
 	{
 		// P:$2c2-$2cb: base + 6, minus 4 when bit 0 is clear, minus route / 2 (a fraction borrows)

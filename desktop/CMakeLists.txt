@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.22)
 if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
-project(MachinemoduleDesktop VERSION 0.2.0 LANGUAGES C CXX)
+project(MachinemoduleDesktop VERSION 0.2.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,6 +58,8 @@ endif()
 set(MM_HARDENED_OPTS com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.cs.disable-library-validation)
 
 set(MM_SOURCES
+  src/core/EngineFeeder.cpp
+  src/core/KitModel.cpp
   src/core/Resampler.cpp
   src/plugin/MdProcessor.cpp
   src/ui/RomArt.cpp

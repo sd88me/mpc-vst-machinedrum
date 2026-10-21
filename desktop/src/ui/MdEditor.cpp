@@ -15,7 +15,7 @@ namespace mm
 	MdEditor::MdEditor(MdProcessor& p)
 		: AudioProcessorEditor(p), m_proc((skin::apply(skin::load()), p)),	// the skin first: m_lnf reads it when it is built
 		  m_mark(spec::kFontBold8(), "MD", kScale, true, juce::Justification::centred),
-		  m_footerVersion(spec::kFontSmall4x5(), "V0.2.0", 2),
+		  m_footerVersion(spec::kFontSmall4x5(), "V0.2.1", 2),
 		  m_footerCredit(spec::kFontSmall4x5(), "MACHINEMODULE - UI AFTER MONOMODULE BY SHNOLK", 2, false, juce::Justification::centredRight),
 		  m_bpmLabel(spec::kFontBold8(), "BPM", kScale, false, juce::Justification::centredRight),
 		  m_syn(p.apvts, "SYN"), m_amp(p.apvts, "AMP/EFX"), m_route(p.apvts, "ROUTE"), m_lfo(p.apvts, "LFO"),
