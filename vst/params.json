@@ -7,7 +7,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track0_vol",
@@ -143,7 +144,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track1_vol",
@@ -279,7 +281,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track2_vol",
@@ -415,7 +418,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track3_vol",
@@ -551,7 +555,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track4_vol",
@@ -687,7 +692,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track5_vol",
@@ -823,7 +829,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track6_vol",
@@ -959,7 +966,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track7_vol",
@@ -1095,7 +1103,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track8_vol",
@@ -1231,7 +1240,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track9_vol",
@@ -1367,7 +1377,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track10_vol",
@@ -1503,7 +1514,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track11_vol",
@@ -1639,7 +1651,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track12_vol",
@@ -1775,7 +1788,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track13_vol",
@@ -1911,7 +1925,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track14_vol",
@@ -2047,7 +2062,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track15_vol",
@@ -3623,7 +3639,8 @@
    "min": 0,
    "max": 15,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track0_lfo_param",
@@ -3632,7 +3649,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track0_lfo_shp1",
@@ -3664,7 +3682,8 @@
    "min": 0,
    "max": 15,
    "default": 1,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track1_lfo_param",
@@ -3673,7 +3692,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track1_lfo_shp1",
@@ -3705,7 +3725,8 @@
    "min": 0,
    "max": 15,
    "default": 2,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track2_lfo_param",
@@ -3714,7 +3735,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track2_lfo_shp1",
@@ -3746,7 +3768,8 @@
    "min": 0,
    "max": 15,
    "default": 3,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track3_lfo_param",
@@ -3755,7 +3778,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track3_lfo_shp1",
@@ -3787,7 +3811,8 @@
    "min": 0,
    "max": 15,
    "default": 4,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track4_lfo_param",
@@ -3796,7 +3821,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track4_lfo_shp1",
@@ -3828,7 +3854,8 @@
    "min": 0,
    "max": 15,
    "default": 5,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track5_lfo_param",
@@ -3837,7 +3864,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track5_lfo_shp1",
@@ -3869,7 +3897,8 @@
    "min": 0,
    "max": 15,
    "default": 6,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track6_lfo_param",
@@ -3878,7 +3907,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track6_lfo_shp1",
@@ -3910,7 +3940,8 @@
    "min": 0,
    "max": 15,
    "default": 7,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track7_lfo_param",
@@ -3919,7 +3950,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track7_lfo_shp1",
@@ -3951,7 +3983,8 @@
    "min": 0,
    "max": 15,
    "default": 8,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track8_lfo_param",
@@ -3960,7 +3993,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track8_lfo_shp1",
@@ -3992,7 +4026,8 @@
    "min": 0,
    "max": 15,
    "default": 9,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track9_lfo_param",
@@ -4001,7 +4036,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track9_lfo_shp1",
@@ -4033,7 +4069,8 @@
    "min": 0,
    "max": 15,
    "default": 10,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track10_lfo_param",
@@ -4042,7 +4079,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track10_lfo_shp1",
@@ -4074,7 +4112,8 @@
    "min": 0,
    "max": 15,
    "default": 11,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track11_lfo_param",
@@ -4083,7 +4122,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track11_lfo_shp1",
@@ -4115,7 +4155,8 @@
    "min": 0,
    "max": 15,
    "default": 12,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track12_lfo_param",
@@ -4124,7 +4165,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track12_lfo_shp1",
@@ -4156,7 +4198,8 @@
    "min": 0,
    "max": 15,
    "default": 13,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track13_lfo_param",
@@ -4165,7 +4208,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track13_lfo_shp1",
@@ -4197,7 +4241,8 @@
    "min": 0,
    "max": 15,
    "default": 14,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track14_lfo_param",
@@ -4206,7 +4251,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track14_lfo_shp1",
@@ -4238,7 +4284,8 @@
    "min": 0,
    "max": 15,
    "default": 15,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track15_lfo_param",
@@ -4247,7 +4294,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track15_lfo_shp1",

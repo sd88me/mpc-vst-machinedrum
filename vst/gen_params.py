@@ -37,7 +37,7 @@ sections = []
 for t in range(16):
     keys = []
     params.append({"key": "track%d_machine" % t, "name": "T%d Machine" % (t + 1), "min": 0, "max": 191,
-                    "default": 0, "display": "int"})
+                    "default": 0, "display": "int", "refresh_display": True})
     keys.append("track%d_machine" % t)
     params.append({"key": "track%d_vol" % t, "name": "T%d Vol" % (t + 1), "min": 0, "max": 127,
                     "default": 100, "display": "int"})
@@ -87,9 +87,10 @@ for t in range(16):
 # The track's LFO page (engine.cpp kLfoKeys), appended last. lfo_param's shown text is the destination's own label
 # ("dynamic_display": the wrapper asks the DSP for "<key>_display").
 for t in range(16):
-    params.append({"key": "track%d_lfo_track" % t, "name": "T%d LFO Track" % (t + 1), "min": 0, "max": 15, "default": t, "display": "int"})
+    params.append({"key": "track%d_lfo_track" % t, "name": "T%d LFO Track" % (t + 1), "min": 0, "max": 15, "default": t, "display": "int",
+                   "refresh_display": True})
     params.append({"key": "track%d_lfo_param" % t, "name": "T%d LFO Param" % (t + 1), "min": 0, "max": 23, "default": 0, "display": "int",
-                   "dynamic_display": True})
+                   "dynamic_display": True, "refresh_display": True})
     params.append({"key": "track%d_lfo_shp1" % t, "name": "T%d LFO Shape 1" % (t + 1), "min": 0, "max": 5, "default": 0, "display": "int"})
     params.append({"key": "track%d_lfo_shp2" % t, "name": "T%d LFO Shape 2" % (t + 1), "min": 0, "max": 5, "default": 0, "display": "int"})
     params.append({"key": "track%d_lfo_type" % t, "name": "T%d LFO Update" % (t + 1), "min": 0, "max": 2, "default": 0, "display": "int"})
