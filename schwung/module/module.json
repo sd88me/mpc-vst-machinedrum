@@ -29,6 +29,13 @@
       "extensions": [".bin"],
       "optional": true,
       "description": "Optional: the Machinedrum UW 1.63 flash image (.bin, 8 MB). Machinemodule boots it once in the emulated Machinedrum (about 6 minutes, the first time the module starts after the upload) and keeps the 16 factory kits and the ROM machines' samples. Nothing from it is shipped."
+    },
+    {
+      "path": "kits",
+      "label": "Your kits",
+      "extensions": [".syx"],
+      "optional": true,
+      "description": "Optional: Machinedrum kit dumps (.syx, one or many kits per file, as the MD sends them). They are listed on the Kit page after the factory kits."
     }
   ],
   "capabilities": {

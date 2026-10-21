@@ -311,3 +311,27 @@ Open, in order:
 - R4 explained: with silence release, voice groups change the noise machines' output only (each DSP instance has its own noise
   sequence; a released voice starts afresh), as the MPC notes found for release alone.
 
+### M2-M4, third round (2026-10-21)
+
+- **Flash import on the Move** (decision 4): the `flash` upload; the supervisor runs `bin/md-import` (mdProbe + mdsamples, built for
+  aarch64) before the engine's first start, 6.4 min on the Move, byte-identical to the desktop import. Two fixes in `md-import` for
+  every platform: it waits 10 s of emulated time before the DSP dump (on a slow host the ROM samples were not uploaded yet), and its
+  work files stay in the output folder (never the temp folder: a Move's root filesystem is full).
+- **User kits:** the `kits` upload (`.syx` kit dumps) after the factory kits on the Kit page.
+- **Per-track buses** (M4): `split_voices` + `move_plugin_render_split`; a track on a bus gets its share of the dry main mix
+  (`Mixer::trackMain`: its level and pan) and leaves the main mix.
+- **help.json** for the device's Module Help; `README.md`.
+- At the defaults (LTNCY 1, FX Full) the typical beat on factory kit 1 played without a gap in 6 of 7 runs on the Move; the other had
+  1-3 single gaps in 20 s, with the worst block at 93-98% of the budget. LTNCY 2 holds it.
+
+Prepared for the other builds (not released):
+- **Desktop 0.2.1** (this branch): the master effects at about half the CPU (no recompile every block, bit-exact), and the import
+  fixes. Pre-warm left out on purpose: it changes the engine's state, and the desktop is checked sample for sample against a fresh
+  engine; it needs a reset that keeps the compiled code (as Monomodule's port has) first.
+- **MPC Gen2** (branch `gen2`): the voice DSP on the JIT instead of the recompiled blocks, with the desktop's JIT init fix:
+  bit-exact, 2.4x faster on a Cortex-A72, and the `.so` no longer carries code generated from the user's OS file. Gen1 (32-bit ARM)
+  has no JIT and keeps the recompiled build.
+
+Still open: the machine picker as DR32's sectioned browser (MACH is the host's enum list now); Copy/Delete of a track checked on the
+device; the MD sequencer's own unaccented-step velocity (for ACAMT's default); per-trigger cost bursts on very busy kits.
+

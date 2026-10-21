@@ -502,18 +502,48 @@ namespace
 		return uint64_t(st.st_size) * 1000003u ^ uint64_t(st.st_mtime);
 	}
 
-	Catalog* buildCatalog(const char* path, uint64_t sig)
+	std::vector<uint8_t> readFile(const std::string& path)
 	{
-		std::FILE* f = std::fopen(path, "rb");
-		if(!f) return nullptr;
 		std::vector<uint8_t> data;
+		std::FILE* f = std::fopen(path.c_str(), "rb");
+		if(!f) return data;
 		uint8_t b[65536];
 		size_t n;
 		while((n = std::fread(b, 1, sizeof b, f)) > 0 && data.size() < (8u << 20)) data.insert(data.end(), b, b + n);
 		std::fclose(f);
+		return data;
+	}
+
+	// The kit files: the factory kits (factory/FACTORY.syx, from the flash import), then the user's own kit dumps (kits/*.syx, by
+	// name). Their signature: names, sizes, times; a change rebuilds the list.
+	uint64_t kitFiles(const Instance& in, std::vector<std::string>* files)
+	{
+		uint64_t h = 1469598103934665603ull;
+		auto mix = [&](uint64_t v) { h ^= v; h *= 1099511628211ull; };
+		const std::string factory = std::string(in.moduleDir) + "/factory/FACTORY.syx";
+		if(const uint64_t s = fileSignature(factory.c_str())) { mix(s); if(files) files->push_back(factory); }
+		const std::string dir = std::string(in.moduleDir) + "/kits";
+		std::vector<std::string> user;
+		if(DIR* d = opendir(dir.c_str()))
+		{
+			while(dirent* e = readdir(d))
+			{
+				const size_t n = std::strlen(e->d_name);
+				if(n > 4 && e->d_name[0] != '.' && !strcasecmp(e->d_name + n - 4, ".syx")) user.push_back(dir + "/" + e->d_name);
+			}
+			closedir(d);
+		}
+		std::sort(user.begin(), user.end());
+		for(const auto& u : user) { for(char ch : u) mix(uint8_t(ch)); mix(fileSignature(u.c_str())); if(files) files->push_back(u); }
+		return h;
+	}
+
+	Catalog* buildCatalog(const std::vector<std::string>& files, uint64_t sig)
+	{
 		auto* c = new Catalog();
-		c->kits = parseKits(data);
-		if(c->kits.size() > 120) c->kits.resize(120);	// an enum knob holds 128 options
+		for(const auto& f : files)
+			for(auto& k : parseKits(readFile(f)))
+				if(c->kits.size() < 120) c->kits.push_back(k);	// an enum knob holds 128 options
 		c->signature = sig;
 		return c;
 	}
@@ -741,7 +771,7 @@ namespace
 			std::snprintf(log, sizeof log, "%s/md-engine.log", in.moduleDir);
 			if(const int lf = open(log, O_WRONLY | O_CREAT | O_TRUNC, 0644); lf >= 0) close(lf);	// this instance's engines append
 		}
-		char dir[600], os[700], rom[700], kits[700];
+		char dir[600], os[700], rom[700];
 		std::snprintf(dir, sizeof dir, "%s/os", in.moduleDir);
 		while(!findFile(dir, ".syx", os, sizeof os))	// the user may upload it after adding the module
 		{
@@ -752,7 +782,6 @@ namespace
 		if(!importFlash(in, os)) { freeWhenStopped(in); return nullptr; }
 		std::snprintf(rom, sizeof rom, "%s/factory/ROM_SAMPLES.bin", in.moduleDir);
 		if(fileSignature(rom) == 0) std::snprintf(rom, sizeof rom, "-");
-		std::snprintf(kits, sizeof kits, "%s/factory/FACTORY.syx", in.moduleDir);
 
 		const int fd = int(syscall(SYS_memfd_create, "md-shm", 1u /* MFD_CLOEXEC: other children must not inherit it */));
 		if(fd < 0 || ftruncate(fd, sizeof(shm::Segment)) != 0)
@@ -780,11 +809,12 @@ namespace
 		{
 			if(retired && ++retiredPolls >= 10) { delete retired; retired = nullptr; }	// ~1 s after it was replaced
 			if(kitPolls++ % 30 != 0) return;	// every ~3 s
-			const uint64_t sig = fileSignature(kits);
+			std::vector<std::string> files;
+			const uint64_t sig = kitFiles(in, &files);
 			Catalog* cur = in.catalog.load();
-			if((cur ? cur->signature : 0) == sig || sig == 0) return;
+			if(cur ? cur->signature == sig : files.empty()) return;
 			if(retired) { delete retired; retired = nullptr; }
-			in.catalog.store(buildCatalog(kits, sig), std::memory_order_release);
+			in.catalog.store(buildCatalog(files, sig), std::memory_order_release);
 			retired = cur;
 			retiredPolls = 0;
 		};

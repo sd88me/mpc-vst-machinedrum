@@ -41,6 +41,7 @@ assert len(s) <= 8192, "module.json over Schwung's 8 KB limit"
 open(sys.argv[2], "w").write(s + "\n")
 EOF
 cp "$BUILD/dsp.stripped.so" "$DIST/machinemodule/dsp.so"
+cp "$S/module/help.json" "$DIST/machinemodule/help.json"
 cp "$BUILD/md-engine.stripped" "$DIST/machinemodule/md-engine"
 mkdir -p "$DIST/machinemodule/bin"	# the flash import's helpers (md-import starts the other two from its own folder)
 for f in md-import mdsamples mdProbe; do cp "$BUILD/$f.stripped" "$DIST/machinemodule/bin/$f"; done
