@@ -168,6 +168,18 @@ constexpr bool kMasterFxSupported = false;	// the 32-bit ARM devices (the Force,
 #else
 constexpr bool kMasterFxSupported = true;
 #endif
+// The control machines (CTR): no audio, they act on parameters, as the OS's own rules do (adapted from the desktop version, which checked them against the OS).
+// CTR-AL (112) moves SYN k of every other sounding track by the amount its own SYN k moves; CTR-RE / GB / EQ / DX (120-123) are SYN1-8 of the delay / reverb / EQ /
+// dynamix master effects; CTR-8P (113) writes P1-P8 (its SYN1-8) into eight (track, parameter) targets that its raw parameters 9-24 name, every block.
+constexpr int kCtrAll = 112, kCtr8P = 113, kCtrEcho = 120, kCtrDynamix = 123;
+constexpr int kCtrMasterBlock[4] = {1, 0, 2, 3};	// CTR-RE / GB / EQ / DX -> the kit's master block (reverb 0, delay 1, EQ 2, dynamix 3)
+constexpr bool isControlMachine(int _id) { return (_id & 0xf0) == 0x70; }
+constexpr bool isMasterControl(int _id) { return _id >= kCtrEcho && _id <= kCtrDynamix; }
+// The slot (within a track) of HostModel raw parameter _raw: 0-7 SYN1-8, 8-15 AMD..SRR, 16 DIST, 17 VOL, 18 PAN, 19-23 DEL REV LFOS LFOD LFOM
+constexpr int rawSlot(int _raw)
+{
+	return _raw < 8 ? kSlotSyn + _raw : _raw < 16 ? 3 + (_raw - 8) : _raw == 16 ? 3 + kNumFx : _raw == 17 ? 1 : _raw == 18 ? 2 : 3 + kNumFx + (_raw - 18);
+}
 constexpr int kNumSlotsV1 = kSlotRomEnabled + 1;	// a saved state from before MUTE/SOLO has this many slots
 
 int slotOf(const char* key)
@@ -453,6 +465,67 @@ struct Inst
 	void run();
 
 	// A machine change, as the host makes it: SYN1-8 go back to "untouched", taking the new machine's defaults.
+	// ---- the control machines (see kCtrAll): host thread ----
+	int allLast[kTracks][kNumSyn] = {};	// CTR-AL: each knob as the OS keeps it (1-126), the next move is measured from there
+	bool ctrArmed() const { return ready.load(std::memory_order_acquire) && std::chrono::steady_clock::now() - born > std::chrono::milliseconds(1500); }
+	int machineOf(int _t) const { return std::clamp(param[kSlotTrack + _t * kSlotsPerTrack].load(std::memory_order_relaxed), 0, 191); }
+	int synOf(int _t, int _k) const { return param[kSlotTrack + _t * kSlotsPerTrack + kSlotSyn + _k].load(std::memory_order_relaxed); }
+	void ctrResync()	// the table was replaced (a kit, a saved state): remember the CTR-AL knobs as they are, without acting on them
+	{
+		for(int t = 0; t < kTracks; ++t) for(int k = 0; k < kNumSyn; ++k) allLast[t][k] = synOf(t, k);
+	}
+	// Track _t's SYN _k was set by the host to a new value: the rules of a control machine. Ignored for the first moments after the instance is made
+	// (a host that restores a project value by value would otherwise run them), and when the value did not change.
+	void ctrSynMoved(int _t, int _k, int _old, int _val)
+	{
+		if(_old == _val || !ctrArmed()) { if(machineOf(_t) == kCtrAll) allLast[_t][_k] = synOf(_t, _k); return; }
+		const int m = machineOf(_t);
+		bool moved = false;
+		if(m == kCtrAll)
+		{
+			const int delta = _val - allLast[_t][_k];
+			allLast[_t][_k] = std::clamp(_val, 1, 126);
+			if(delta == 0) return;
+			for(int d = 0; d < kTracks; ++d)
+			{
+				const int dm = machineOf(d);
+				if(isControlMachine(dm) || (dm & 0xf0) == 0x60) continue;	// CTR and MID tracks make no sound
+				if(dm == 160 || dm == 161 || dm == 165 || dm == 166) continue;	// the OS leaves these (SYN 1-8 are not parameters there)
+				auto& x = param[kSlotTrack + d * kSlotsPerTrack + kSlotSyn + _k];
+				x.store(std::clamp(x.load(std::memory_order_relaxed) + delta, 0, 127), std::memory_order_relaxed);
+				synUntouched[d][_k].store(false);
+				moved = true;
+			}
+		}
+		else if(isMasterControl(m))
+		{
+			param[kSlotMasterFx + kCtrMasterBlock[m - kCtrEcho] * 8 + _k].store(std::clamp(_val, 0, 127), std::memory_order_relaxed);
+			moved = true;
+		}
+		if(moved) displayRev.fetch_add(1, std::memory_order_relaxed);	// the host re-reads what the rule changed
+	}
+	// A control machine was just picked by the host: the starting values the OS gives it (CTR-RE.. start at the master block's current values; CTR-8P points
+	// P1-P8 at SYN1 of tracks 1-8 and starts from their values; CTR-AL keeps the machine's defaults), kept over the machine defaults the engine thread adopts.
+	void ctrDefaults(int _t, int _m)
+	{
+		const int base = kSlotTrack + _t * kSlotsPerTrack;
+		if(isMasterControl(_m))
+			for(int i = 0; i < kNumSyn; ++i)
+			{
+				param[base + kSlotSyn + i].store(std::clamp(param[kSlotMasterFx + kCtrMasterBlock[_m - kCtrEcho] * 8 + i].load(std::memory_order_relaxed), 0, 127), std::memory_order_relaxed);
+				synUntouched[_t][i].store(false);
+			}
+		else if(_m == kCtr8P)
+			for(int k = 0; k < 8; ++k)
+			{
+				param[base + rawSlot(8 + 2 * k)].store(k, std::memory_order_relaxed);	// target track k+1
+				param[base + rawSlot(9 + 2 * k)].store(0, std::memory_order_relaxed);	// parameter SYN1
+				param[base + kSlotSyn + k].store(synOf(k, 0), std::memory_order_relaxed);
+				synUntouched[_t][k].store(false);
+			}
+		for(int k = 0; k < kNumSyn; ++k) allLast[_t][k] = synOf(_t, k);
+	}
+
 	void setMachine(int _t, int _v)
 	{
 		const int slot = kSlotTrack + _t * kSlotsPerTrack;
@@ -463,6 +536,8 @@ struct Inst
 			if(known) param[slot + kSlotSyn + i].store(machines.defaults[_v][i], std::memory_order_relaxed);
 			synUntouched[_t][i].store(true);
 		}
+		if(isControlMachine(_v)) ctrDefaults(_t, _v);
+		else for(int i = 0; i < kNumSyn; ++i) allLast[_t][i] = synOf(_t, i);
 	}
 
 	std::vector<int> kitsInBank() const
@@ -515,6 +590,7 @@ struct Inst
 		}
 		for(int f = 0; f < 4; ++f) for(int i = 0; i < 8; ++i) param[kSlotMasterFx + f * 8 + i].store(k.masterFx[f][i] & 0x7f, std::memory_order_relaxed);
 		kitIdx = _idx;
+		ctrResync();
 		for(int i = 0; i < kSlotTempo; ++i) snap[i] = param[i].load(std::memory_order_relaxed);
 	}
 	// A fresh instance plays the first kit instead of eight empty tracks. The host pushes every param right after
@@ -662,6 +738,7 @@ struct Inst
 		for(int i = 0; i < kSlotTempo; ++i) snap[i] = sn[i];
 		for(int t = 0; t < kTracks; ++t) muteGroup[t].store(mg[t] >= 0 && mg[t] < kTracks && mg[t] != t ? mg[t] : -1, std::memory_order_relaxed);
 		kitIdx = idx;
+		ctrResync();
 		defaultKitDone = true;	// a restored sound must not be replaced by the "fresh instance" default kit
 		return true;
 	}
@@ -972,6 +1049,21 @@ void Inst::run()
 			applyMasterFx();
 			const int maxVoices = std::clamp(param[kSlotMaxVoices].load(std::memory_order_relaxed), 1, kTracks);
 			if(maxVoices != appliedMaxVoices) { appliedMaxVoices = maxVoices; h.setMaxActiveVoices(maxVoices); }
+			// CTR-8P: P1-P8 (its SYN1-8) are written into the (track, parameter) targets its parameters 9-24 name (track 0-15, parameter 0-23, clamped), every block,
+			// except into control machines; a target's own knob keeps its value (the override is only what the engine is given)
+			int ovr[kTracks][24];
+			for(auto& row : ovr) for(int& x : row) x = -1;
+			for(int c = 0; c < kTracks; ++c)
+			{
+				if(machineOf(c) != kCtr8P) continue;
+				const int cb = kSlotTrack + c * kSlotsPerTrack;
+				for(int k = 0; k < 8; ++k)
+				{
+					const int dt = std::clamp(param[cb + rawSlot(8 + 2 * k)].load(std::memory_order_relaxed), 0, kTracks - 1);
+					const int dp = std::clamp(param[cb + rawSlot(9 + 2 * k)].load(std::memory_order_relaxed), 0, 23);
+					if(!isControlMachine(machineOf(dt))) ovr[dt][dp] = std::clamp(param[cb + kSlotSyn + k].load(std::memory_order_relaxed), 0, 127);
+				}
+			}
 			for(int t = 0; t < kTracks; ++t)
 			{
 				const int m = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 0].load(std::memory_order_relaxed), 0, 191);
@@ -1001,7 +1093,7 @@ void Inst::run()
 						for(int i = 0; i < kNumSyn; ++i) appliedSyn[t][i] = -1;
 					}
 				}
-				const int vol = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 1].load(std::memory_order_relaxed), 0, 127);
+				const int vol = ovr[t][17] >= 0 ? ovr[t][17] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 1].load(std::memory_order_relaxed), 0, 127);
 				// VOL (param 17, read by the mixer's own gain formula) - not setLevel(), a separate kit LEV
 				// knob (HostModel.h) that also gates level but isn't what mdrender.cpp's working demo kit uses.
 				if(vol != appliedVol[t]) { appliedVol[t] = vol; h.setParam(t, 17, vol); }
@@ -1026,21 +1118,21 @@ void Inst::run()
 				}
 				const int mg = muteGroup[t].load(std::memory_order_relaxed);
 				if(mg != appliedMuteGroup[t]) { appliedMuteGroup[t] = mg; h.setMuteGroup(t, mg); }
-				const int pan = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 2].load(std::memory_order_relaxed), 0, 127);
+				const int pan = ovr[t][18] >= 0 ? ovr[t][18] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 2].load(std::memory_order_relaxed), 0, 127);
 				if(pan != appliedPan[t]) { appliedPan[t] = pan; h.setParam(t, 18, pan); }
 				for(int i = 0; i < kNumFx; ++i)
 				{
-					const int v = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + i].load(std::memory_order_relaxed), 0, 127);
+					const int v = ovr[t][kFxRawParamBase + i] >= 0 ? ovr[t][kFxRawParamBase + i] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + i].load(std::memory_order_relaxed), 0, 127);
 					if(v != appliedFx[t][i]) { appliedFx[t][i] = v; h.setParam(t, kFxRawParamBase + i, v); }
 				}
 				for(int i = 0; i < kNumRoute; ++i)
 				{
-					const int v = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + kNumFx + i].load(std::memory_order_relaxed), 0, 127);
+					const int v = ovr[t][kRouteRawParam[i]] >= 0 ? ovr[t][kRouteRawParam[i]] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + kNumFx + i].load(std::memory_order_relaxed), 0, 127);
 					if(v != appliedRoute[t][i]) { appliedRoute[t][i] = v; h.setParam(t, kRouteRawParam[i], v); }
 				}
 				for(int i = 0; i < kNumSyn; ++i)
 				{
-					const int v = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + kSlotSyn + i].load(std::memory_order_relaxed), 0, 127);
+					const int v = ovr[t][i] >= 0 ? ovr[t][i] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + kSlotSyn + i].load(std::memory_order_relaxed), 0, 127);
 					if(v != appliedSyn[t][i]) { appliedSyn[t][i] = v; h.setParam(t, i, v); }
 				}
 			}
@@ -1267,7 +1359,8 @@ void eSet(void* p, const char* key, const char* val)
 	else
 	{
 		if(s >= kSlotSyn) in->synUntouched[t][s - kSlotSyn].store(false);
-		in->param[slot].store(v, std::memory_order_relaxed);
+		const int old = in->param[slot].exchange(v, std::memory_order_relaxed);
+		if(s >= kSlotSyn && s < kSlotSyn + kNumSyn) in->ctrSynMoved(t, s - kSlotSyn, old, v);
 	}
 }
 
