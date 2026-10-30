@@ -69,7 +69,7 @@ The helpers: `cmake --build <build> --target md-import mdsamples` in the repo ro
 
 - `MmRender <OS.syx> [out.wav]` plays notes through the processor and checks that (a) at 44.1 kHz the main output is sample-identical to
   the bare engine, (b) at 48 kHz the level matches, (c) a track on its own output leaves the main mix and appears on its output, (d) a muted
-  track is silent, (e) the control machines, (f) the audio input, (g) mute groups, (h) solo. It uses an empty data folder, so installed factory data does not change the result.
+  track is silent; it also checks the control machines, the audio input, mute groups and solo. It uses an empty data folder, so installed factory data does not change the result.
 - `MmSnapshot <OS.syx> <outdir>` renders the editor (track, mixer, master and picker views) to PNGs; `MmSnapshot --import-test <OS.syx>
   <flash.bin>` runs the flash import through the processor (set `MM_IMPORT_HELPER` and `MACHINEMODULE_DATA_DIR`).
 - The VST3 passes [pluginval](https://github.com/Tracktion/pluginval) at strictness 5.
