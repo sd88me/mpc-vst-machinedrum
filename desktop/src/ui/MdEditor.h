@@ -49,7 +49,7 @@ namespace mm
 		MdProcessor& m_proc;
 		ui::LcdLookAndFeel m_lnf;
 		ui::MachineList m_list;
-		ui::LcdText m_mark, m_footerVersion, m_footerCredit, m_bpmLabel;
+		ui::LcdText m_mark, m_footerVersion, m_footerCredit, m_bpmLabel, m_footerMachine;
 		ui::LcdButton m_menuButton{"MENU"};
 		ui::MachineBar m_machineBar;
 		ui::KitStrip m_kitStrip;

@@ -19,6 +19,7 @@ namespace mm
 		uint8_t params[kTracks][24]{};	// HostModel raw order: SYN1-8, AMD AMF EQF EQG FLTF FLTW FLTQ SRR, DIST VOL PAN DEL REV LFOS LFOD LFOM
 		uint8_t level[kTracks]{};
 		uint8_t lfo[kTracks][kNumLfo]{};	// destination track, destination param, shape 1, shape 2, update
+		int8_t muteGroup[kTracks]{};		// the track a trigger of this one silences (-1 = none); kit bytes at $4a7 + 16
 		uint8_t master[32]{};				// master effects: reverb 8, echo 8, EQ 8, dynamix 8 (raw 0-127 bytes at $487)
 	};
 
@@ -46,10 +47,12 @@ namespace mm
 		}
 		for(int i = 0; i < 32; ++i) k.master[i] = m[0x487 + i] & 0x7f;
 		const auto mach = decode7(m + 0x1aa, 74);
-		const auto lfo = decode7(m + 0x1f4, 664);
-		if(mach.size() < 64 || lfo.size() < kTracks * 36) return false;
+		const auto lfo = decode7(m + 0x1f4, 659);
+		const auto groups = decode7(m + 0x4a7, 37);	// trig groups 16, mute groups 16 (0xff = off)
+		if(mach.size() < 64 || lfo.size() < kTracks * 36 || groups.size() < 32) return false;
 		for(int t = 0; t < kTracks; ++t)
 		{
+			k.muteGroup[t] = static_cast<int8_t>(groups[16 + t] < kTracks && groups[16 + t] != t ? groups[16 + t] : -1);
 			k.machine[t] = mach[t * 4 + 3];	// a 32-bit big-endian word; the machine id is its low byte
 			for(int i = 0; i < kNumLfo; ++i) k.lfo[t][i] = static_cast<uint8_t>(std::clamp<int>(lfo[t * 36 + i], 0, kLfoMax[i]));
 		}

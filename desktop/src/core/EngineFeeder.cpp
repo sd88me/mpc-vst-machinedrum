@@ -35,6 +35,8 @@ namespace mm
 			// a change is a target for the OS's smoother (the master effects glide to it, as on the unit); the very first set settles at once
 			if(changed) { engine.setMasterFx(bytes, m_masterSnap); m_masterSnap = false; }
 		}
+		bool anySolo = false;
+		for(const auto& t : v.track) anySolo |= t.solo;
 		int mach[kTracks];
 		for(int t = 0; t < kTracks; ++t) mach[t] = std::clamp(v.track[size_t(t)].machine, 0, 191);
 		auto rawNow = [&](int t, int i) { return std::clamp(v.track[size_t(t)].raw[size_t(i)], 0, 127); };
@@ -88,7 +90,8 @@ namespace mm
 			}
 			const int lev = std::clamp(tr.level, 0, 127);
 			if(lev != m_level[t]) { m_level[t] = lev; h.setLevel(t, lev); }
-			h.setMute(t, tr.mute);
+			h.setMute(t, tr.mute || (anySolo && !tr.solo));
+			h.setMuteGroup(t, tr.muteGroup - 1);
 			int l[kNumLfo];
 			bool changed = false;
 			for(int i = 0; i < kNumLfo; ++i)

@@ -222,6 +222,72 @@ int main(int argc, char** argv)
 		std::printf("input at %.0f Hz: INP-GA on its track bus peak %.4f, %.0f Hz; INP-GB (no right input) peak %.6f\n", rate, pk, hz, pkSilentTrack);
 		if(pk < 0.01 || std::abs(hz - 441.0) > 25.0 || pkSilentTrack > 1e-4) { std::printf("FAIL: the audio input through INP machines\n"); ++bad; }
 	}
+	// (h) mute groups: a trigger of track 1 silences track 2 (its mixer words go to 0) until track 2 is triggered again; with no group it keeps sounding
+	{
+		auto peakAfterTrigger = [&](int group)
+		{
+			MdProcessor proc;
+			proc.setOsPath(os, false);
+			for(int i = 0; i < 600 && !proc.engineReady(); ++i) juce::Thread::sleep(50);
+			for(int t = 0; t < 2; ++t)
+			{
+				setParam(proc, paramId(t, "machine"), 17);
+				setParam(proc, paramId(t, "vol"), 110);
+				setParam(proc, paramId(t, "syn2"), 127);	// DEC: a long tail
+			}
+			setParam(proc, paramId(0, "mutegroup"), group);	// 0 none, 2 = track 2
+			proc.enableAllBuses();
+			const double rate = 44100.0; const int block = 480;
+			proc.setRateAndBufferSizeDetails(rate, block);
+			proc.prepareToPlay(rate, block);
+			juce::AudioBuffer<float> buf(2 + 2 * kTracks, block);
+			double pk = 0;
+			for(int pos = 0; pos < int(rate * 1.5); pos += block)
+			{
+				juce::MidiBuffer midi;
+				if(pos == 0) midi.addEvent(juce::MidiMessage::noteOn(1, 37, uint8_t(100)), 0);	// track 2 sounds
+				if(pos <= int(rate * 0.4) && int(rate * 0.4) < pos + block) midi.addEvent(juce::MidiMessage::noteOn(1, 36, uint8_t(100)), int(rate * 0.4) - pos);	// track 1 triggers
+				buf.clear();
+				proc.processBlock(buf, midi);
+				if(pos >= int(rate * 0.5))	// well after the control tick that applies the group
+					for(int i = 0; i < block; ++i) pk = std::max(pk, double(std::abs(buf.getSample(2 + 2 * 1, i))));	// track 2's own bus
+			}
+			return pk;
+		};
+		const double with = peakAfterTrigger(2), without = peakAfterTrigger(0);
+		std::printf("mute group: track 2 bus after track 1's trigger: %.6f with the group, %.6f without\n", with, without);
+		if(with > 1e-6 || without < 0.001) { std::printf("FAIL: mute groups\n"); ++bad; }
+	}
+	// (i) solo: with track 1 soloed, track 2 is silent (on its bus and so in the main mix); with nothing soloed both sound
+	{
+		auto busPeaks = [&](bool solo1)
+		{
+			MdProcessor proc;
+			proc.setOsPath(os, false);
+			for(int i = 0; i < 600 && !proc.engineReady(); ++i) juce::Thread::sleep(50);
+			for(int t = 0; t < 2; ++t) { setParam(proc, paramId(t, "machine"), 17); setParam(proc, paramId(t, "vol"), 110); }
+			if(solo1) setParam(proc, paramId(0, "solo"), 1);
+			proc.enableAllBuses();
+			const double rate = 44100.0; const int block = 480;
+			proc.setRateAndBufferSizeDetails(rate, block);
+			proc.prepareToPlay(rate, block);
+			juce::AudioBuffer<float> buf(2 + 2 * kTracks, block);
+			double pk[2] = {0, 0};
+			for(int pos = 0; pos < int(rate * 1.0); pos += block)
+			{
+				juce::MidiBuffer midi;
+				if(pos == 0) { midi.addEvent(juce::MidiMessage::noteOn(1, 36, uint8_t(100)), 0); midi.addEvent(juce::MidiMessage::noteOn(1, 37, uint8_t(100)), 0); }
+				buf.clear();
+				proc.processBlock(buf, midi);
+				if(pos >= int(rate * 0.1))
+					for(int i = 0; i < block; ++i) for(int t = 0; t < 2; ++t) pk[t] = std::max(pk[t], double(std::abs(buf.getSample(2 + 2 * t, i))));
+			}
+			return std::pair<double, double>(pk[0], pk[1]);
+		};
+		const auto none = busPeaks(false), soloed = busPeaks(true);
+		std::printf("solo: no solo: track 1 %.4f, track 2 %.4f; track 1 soloed: track 1 %.4f, track 2 %.6f\n", none.first, none.second, soloed.first, soloed.second);
+		if(none.first < 0.001 || none.second < 0.001 || soloed.first < 0.001 || soloed.second > 1e-6) { std::printf("FAIL: solo\n"); ++bad; }
+	}
 	std::printf(bad ? "FAILED\n" : "ALL OK\n");
 	return bad;
 }

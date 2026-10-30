@@ -44,6 +44,8 @@ namespace mm
 			add(*g, paramId(t, "level"), pre + "LEV", 0, 127, 100);
 			g->addChild(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{paramId(t, "mute"), 1}, pre + "Mute", false));
 			for(int i = 0; i < kNumLfo; ++i) add(*g, paramId(t, kLfoKeys[i]), pre + juce::String(kLfoKeys[i]).toUpperCase(), 0, kLfoMax[i], i == 0 ? t : 0);
+			g->addChild(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{paramId(t, "solo"), 1}, pre + "Solo", false));
+			add(*g, paramId(t, "mutegroup"), pre + "Mute group", 0, kTracks, 0);	// 0 none, 1-16: the track its trigger silences (the kit's)
 			layout.add(std::move(g));
 		}
 		{
@@ -67,6 +69,8 @@ namespace mm
 			for(int i = 0; i < kRaw; ++i) p.raw[i] = apvts.getRawParameterValue(paramId(t, kRawKeys[i]));
 			p.level = apvts.getRawParameterValue(paramId(t, "level"));
 			p.mute = apvts.getRawParameterValue(paramId(t, "mute"));
+			p.muteGroup = apvts.getRawParameterValue(paramId(t, "mutegroup"));
+			p.solo = apvts.getRawParameterValue(paramId(t, "solo"));
 			for(int i = 0; i < kNumLfo; ++i) p.lfo[i] = apvts.getRawParameterValue(paramId(t, kLfoKeys[i]));
 			apvts.addParameterListener(paramId(t, "machine"), this);
 			for(int i = 0; i < 8; ++i) apvts.addParameterListener(paramId(t, kRawKeys[i]), this);	// SYN1-8: the control machines act on these
@@ -319,6 +323,8 @@ namespace mm
 			for(int i = 0; i < kRaw; ++i) tr.raw[size_t(i)] = get(p.raw[i]);
 			tr.level = get(p.level);
 			tr.mute = p.mute->load() >= 0.5f;
+			tr.muteGroup = get(p.muteGroup);
+			tr.solo = p.solo->load() >= 0.5f;
 			for(int i = 0; i < kNumLfo; ++i) tr.lfo[size_t(i)] = get(p.lfo[i]);
 		}
 		for(int i = 0; i < kMasterBytes; ++i) v.master[size_t(i)] = get(m_master[size_t(i)]);
@@ -334,6 +340,8 @@ namespace mm
 			for(int i = 0; i < kRaw; ++i) if(a.raw[size_t(i)] != b.raw[size_t(i)]) setInt(apvts, paramId(t, kRawKeys[i]), a.raw[size_t(i)]);
 			if(a.level != b.level) setInt(apvts, paramId(t, "level"), a.level);
 			if(a.mute != b.mute) setInt(apvts, paramId(t, "mute"), a.mute ? 1 : 0);
+			if(a.solo != b.solo) setInt(apvts, paramId(t, "solo"), a.solo ? 1 : 0);
+			if(a.muteGroup != b.muteGroup) setInt(apvts, paramId(t, "mutegroup"), a.muteGroup);
 			for(int i = 0; i < kNumLfo; ++i) if(a.lfo[size_t(i)] != b.lfo[size_t(i)]) setInt(apvts, paramId(t, kLfoKeys[i]), a.lfo[size_t(i)]);
 		}
 		for(int i = 0; i < kMasterBytes; ++i) if(now.master[size_t(i)] != was.master[size_t(i)]) setInt(apvts, masterId(i), now.master[size_t(i)]);

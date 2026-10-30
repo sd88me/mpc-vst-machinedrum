@@ -142,7 +142,8 @@ private:
 	float m_meter = 0.0f;
 };
 
-// The mixer view: every track's LEV as the LCD level column, 16 across, with the output meters. Click a number to select the track.
+// The mixer view, after ModuleDrum's (github.com/K-X420/ModuleDrum, AGPL-3.0): per track its number (click: select), PAN (a bar with a
+// marker: drag), LEV (the level column with the output meter beside it: drag) and the M (mute) and S (solo) keys.
 class MixerPage : public juce::Component
 {
 public:
@@ -158,13 +159,17 @@ public:
 	void mouseDoubleClick(const juce::MouseEvent&) override;
 
 private:
+	// LCD rows of the parts of a channel
+	static constexpr int kPanY = KnobPage::kGridY + 9, kPanH = 5, kBtnH = 8;
+	static constexpr int kFaderY = kPanY + kPanH + 3, kBtnY = kLcdH - 2 - 2 * kBtnH - 1, kFaderH = kBtnY - 2 - kFaderY;
 	int channelAt(int xLcd) const { return juce::jlimit(0, 15, xLcd / kChan); }
-	void setFromY(int t, int yLcd);
+	void setLevelFromY(int t, int yLcd);
+	void setPanFromX(int t, int xLcd);
 	juce::AudioProcessorValueTreeState& m_apvts;
-	std::array<juce::RangedAudioParameter*, 16> m_param{};
-	std::array<std::unique_ptr<juce::ParameterAttachment>, 16> m_attach;
+	std::array<juce::RangedAudioParameter*, 16> m_param{}, m_panParam{}, m_muteParam{}, m_soloParam{};
+	std::array<std::unique_ptr<juce::ParameterAttachment>, 16> m_attach, m_panAttach, m_muteAttach, m_soloAttach;
 	std::array<float, 16> m_peak{};
-	int m_selected = 0, m_dragTrack = -1;
+	int m_selected = 0, m_dragTrack = -1, m_dragWhat = 0;	// 1 level, 2 pan
 };
 
 // BPM: the tempo the engine runs at (the host's), in the tall digit face. Read only.

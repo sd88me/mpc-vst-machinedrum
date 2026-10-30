@@ -34,6 +34,7 @@ namespace mm
 			tr.machine = k.machine[t];
 			for(int i = 0; i < kRaw; ++i) tr.raw[size_t(i)] = k.params[t][i];
 			tr.level = k.level[t];
+			tr.muteGroup = k.muteGroup[t] + 1;
 			for(int i = 0; i < kNumLfo; ++i) tr.lfo[size_t(i)] = k.lfo[t][i];
 		}
 		for(int i = 0; i < kMasterBytes; ++i) master[size_t(i)] = k.master[i];

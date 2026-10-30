@@ -32,6 +32,8 @@ namespace mm
 		std::array<int, kRaw> raw{};
 		int level = 100;
 		bool mute = false;
+		bool solo = false;	// while any track is soloed, the tracks that are not are silent (as a mute); not a kit value
+		int muteGroup = 0;	// the kit's MUTE GROUP: 0 none, 1-16 = the track a trigger of this one silences
 		std::array<int, kNumLfo> lfo{};
 	};
 

@@ -155,6 +155,9 @@ namespace md::engine
 			}
 		}
 		m_trigger[_track] = true;
+		m_groupMuted[_track] = false;
+		if(m_muteGroup[_track] >= 0)
+			m_groupMuted[static_cast<size_t>(m_muteGroup[_track])] = true;
 		m_velocity[_track] = static_cast<uint8_t>(std::clamp(_velocity, 1, 127));
 		m_accent[_track] = _accent;
 		// The OS's track trigger ($20cdf0) flags the track's own LFO; the tick's trigger path acts on it.
@@ -228,7 +231,7 @@ namespace md::engine
 		for(int k = 0; k < 9; ++k)
 			m.fx[k] = a6[8 + k];	// sent unchanged by $1000702
 		m.mix[0] = m_route[_track];
-		if(m_mute[_track])
+		if(m_mute[_track] || m_groupMuted[_track])
 		{
 			m.mix[1] = m.mix[2] = m.mix[3] = m.mix[4] = 0;
 			return;

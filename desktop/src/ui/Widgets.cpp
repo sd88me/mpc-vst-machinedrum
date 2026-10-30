@@ -396,10 +396,18 @@ void LevelColumn::paint(juce::Graphics& g)
 MixerPage::MixerPage(juce::AudioProcessorValueTreeState& apvts) : m_apvts(apvts)
 {
 	setOpaque(true);
+	auto attach = [this](juce::RangedAudioParameter*& prm, std::unique_ptr<juce::ParameterAttachment>& at, const juce::String& id)
+	{
+		prm = m_apvts.getParameter(id);
+		if(prm) { at = std::make_unique<juce::ParameterAttachment>(*prm, [this](float) { repaint(); }); at->sendInitialUpdate(); }
+	};
 	for(int t = 0; t < 16; ++t)
 	{
-		m_param[size_t(t)] = apvts.getParameter(juce::String::formatted("t%02d_level", t + 1));
-		if(m_param[size_t(t)]) { m_attach[size_t(t)] = std::make_unique<juce::ParameterAttachment>(*m_param[size_t(t)], [this](float) { repaint(); }); m_attach[size_t(t)]->sendInitialUpdate(); }
+		const auto pre = juce::String::formatted("t%02d_", t + 1);
+		attach(m_param[size_t(t)], m_attach[size_t(t)], pre + "level");
+		attach(m_panParam[size_t(t)], m_panAttach[size_t(t)], pre + "pan");
+		attach(m_muteParam[size_t(t)], m_muteAttach[size_t(t)], pre + "mute");
+		attach(m_soloParam[size_t(t)], m_soloAttach[size_t(t)], pre + "solo");
 	}
 }
 
@@ -408,7 +416,9 @@ void MixerPage::paint(juce::Graphics& g)
 	LcdCanvas cv(kLcdW, kLcdH);
 	cv.fillRect(0, 0, kLcdW, KnobPage::kTitleH, true);
 	cv.text(spec::kFontBold8(), "MIXER", 2, 1, false);
-	const int gy = KnobPage::kGridY, mfw = 11, mfx = (kChan - mfw) / 2, mfy = gy + 9, mfh = kLcdH - 2 - mfy;
+	const int gy = KnobPage::kGridY, mfw = 11, mfx = 2, mfy = kFaderY, mfh = kFaderH, mmx = mfx + mfw + 2, mmw = 5, panW = kChan - 4;
+	auto frame = [&](int x0, int x, int w) { cv.dotsH(x0 + x, x0 + x + w - 1, mfy); cv.dotsH(x0 + x, x0 + x + w - 1, mfy + mfh - 1); cv.dotsV(x0 + x, mfy, mfy + mfh - 1); cv.dotsV(x0 + x + w - 1, mfy, mfy + mfh - 1); };
+	auto value = [](juce::RangedAudioParameter* p, float scale) { return p ? p->convertFrom0to1(p->getValue()) / scale : 0.0f; };
 	for(int c = 0; c < 16; ++c)
 	{
 		const int x0 = c * kChan;
@@ -417,15 +427,26 @@ void MixerPage::paint(juce::Graphics& g)
 		const juce::String num(c + 1);
 		if(sel) cv.fillRect(x0 + 1, gy + 1, kChan - 1, 8, true);
 		cv.textCentred(spec::kFontTiny3x5(), num.toRawUTF8(), x0 + 1, kChan - 1, gy + kLabelY, !sel);
-		cv.dotsH(x0 + mfx, x0 + mfx + mfw - 1, mfy); cv.dotsH(x0 + mfx, x0 + mfx + mfw - 1, mfy + mfh - 1);
-		cv.dotsV(x0 + mfx, mfy, mfy + mfh - 1); cv.dotsV(x0 + mfx + mfw - 1, mfy, mfy + mfh - 1);
+		// PAN: a dotted line across with a 3-wide marker, centre = 64
+		cv.dotsH(x0 + 2, x0 + 2 + panW - 1, kPanY + kPanH / 2);
+		cv.set(x0 + 2 + panW / 2, kPanY); cv.set(x0 + 2 + panW / 2, kPanY + kPanH - 1);
+		cv.fillRect(x0 + 2 + int(std::lround(value(m_panParam[size_t(c)], 127.0f) * float(panW - 3))), kPanY, 3, kPanH, true);
+		// LEV and its meter
+		frame(x0, mfx, mfw); frame(x0, mmx, mmw);
 		const int innerY = mfy + 2, innerH = mfh - 4;
-		const float v = m_param[size_t(c)] ? m_param[size_t(c)]->convertFrom0to1(m_param[size_t(c)]->getValue()) / 127.0f : 0.0f;
-		const int lvlH = int(std::lround(v * innerH)), barW = (mfw - 5) / 2;
-		cv.fillRect(x0 + mfx + 2, innerY + innerH - lvlH, barW, lvlH, true);
-		const int metH = int(std::lround(juce::jlimit(0.0f, 1.0f, m_peak[size_t(c)]) * innerH));
-		for(int y = innerY + innerH - metH; y < innerY + innerH; y += 2)
-			for(int x = x0 + mfx + 3 + barW; x < x0 + mfx + mfw - 2; ++x) cv.set(x, y);
+		const int lvlH = int(std::lround(value(m_param[size_t(c)], 127.0f) * float(innerH))), barW = (mfw - 5) / 2;
+		cv.fillRect(x0 + mfx + 2, innerY + innerH - lvlH, barW + 2, lvlH, true);
+		const int metH = int(std::lround(juce::jlimit(0.0f, 1.0f, m_peak[size_t(c)]) * float(innerH)));
+		cv.fillRect(x0 + mmx + 1, innerY + innerH - metH, mmw - 2, metH, true);
+		// M and S
+		for(int k = 0; k < 2; ++k)
+		{
+			const bool on = (k == 0 ? m_muteParam : m_soloParam)[size_t(c)] && (k == 0 ? m_muteParam : m_soloParam)[size_t(c)]->getValue() > 0.5f;
+			const int bx = x0 + 2, by = kBtnY + k * (kBtnH + 1);
+			if(on) cv.fillRect(bx, by, panW, kBtnH, true);
+			else { cv.dotsH(bx, bx + panW - 1, by); cv.dotsH(bx, bx + panW - 1, by + kBtnH - 1); cv.dotsV(bx, by, by + kBtnH - 1); cv.dotsV(bx + panW - 1, by, by + kBtnH - 1); }
+			cv.textCentred(spec::kFontSmall4x5(), k == 0 ? "M" : "S", bx, panW, by + (kBtnH - 5) / 2, !on);
+		}
 	}
 	cv.dotsV(16 * kChan, gy, kLcdH - 1);
 	cv.dotsH(0, kLcdW - 1, gy);
@@ -433,37 +454,68 @@ void MixerPage::paint(juce::Graphics& g)
 	cv.draw(g, 0, 0);
 }
 
-void MixerPage::setFromY(int t, int yLcd)
+void MixerPage::setLevelFromY(int t, int yLcd)
 {
 	if(t < 0 || !m_attach[size_t(t)]) return;
-	const int gy = KnobPage::kGridY, mfy = gy + 9, mfh = kLcdH - 2 - mfy, innerY = mfy + 2, innerH = mfh - 4;
+	const int innerY = kFaderY + 2, innerH = kFaderH - 4;
 	const float v = 127.0f * (1.0f - juce::jlimit(0.0f, 1.0f, float(yLcd - innerY) / float(innerH)));
 	m_attach[size_t(t)]->setValueAsPartOfGesture(std::round(v));
+}
+
+void MixerPage::setPanFromX(int t, int xLcd)
+{
+	if(t < 0 || !m_panAttach[size_t(t)]) return;
+	const int panW = kChan - 4, x = xLcd - t * kChan - 2 - 1;
+	m_panAttach[size_t(t)]->setValueAsPartOfGesture(std::round(127.0f * juce::jlimit(0.0f, 1.0f, float(x) / float(panW - 3))));
 }
 
 void MixerPage::mouseDown(const juce::MouseEvent& e)
 {
 	const auto p = e.getPosition() / kScale;
 	const int t = channelAt(p.x);
-	if(p.y < KnobPage::kGridY + 9) { if(onSelect) onSelect(t); return; }	// the number selects the track
-	m_dragTrack = t;
+	if(p.y < kPanY - 1) { if(onSelect) onSelect(t); return; }	// the number selects the track
+	if(p.y >= kBtnY)	// M / S
+	{
+		auto* prm = p.y < kBtnY + kBtnH + 1 ? m_muteParam[size_t(t)] : m_soloParam[size_t(t)];
+		if(prm) { prm->beginChangeGesture(); prm->setValueNotifyingHost(prm->getValue() > 0.5f ? 0.0f : 1.0f); prm->endChangeGesture(); }
+		return;
+	}
+	if(p.y < kFaderY - 1)	// PAN
+	{
+		m_dragTrack = t; m_dragWhat = 2;
+		if(m_panAttach[size_t(t)]) m_panAttach[size_t(t)]->beginGesture();
+		setPanFromX(t, p.x);
+		return;
+	}
+	m_dragTrack = t; m_dragWhat = 1;
 	if(m_attach[size_t(t)]) m_attach[size_t(t)]->beginGesture();
-	setFromY(t, p.y);
+	setLevelFromY(t, p.y);
 }
 
-void MixerPage::mouseDrag(const juce::MouseEvent& e) { if(m_dragTrack >= 0) setFromY(m_dragTrack, e.getPosition().y / kScale); }
+void MixerPage::mouseDrag(const juce::MouseEvent& e)
+{
+	if(m_dragTrack < 0) return;
+	const auto p = e.getPosition() / kScale;
+	if(m_dragWhat == 2) setPanFromX(m_dragTrack, p.x); else setLevelFromY(m_dragTrack, p.y);
+}
 
 void MixerPage::mouseUp(const juce::MouseEvent&)
 {
-	if(m_dragTrack >= 0 && m_attach[size_t(m_dragTrack)]) m_attach[size_t(m_dragTrack)]->endGesture();
-	m_dragTrack = -1;
+	if(m_dragTrack >= 0)
+	{
+		auto& at = m_dragWhat == 2 ? m_panAttach[size_t(m_dragTrack)] : m_attach[size_t(m_dragTrack)];
+		if(at) at->endGesture();
+	}
+	m_dragTrack = -1; m_dragWhat = 0;
 }
 
 void MixerPage::mouseDoubleClick(const juce::MouseEvent& e)
 {
 	const auto p = e.getPosition() / kScale;
 	const int t = channelAt(p.x);
-	if(p.y >= KnobPage::kGridY + 9 && m_attach[size_t(t)]) m_attach[size_t(t)]->setValueAsCompleteGesture(100.0f);
+	if(p.y >= kBtnY || p.y < kPanY - 1) return;
+	if(p.y < kFaderY - 1) { if(m_panAttach[size_t(t)]) m_panAttach[size_t(t)]->setValueAsCompleteGesture(64.0f); }	// centre
+	else if(m_attach[size_t(t)]) m_attach[size_t(t)]->setValueAsCompleteGesture(100.0f);
 }
 
 // ---------------------------------------------------------------------------

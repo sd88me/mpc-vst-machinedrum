@@ -129,6 +129,8 @@ namespace mm
 			std::atomic<float>* raw[kRaw] = {};
 			std::atomic<float>* level = nullptr;
 			std::atomic<float>* mute = nullptr;
+			std::atomic<float>* muteGroup = nullptr;
+			std::atomic<float>* solo = nullptr;
 			std::atomic<float>* lfo[kNumLfo] = {};
 		};
 		std::array<std::atomic<float>*, kMasterBytes> m_master{};

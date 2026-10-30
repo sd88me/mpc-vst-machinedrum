@@ -1,5 +1,6 @@
 // Adapted from shnolk's Monomodule (src/plugin/one/OneEditor.cpp), AGPL-3.0.
 #include "MdEditor.h"
+#include "MachineText.h"
 #include <cmath>
 
 namespace mm
@@ -17,13 +18,14 @@ namespace mm
 		  m_mark(spec::kFontBold8(), "MD", kScale, true, juce::Justification::centred),
 		  m_footerVersion(spec::kFontSmall4x5(), "V0.2.1", 2),
 		  m_footerCredit(spec::kFontSmall4x5(), "MACHINEMODULE - UI AFTER MONOMODULE BY SHNOLK", 2, false, juce::Justification::centredRight),
+		  m_footerMachine(spec::kFontSmall4x5(), "", 2, false, juce::Justification::centred),
 		  m_bpmLabel(spec::kFontBold8(), "BPM", kScale, false, juce::Justification::centredRight),
 		  m_syn(p.apvts, "SYN"), m_amp(p.apvts, "AMP/EFX"), m_route(p.apvts, "ROUTE"), m_lfo(p.apvts, "LFO"),
 		  m_mixer(p.apvts), m_missingOs([this] { openOsChooser(); })
 	{
 		setLookAndFeel(&m_lnf);
 		m_menuButton.onClick = [this] { showConfigMenu(); };
-		for(auto* c : std::initializer_list<juce::Component*>{&m_mark, &m_footerVersion, &m_footerCredit, &m_bpmLabel, &m_menuButton,
+		for(auto* c : std::initializer_list<juce::Component*>{&m_mark, &m_footerVersion, &m_footerCredit, &m_footerMachine, &m_bpmLabel, &m_menuButton,
 			&m_masterOn, &m_machineBar, &m_kitStrip, &m_bpm, &m_level, &m_syn, &m_amp, &m_route, &m_lfo, &m_tracks, &m_mixer})
 			addAndMakeVisible(*c);
 		m_status.setFont(juce::Font(juce::FontOptions(12.0f)));
@@ -348,6 +350,9 @@ namespace mm
 		m_status.setText(st, juce::dontSendNotification);
 		m_status.setVisible(m_showStatus || m_proc.importRunning() || st.startsWith("Flash image"));
 		m_status.setColour(juce::Label::textColourId, lcd::ink);
+		m_footerMachine.setVisible(!m_status.isVisible());
+		if(const auto* mi = info(int(std::lround(m_proc.apvts.getRawParameterValue(paramId(m_track, "machine"))->load()))))
+			m_footerMachine.setText(ui::machineDescription(mi->id, mi->name));
 
 		if(m_view == View::Track) rebuildSynPage();
 		if(ready) m_level.setMeter(m_proc.trackPeak(m_track));
@@ -375,6 +380,7 @@ namespace mm
 		m_footerVersion.setBounds(footer.removeFromLeft(200));
 		m_footerCredit.setBounds(footer.removeFromRight(640));
 		m_status.setBounds(footer.reduced(8, 0));
+		m_footerMachine.setBounds(footer.reduced(8, 0));
 
 		const int levW = 19 * kScale, top = r.getY();
 		auto header = r.removeFromTop(48);
