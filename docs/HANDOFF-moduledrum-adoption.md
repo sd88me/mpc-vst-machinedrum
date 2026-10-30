@@ -1,134 +1,77 @@
-# Handoff: adopting ModuleDrum's improvements (written 2026-10-30)
+# Handoff: v1.0.0 (adopting ModuleDrum's ideas, master effects, CTR) - state at 2026-10-30
 
-Read `HANDOFF.md` first for the project; this is the state of one workstream.
+Read `HANDOFF.md` first for the project. This file is the current state of the v1 workstream, rewritten as one document (earlier versions were an append-only log).
 
-**Branches (2026-10-30):** `v1` = this work replayed onto `origin/main` (v0.5.1) and committed in four logical commits (engine, plugin, skin, docs); the work was first
-done on `md-improvements` off an older main (kept locally as `backup-md-improvements-wip`, one WIP commit). Conflicts with upstream's own Q-Link outlines (`qlink_boxes`),
-bank/kit lists, `rom=0` and VOICES 16 were resolved in favour of upstream, with my pages added to its mechanism. The desktop version is on branch `desktop-improvements`
-(base: `desktop`). Planned release name: **v1.0.0** (catalog needs X.Y.Z); not tagged or released yet.
+**Nothing is tagged, released, or opened as a pull request.** The user is testing the build on their Live 3 first; **wait for their report before building the public zips or releasing.**
 
-## What this is
+## Where things are
 
-[ModuleDrum](https://github.com/K-X420/ModuleDrum) (AGPL-3.0, by KX) is a desktop AU/VST3/standalone fork of Shnolk's Monomodule that emulates the
-Machinedrum. We reviewed it against this repo (the MPC VST2 plugin, "Machinemodule") and adopted what fit. Differences in short: it runs the whole DSP1
-in the emulator (79 M instr/s) and has its own sequencer and JUCE UI; we keep our bit-exact C++ track FX/mixer and added only DSP1's master section
-(user chose this, "option A"). Credit ModuleDrum in the README and `THIRD_PARTY_NOTICES` when committing (the new skin files already credit it in comments).
-The auto-mode classifier refused to run their `make_logos.py`: read their sources, never execute them (the logo bitmaps were decoded by a small script
-from their generated `MdLogos.h`; in the end we use the OS's own badges instead).
-
-## Done (all uncommitted)
-
-| Item | Where | Verified |
+| What | Where | State |
 |---|---|---|
-| Mute groups (kit bytes at 0x4a7; a trigger zeroes the target's mixer words until its own next trigger) | `engine/HostModel.{h,cpp}` `setMuteGroup`, `vst/engine.cpp` (`Kit::muteGroup`, `Inst::muteGroup`, state **v2**; v1 still loads) | `MD_MUTEGROUP=1 build-vst-x86/md-hash OS.syx`; md-hash unchanged `04ef1db4fe767721` |
-| Machine logos = the OS's own five family badges (E12 EFM P-I TRX UW), cropped 17x9 | `tools/mdskin/md_art.h` `familyBadges`, `mdartdump`, `md_logos.py`; `mk_skin.py` `machine_bar`, picker headers | previews; `skin_recipe.py make` check passes (Gen2 public zip stays art-free) |
-| Machine/family description lines (ModuleDrum's wording) | `tools/mdskin/md_machine_text.py` | preview |
-| Mixer page (16 strips: pan, LEV fader, meter, M, S); taller, nameplate moved into its title bar | `mk_skin.py` GLOBAL tab; params `trackN_mute/solo/meter` appended; engine slots `kSlotMute/kSlotSolo`, `meter[]`, `display_rev` (vst.json now `HAS_DISPLAY_REV` + `DISPLAY_REV_NO_UPDATE`) | previews; engine compiles; **not seen working on the device** |
-| Q-Link column outlines (`qlinkBoundsData`, `hideQLinkBounds` false); GLOBAL tab has 3 Q-Link sub-pages: LEV, **PAN** (user request), GLOBAL | `mk_skin.py` `QL_*` | drawn over previews; skin_check clean on GLOBAL/FX |
-| M/S double-press fix: `mdMixBtnTouch` = Mouse Down `Q-Link` + Enter Pressed `Toggle Switch` (as the ROM/randomise toggles; toggling on both fired twice) | `mk_skin.py` | **not yet on the device** (it was offline) |
-| **Master FX** (reverb, delay, EQ, dynamix; ON by default, Gen2 only): DSP1 `$342-$9A8` on its own DSP + the OS's own knob conversion on the 68k | `engine/MasterFx.{h,cpp}`, `MachineRunner::runTo`, `EngineT::setMasterFx` (`engine/MdEngine.h`), `vst/engine.cpp` (`kSlotMasterOn`, `kSlotMasterFx`, `kMasterFxSupported`), params `master_fx`, `rv1-8 dl1-8 eq1-8 dx1-8` | **`build-vst-x86/md-mastertest OS.syx 400`: 0 mismatches** vs the full DSP1; ~10,300 DSP instr/block |
-| FX tab (after GLOBAL; tracks moved to fnKeyIndex/Tab +1) and an MST FX toggle in GLOBAL's spare cell | `mk_skin.py` | previews; recipe check passes (321 images) |
-| A/B build "Machinemodule B" (uid `MdOb`, `machinedrum_b.so`) | `vst/vst_b.json`, `MD_VARIANT=b` in `vst/build_so.sh`, `mk_skin.py name=Machinemodule_B` | installed on the Live 3 (below) |
+| MPC plugin work | branch **`v1`** (pushed), on top of `origin/main` (v0.5.1 + dsp-bump, `de3731e`) | `git log origin/main..v1`: engine, plugin, skin, installer fix, README, CTR plugin, CTR skin, handoffs |
+| Desktop version (JUCE VST3/AU/Standalone) | branch **`desktop-improvements`** (pushed), base `desktop`; worktree `/home/sam/mpc-vst-machinedrum-desktop` | mixer solo and pan, mute groups, footer description, tests, README |
+| Old base work | local branches `md-improvements`, `backup-md-improvements-wip` | superseded by `v1`, safe to delete after the merge |
+| Live 3 (`192.168.2.217`, aarch64, MPC OS 3.x, busybox) | `/nvme/Synths` | **per-user v1.0.0 with CTR installed**: `Machinemodule` (`machinedrum_one.so` md5 `289af7e2...`) and `Machinemodule Tap` (the effect; `machinedrum_tapfx.so` md5 `a964611b...`). No B. |
+| Force (`192.168.1.44` / `.187`) | - | unreachable; no Gen 1 (armhf) plugin built or tried |
 
-Level note: with master FX on the output is the hardware's own main level, ~x5.76 (+15 dB) over the dry mix the plugin gave before (and still gives
-with `master_fx` off). A hot kit clips at 16 bits. Not trimmed (the DSP saturates internally; a trim after it only lowers the ceiling). A trim/gain
-param is an open option.
+The other worktrees (`/home/sam/mm-main`, `/home/sam/mm-pickers`) are the user's, not part of this work.
 
-## Live 3 (192.168.2.217, aarch64, busybox, MPC OS 3.x)
+## What v1 adds (all on `v1`)
 
-- (History) `Machinemodule-B-0.4.4` installed with `sh install.sh -y -t /nvme/Synths` (default `/sdcard/Synths` is read-only there); installer restarted MPC. Settings
-  backup `/data/Settings/MPC/MPC.settings.bak-machinedrum_b-20261029-122355`. Data folder is a **symlink** made by hand:
-  `ln -sfn "../sd88me - VST - Machinemodule/machinedrum" "/nvme/Synths/sd88me - VST - Machinemodule B/machinedrum"`. `machinedrum_b.so` md5 `2777a0f6acebaabaf6d2218255811cad`.
-- The user listened: "looks good so far". Then asked for pan on Q-Links and the M/S fix. Those are skin-only and are **built but not deployed**: the Live 3 was
-  unreachable (no ping, no ssh). Deploy when it is back, then the user restarts MPC (skins load at startup; ask first, never restart MPC unasked):
-  `cd "vst/build/skin-b/sd88me - VST - Machinemodule B" && tar -czf - "Plugin Skins" | ssh root@192.168.2.217 'cd "/nvme/Synths/sd88me - VST - Machinemodule B" && tar -xzf -'`
-  (rebuild the skin first if `mk_skin.py` changed: command under "Commands").
-- Remove: `sh /tmp/Machinemodule-B-0.4.4/uninstall.sh` on the device (the unzipped installer is still in /tmp until reboot).
-- Taps attach only to the normal plugin (they `dlopen` `machinedrum_one.so`).
+Ideas and code adapted from **ModuleDrum** (github.com/K-X420/ModuleDrum, AGPL-3.0, by KX; a fork of Shnolk's Monomodule). Credited in the README and the source files. Never run its scripts (the auto-mode classifier refuses); read its sources.
 
-## Verified on the Live 3 (2026-10-30, user)
+| Feature | Where | Verified |
+|---|---|---|
+| **Mute groups** (a trigger zeroes the target's mixer words until its own next trigger, MainOS `$20b3b0`) | `engine/HostModel.*`; kit parse in `vst/engine.cpp` (kit bytes at `$4a7`); state format **v2** (v1 projects still load) | `MD_MUTEGROUP=1 md-hash`; `md-hash` unchanged `04ef1db4fe767721` |
+| **Master effects** (reverb, delay, EQ, dynamix), Gen 2 only, on by default | `engine/MasterFx.*` (DSP1 `$342-$9A8` on its own DSP, fed by the native mixer), `MachineRunner::runTo` (the OS's own knob conversion on the 68k), `EngineT::setMasterFx`; params `master_fx`, `rv1-8 dl1-8 eq1-8 dx1-8`; `kMasterFxSupported` false on 32-bit ARM | **`md-mastertest`: 0 mismatches vs the full mixer DSP, 400 random blocks**; bench on the Live 3: +45 us on a 725 us block (6%) |
+| **Mixer page** (GLOBAL tab): per track PAN, LEV, meter, M, S | skin `mk_skin.py`; params `trackN_mute/solo/meter`; `meter[]` and `display_rev` in `vst/engine.cpp` (vst.json `HAS_DISPLAY_REV`) | user confirmed on the Live 3: buttons toggle once, PAN Q-Link page, meters. **Solo logic not yet confirmed.** |
+| **FX tab** (after GLOBAL) and **MST FX** switch | skin | previews; skin check |
+| **Machine logos** (the OS's own five family badges, read from the user's OS file) and **description lines** (ModuleDrum's wording) | `md_art.h`, `mdartdump`, `md_logos.py`, `md_machine_text.py` | previews; public zip has no Elektron content (see below) |
+| **Q-Link pages**: mixer LEV, PAN, GLOBAL, FX; outlines through upstream's `qlink_boxes` (extended to take rectangles) | skin | user confirmed on the Live 3 |
+| **CTR machines** (Gen 2): CTR-AL, CTR-RE/GB/EQ/DX, CTR-8P | `vst/engine.cpp`: `ctrSynMoved`, `ctrDefaults`, `ctrResync`, the `ovr` override table in the engine thread; skin: CTR column in the picker, `ctr8p_overlay` over the AMP and ROUTE grids | **`md-ctrtest` ALL OK** (CTR-AL +10/-10 and clamp, the four master machines, CTR-8P defaults, audio: a driven track is silent at 0 and has the same peak as the plain one at 100). **Not tried on the device.** |
+| **Gen 1 skin** option: `mk_skin.py gen=1` (no FX tab, no MST FX, no CTR); `release/build_release.sh` passes it for `-a armhf` | skin, release script | both skins built and compared; **armhf plugin not built, Force not tested** |
+| **Installer fix**: per-user zip lists `machinedrum/` as user data, so an upgrade keeps the user's flash image and kits | `release/build_release.sh` (`--user-data machinedrum`) | **confirmed on the Live 3**: the flash image survived an upgrade untouched. (Packaged OS file and factory kits are only put in place on a first install.) |
+| **A/B build** support, kept for the future | `vst/vst_b.json`, `MD_VARIANT=b vst/build_so.sh`, `mk_skin.py name=Machinemodule_B` | worked; not installed now |
 
-Skin redeployed and MPC restarted: M/S buttons toggle once per tap, the PAN Q-Link page works, meters move. (Items 1 below is therefore done except the solo logic.)
+CTR rules (ported from the desktop version, which checked them against the OS): CTR-AL moves SYN k of every other sounding track by the delta of its own SYN k (clamped 0-127; CTR, MID, and RAM-record tracks left alone); CTR-RE/GB/EQ/DX are SYN1-8 of the delay/reverb/EQ/dynamix master knobs; CTR-8P writes P1-P8 (its SYN1-8) every block into the (track, parameter) targets its raw parameters 9-24 name (the target's own knob keeps its value), and a new CTR-8P points P1-P8 at SYN1 of tracks 1-8. Rules run on host parameter moves only 1.5 s after the instance is made and only when a value changed (a host that restores value by value must not run them); kit and state loads resync. Known limit: the CTR-8P target cells show the OS's raw 0-based values (TRK 0 = track 1, PRM 0 = SYN1).
 
-## Bench (2026-10-30)
+**Desktop (`desktop-improvements`)**: mute groups (kit parse, `tNN_mutegroup`, `HostModel::setMuteGroup`), mixer view with PAN strip, LEV + meter, M and S (solo is `tNN_solo`, applied as a mute in `EngineFeeder`), machine description in the footer (`ui/MachineText.h`). Built in Docker (`md-desktop-builder` image: ubuntu 24.04 + build-essential cmake ninja-build git python3 xvfb ca-certificates curl + the JUCE dev packages libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxext-dev libxrender-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev; run with `--shm-size=4g`), `MmRender` = ALL OK with new tests for mute groups and solo; `MmSnapshot` under xvfb renders the editor. Its own master effects are more faithful than ours (it runs the OS's time-sliced conversion routines and the OS smoother in `HostModel`, so knob changes glide); `engine/MasterFx.*` there has a different API, so merging the branches conflicts.
 
-`MD_MASTER=0|1 MD_TIME=1 md-hash OS.syx` (new) times each render() against the 725 us/32-frame budget. Live 3 (aarch64 JIT, single engine thread, 16-track fixed pattern, MPC idle; run with `env -i PATH=/usr/bin:/bin sh -c "ulimit -s 8192; ..."`): master off mean 126-129 us / p99 305; master on mean 173-174 / p99 364-394 (about +45 us, ~6%). Worst 15-16 ms in all runs with or without master (not caused by it; cause not found). x86 dev box: 274 -> 414 us. Still to measure: the plugin itself with 16 playing tracks (`/tmp/md-stats-on`).
+## Pending, in order
 
-## Open / to verify on the device
+1. **The user's device test (Live 3).** Things not yet seen: master effects by ear (the output is the hardware's own level, about 15 dB above the old dry mix: turn the track fader down first; clicks when turning master knobs, since our conversion does not apply the OS smoother), the CTR machines, solo, CPU with 16 tracks playing (`touch /tmp/md-stats-on`, stats file `/tmp/md-stats.<pid>`; `Engine::masterUs` is timed but not printed).
+2. **After the test:** rebuild the public zips from `v1` (`release/build_release.sh <OS.syx> -P -v 1.0.0 -m ~/mpc-vst-plugins`, about 25 min; a pre-CTR public build passed catalog_check and was checked for Elektron content: about 1,600 samples of the OS file found nowhere, only the filename string in the `.so`, `art.bin` is the skin recipe), open pull requests (`v1` into `main`, `desktop-improvements` into `desktop`), tag `v1.0.0` (the catalog needs X.Y.Z), release (see `HANDOFF.md`, the "v0.5.1" section, for how), update `tested.json` with what was actually tested.
+3. **Gen 1 (Force):** build armhf with `release/build_release.sh <OS.syx> <flash.bin> -a armhf` (recompiler steps, about 30 min; needs `libs/gearmulator-md-mm/build/.../mdProbe`), deploy to the Force, check the 10 Hz `display_rev` poll and meter cost there.
+4. **Decisions deferred:** a master-effects trim parameter (the DSP saturates internally, so a trim after it only lowers the ceiling); whether the Tap should carry the reverb/delay sends when the master effects are on (today it still carries the dry sends); porting the desktop OS-smoother conversion to the MPC engine if clicks are audible; CTR-8P cell display (1-based would need dedicated dial strips).
+5. **Not done from the original review:** compare ModuleDrum's idle-voice skip (`MdMixEngine.cpp`) with our silence release (`HostModel::setSilenceRelease`); INP/MID/RAM machines still have no logo or bar; the picker header logos are smaller than the "GND" text.
+6. **Desktop:** only built and run on Linux (no macOS, Windows, or real DAW); footer version string still `V0.2.1`.
+7. **Housekeeping:** `vst/params.lock` and `vst/tapfx/params.lock` are generated, untracked, and **a stale one breaks the build** (delete them only after checking `params.json` still extends the shipped order; it does today: 672 keys, upstream's 591 are an unchanged prefix); submodule pointers `libs/dsp56300` and `libs/gearmulator-md-mm` show as modified (local state, not committed); delete the superseded local branches; the device's `/tmp/v1`, `/tmp/v2` and old installers vanish on reboot; the session scratchpad holds a copy of the user's flash image and the pre-CTR public zips.
 
-1. M/S buttons toggle once per tap; pan Q-Link page works (Q-Link button steps LEV -> PAN -> GLOBAL; outlines follow); meters move; solo logic (any solo mutes the rest).
-2. Master FX: clicks on knob changes (the OS's slew is not applied, the converted words jump); CPU on the Live 3 with all 16 tracks (`touch /tmp/md-stats-on`; `Engine::masterUs` is timed but not yet printed in the stats line in `vst/engine.cpp`).
-3. Taps with master on still carry the dry sends (they read the mixer's rev/del planes); decide whether that is right.
-4. Compare ModuleDrum's idle-voice skip (`MdMixEngine.cpp`: idle strips left out, checked) with our silence release (`HostModel::setSilenceRelease`); not yet looked at beyond the review.
-5. Before committing: your uncommitted **0.4.2 Gen2 work** (`mdextract`, `romsamples.h`, `build_mdextract.sh`, `release/build_release.sh`, `vst/build_so.sh` fix) is in the same tree; split the commits. Also README/THIRD_PARTY credit, bump version, rebuild the release zips (`release/build_release.sh <OS.syx> -P` for public; the `dist/*0.4.2*` zips are stale).
-6. The Gen2 public (-P) zip: the recipe check passes, but run `release/build_release.sh -P` end to end once (it also needs the new `skin_recipe` outputs and the FX tab in `vst/skin_recipe.h`'s file list if it enumerates files).
-
-## New requests from the user (not started)
-
-- **"Make the improvements to the VST3 version."** Unclear which build this is: this repo has **no VST3 target** (`desktop/` holds only a build folder; the Monomodule family
-  in the README ships AU/VST3/standalone, ModuleDrum is that). Ask the user whether they mean a desktop VST3 version of Machinemodule (to be made, ported from this MPC plugin or
-  built on ModuleDrum), or something else. Candidates to carry over: mute groups, master FX (the desktop has the CPU for the full DSP1, as ModuleDrum does), mixer page with M/S/meters, logos/descriptions.
-- **"Skin improvements to the Gen1 build, your own version."** Read as: give the Gen1 (armhf: Force, MPC Live II/X/One) build the skin improvements (mixer page, logos, descriptions,
-  Q-Link outlines, M/S fix, PAN Q-Link page) in a version of its own, without the master FX (`kMasterFxSupported` is false on 32-bit ARM, so `master_fx` does nothing there; the sends leave through the taps).
-  Suggested: a `gen=1` argument to `mk_skin.py` that leaves out the FX tab and the MST FX toggle (the params stay: `params.json` is append-only and shared), keep fnKeyIndex numbering consistent, and check
-  the 10 Hz `display_rev` poll and the meter computation are cheap enough on the Force (measure with the stats line). Confirm "your own version" with the user (a separate skin/folder? a different name like the A/B?).
-
-## Commands
+## Commands (x86; the OS file is `Elektron_SPS1-1UW_OS1.63.syx`, e.g. `/tmp/os.syx`)
 
 ```
-# offline tests (x86; OS file at /tmp/os.syx, i.e. Elektron_SPS1-1UW_OS1.63.syx)
 cd build-vst-x86 && cmake . && ninja md-hash md-mastertest && cd ..
-./build-vst-x86/md-hash /tmp/os.syx                 # must print hash 04ef1db4fe767721
-MD_MUTEGROUP=1 ./build-vst-x86/md-hash /tmp/os.syx  # mute group check
-./build-vst-x86/md-mastertest /tmp/os.syx 400       # master FX vs the full DSP1: 0 mismatches
-# plugin on x86 + smoke (MD_SMOKE_MASTER=0|1; data dir needs the OS .syx)
-mkdir -p build-vst-x86-plugin && cd build-vst-x86-plugin && cmake -G Ninja -DMPC_VST_DIR=$HOME/mpc-vst-plugins -DCMAKE_BUILD_TYPE=Release .. && ninja machinedrum_one md-vst-smoke
-# skins (also regenerates vst/params.json first: cd vst && python3 -I gen_params.py)
-tools/mdskin/build_skin.sh /tmp/os.syx ~/mpc-vst-plugins
-# the A/B variant: .so, skin, zip
-MD_VARIANT=b vst/build_so.sh - ~/mpc-vst-plugins aarch64
-docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e MPC_VST_TOOLS=/mv/tools -v "$PWD":/r -v ~/mpc-vst-plugins:/mv:ro -w /r python:3.11-slim sh -c "pip install -q --target /tmp/p pillow >/dev/null 2>&1; PYTHONPATH=/tmp/p python3 tools/mdskin/mk_skin.py vst/build/art.json vst/build/machines.txt vst/params.json vst/build/skin-b name=Machinemodule_B"
-python3 ~/mpc-vst-plugins/tools/gen_vst.py vst/vst_b.json && python3 ~/mpc-vst-plugins/tools/release.py --so vst/build/aarch64/machinedrum_b.so --skin "vst/build/skin-b/sd88me - VST - Machinemodule B" --entry vst/build/pluginlist-entry.xml --version <x.y.z> --id machinemodule-b --repo sd88me/mpc-vst-machinedrum --license AGPL-3.0-only -o dist
-# Gen2 recipe check (after any skin change): tools/mdskin/skin_recipe.py make <art.json> <machines.txt> <out>  (see release/build_release.sh step 5)
+./build-vst-x86/md-hash /tmp/os.syx                        # hash 04ef1db4fe767721
+MD_MUTEGROUP=1 ./build-vst-x86/md-hash /tmp/os.syx         # mute group
+MD_MASTER=1 MD_TIME=1 ./build-vst-x86/md-hash /tmp/os.syx  # block timing against the 725 us budget
+./build-vst-x86/md-mastertest /tmp/os.syx 400              # master effects vs the full DSP1: 0 mismatches
+mkdir -p build-vst-x86-plugin && cd build-vst-x86-plugin && cmake -G Ninja -DMPC_VST_DIR=$HOME/mpc-vst-plugins -DCMAKE_BUILD_TYPE=Release .. && ninja machinedrum_one md-vst-smoke md-ctrtest
+./md-ctrtest <dir holding the OS .syx>                     # the CTR machines: ALL OK
+(cd vst && python3 -I gen_params.py)                       # regenerate params.json first (append only)
+tools/mdskin/build_skin.sh /tmp/os.syx ~/mpc-vst-plugins   # the Gen 2 skin; add gen=1 as extra arguments for Gen 1
+# the Gen 2 skin recipe check (after any skin change, about 10 min): see release/build_release.sh step 5, tools/mdskin/skin_recipe.py make
+release/build_release.sh <OS.syx> <flash.bin> -a aarch64 -v 1.0.0 -m ~/mpc-vst-plugins    # per-user build (about 5 min)
+release/build_release.sh <OS.syx> -P -v 1.0.0 -m ~/mpc-vst-plugins                        # the public download
 ```
 
-Rules that bit us: params are append-only (`vst/params.lock`); `gen_vst.py vst_b.json` overwrites `vst/build/params.h`/`pluginlist-entry.xml`, so regenerate before building the other plugin (`build_so.sh` does); the skin generator's pixels may depend on at most one art bit
-each (no layout that depends on the art, e.g. trimming a badge by its lit columns); the skin preview draws toggles OFF always (MPC follows the param).
+Installing on the Live 3 (the default `/sdcard/Synths` is read-only there): copy the zips to `/tmp/<dir>` and unzip, then in one ssh: `systemctl stop acvs`; for each zip `sh install.sh -y -n -t /nvme/Synths`; `systemctl start acvs`. **Ask the user before stopping MPC** (it drops unsaved work; MPC does not reload a plugin `.so` it already has, and skins load only at startup). The installer's `uninstall.sh` takes the same flags.
 
+## Gotchas that cost time
 
-## Update 2026-10-30 (later): decisions and what was done
-
-User decisions: **Gen1** = just update the existing plugin (no separate variant); **desktop** = our own desktop version, which already exists.
-
-- **Gen1 skin:** `mk_skin.py gen=1` leaves out the FX tab and the MST FX switch (no master FX on 32-bit ARM); track tabs renumber (fnKeyIndex/Q-Link tab 1 less). `release/build_release.sh` passes `gen=1` when `-a armhf`.
-  Verified by building both skins (gen=0: 37 tabs, gen=1: 35, previews). The Gen1 .so is the same engine.cpp (mute groups, mute/solo, meters work there; master FX is compiled out by `kMasterFxSupported`); **not built for armhf or tried on a Force yet** (needs the recompiled-DSP build, see build_release.sh steps 1-4).
-- **Desktop version = the `desktop` branch** (JUCE VST3/AU/Standalone, `desktop/`, LCD editor after Monomodule; NOT in main/md-improvements). Worktree: `/home/sam/mpc-vst-machinedrum-desktop`, branch `desktop-improvements` (off `desktop`), uncommitted; submodules initialised from the local .git/modules.
-  It already has: master effects (own, more faithful implementation than ours: runs the OS's time-sliced conversion routines + OS smoother in `HostModel`, `engine/MasterFx.*` with a different API, so the two `MasterFx` files conflict if branches are merged), mixer view with meters, per-track M (mute) and L (lock), the OS's family badges, CTR/INP machines, flash import.
-  Missing there, and done so far: **mute groups** (HostModel `setMuteGroup`; `KitCodec.h` parses the groups at $4a7 [LFO block is 659 bytes]; `TrackValues::muteGroup` 0 = none, 1-16 = target; `KitValues::load`, `EngineFeeder::apply`, an APVTS int param `tNN_mutegroup` added last in each track group). md-hash on that engine unchanged (04ef1db4fe767721); the kit parser gives track 9 -> 10 (closed hat chokes open hat) in the factory kits. **Verified:** Docker image `md-desktop-builder` (ubuntu 24.04 + the JUCE dev packages; Dockerfile only in the session scratchpad: build-essential cmake ninja-build git python3 xvfb ca-certificates curl libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxext-dev libxrender-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev), `cmake -S desktop -B /b -G Ninja && ninja -C /b MmRender Machinemodule_VST3` builds with no errors (~15 min incl. JUCE download), run with `--shm-size=4g`. `MmRender OS.syx` = **ALL OK**, including a new test (h) in `desktop/tests/mm_render.cpp`: track 1's mute group silences track 2's bus after its trigger (0.000000 with the group, 0.033 without). Note: a wrong param key makes the test helper `setParam` segfault on a null parameter (SYN keys are `syn1`-`syn8`).
-  Not done on desktop: solo and a PAN strip in the mixer view, machine/family description lines, idle-voice check. Their master FX has the OS smoother, so the knob-click question from the MPC build does not apply there; **worth porting that conversion path to the MPC engine** (engine/HostModel + MachineRunner::runRange) instead of our direct convertMasterFx, if clicks are audible.
-
-
-## Update 2026-10-30 (night): Gen2 deploy, desktop done, rebase
-
-- **Desktop** (`desktop-improvements`): mixer page now has PAN strip, LEV + meter, M and S keys per track (`MixerPage` in `desktop/src/ui/Widgets.*`); solo is an APVTS bool `tNN_solo`
-  applied as an effective mute in `EngineFeeder` (not a kit value); machine/family description in the editor footer (`desktop/src/ui/MachineText.h`, centre of the footer when
-  the status line is hidden). `MmRender` = ALL OK with new tests (h) mute groups and (i) solo; snapshots with `MmSnapshot` under xvfb (Docker image `md-desktop-builder`).
-- **Gen2 on the Live 3:** `Machinemodule-1.0.0` (per-user build: OS file + flash image, factory kits and ROM samples) installed with one stop/start (`systemctl stop acvs`, `install.sh -y -n -t /nvme/Synths` for the
-  three zips, `systemctl start acvs`). **That build came from the old base** (before the rebase onto v0.5.1); rebuild after the v1 commits for the real release. The upgrade
-  removes the user's `elektron_sps1-1uw_os1.63.bin` from the data folder (the zip replaces the whole `machinedrum/` folder): copy it back (a copy is kept in the session scratchpad only).
-  Machinemodule B is still installed beside it (its data is a symlink to the normal folder), remove it when done A/B-ing.
-- **Not done / ideas:** idle-voice skip vs silence release; the OS-smoother master-FX conversion from the desktop engine for the MPC build (only if clicks are audible); Gen1 (armhf) build of the plugin and a Force test;
-  `params.lock` files are untracked (generated by `gen_vst.py`; the order rule is by convention, params.json is append-only).
-
-- **2026-10-30 (late): device state.** Live 3: **B = v1.0.0 from the committed `v1` branch** (`machinedrum_b.so` md5 bac69b07..., `Machinemodule-B-1.0.0` via stop acvs / `install.sh -y -n -t /nvme/Synths` / start acvs; the installer removes B's `machinedrum` symlink, recreate it: `ln -sfn "../sd88me - VST - Machinemodule/machinedrum" machinedrum`).
-  **A = the early 1.0.0 test build from the OLD base** (md5 92d22801..., installed before the rebase), NOT the original 0.4.2/0.5.x: so A and B differ only in the rebase (upstream's lists, VOICES 16...). For a real A/B baseline, build upstream `origin/main` (v0.5.1) as A. The full v1.0.0 release zips (`dist/Machinemodule-1.0.0-mpc-aarch64.zip`, tapfx; plugin md5 d80cfe67...) are built from `v1` and not installed.
-
-- **2026-10-30 (final): no A/B.** The Live 3 now has exactly two plugins, both from the committed `v1` branch: **Machinemodule 1.0.0** (`machinedrum_one.so` md5 d80cfe67...) and **Machinemodule Tap** (the effect, uid MdTf, `machinedrum_tapfx.so` md5 a964611b...). B, the old Tap instrument and the early Tap FX were uninstalled with their uninstall.sh; the flash image was put back in `machinedrum/`. One stop/start: `systemctl stop acvs`, the uninstalls and installs with `-y -n -t /nvme/Synths`, `systemctl start acvs`. (The A/B notes above are history.) `MD_VARIANT=b` and `vst_b.json` remain in the repo for future A/B builds.
-
-- **2026-10-30 (public build): `release/build_release.sh <OS.syx> -P -v 1.0.0` from `v1` ran clean (about 25 min).** `dist/Machinemodule-1.0.0-mpc-aarch64.zip` (id `machinemodule-gen2`, 7.8 MB, user_data `machinedrum`) and `dist/Machinemodule-Tap-1.0.0-mpc-aarch64.zip` (`machinemodule-tap-gen2`) pass catalog_check (the one warning, posix_spawn/dlopen, is the extract helper and the skin recipe, as in 0.5.x). Checked for Elektron content: ~1,600 48-byte samples of the OS .syx found in none of the files; the only "Elektron" string in the .so is the filename `/Elektron_SPS1-1UW_OS1.63.syx` it looks for; `skin-recipe/art.bin` (MDSK, 36 MB uncompressed) is the recipe, independent of the art (skin_recipe.py check, real and random art). Not installed anywhere, not published.
-- **Installer fix (per-user build):** `--user-data machinedrum` so an upgrade keeps the user's flash image and kits (scratch-install test in the installer's test mode; the packaged OS file and factory kits are only put in place on a first install). The public build already did this.
-- **Next (user's interest): CTR machines on Gen2.** Scoping done, not started: CTR-AL / RE / GB / EQ / DX are small (rules exist in the desktop branch's `KitModel.cpp` `ControlRules`, 85 lines; the MPC plugin now has the master-FX slots they write), CTR-8P needs 16 target params and a skin page (idea: show TRK / PRM cells over the AMP and ROUTE quadrants when the machine is CTR-8P, with the existing per-machine overlay mechanism). The machines are already in the OS table (ids 112, 113, 120-123 with their labels) and `HostModel::isAudioMachine` already treats them as silent; the skin just leaves group CTR out of the picker (`PICK_MACHINES`/`ALL_DRAWN` in mk_skin.py, `drawn()`). Recommendation: ship v1.0.0 first, CTR as v1.1.
-
-- **2026-10-30 (CTR in v1.0.0): done and deployed.** CTR-AL, CTR-RE/GB/EQ/DX, CTR-8P on the MPC plugin (`vst/engine.cpp`: `ctrSynMoved`, `ctrDefaults`, `ctrResync`, the `ovr` override table in the engine thread; rules armed 1.5 s after the instance is made, only on a real value change; `display_rev` bumped when a rule changes values) and in the Gen 2 skin (`mk_skin.py`: CTR in `drawn()` unless `gen=1`, `ctr8p_overlay` over the AMP and ROUTE grids; descriptions in `md_machine_text.py`). Tests: `md-ctrtest <data-dir>` (new CMake target in the plugin build dir; through the engine's parameter API plus audio) = ALL OK; md-hash unchanged; skin_recipe.py check passes (352 images). Known limit: the CTR-8P target cells show the OS's raw 0-based values (TRK 0 = track 1, PRM 0 = SYN1).
-  **Live 3 now:** `Machinemodule` 1.0.0 with CTR (`machinedrum_one.so` md5 289af7e2...) and `Machinemodule Tap` (md5 a964611b...), installed in one stop/start (`/tmp/v2` zips; per-user build, `--user-data machinedrum`). **The installer fix is confirmed on the device:** the user's `elektron_sps1-1uw_os1.63.bin` survived the upgrade untouched (same md5 and timestamp). Not yet tried in MPC: CTR on the device, solo, master FX by ear, 16-track CPU.
-  The public (-P) zips from before CTR are in the session scratchpad only (`public/`); rebuild them from `v1` for a release (`release/build_release.sh <OS.syx> -P -v 1.0.0`, about 25 min).
+- Parameters are **append only** (`vst/params.json`, VST index = order; saved projects, automation and skins bind by index). Add after the last one.
+- The skin generator: each pixel of the Gen 2 recipe may depend on at most one art bit (no layout that depends on the art, e.g. trimming a badge by its lit columns). Run the recipe check after skin changes.
+- A busybox device: no `head -N`, no `unzip -l`.
+- An upgrade from a package without `--user-data` deletes the data folder; the per-user build now has it.
+- The auto-mode classifier refuses force-pushes, amending pushed commits, and running third-party scripts: make a new commit instead.
+- Git: `v1` was made by replaying the old-base work (`git cherry-pick -n` of one WIP commit) onto `origin/main`, with conflicts resolved in favour of upstream's own Q-Link outlines, bank/kit lists, `rom=0` and VOICES 16, and my pages added to their mechanisms.
+- A first note after a machine change is quieter than later ones (seen in `md-ctrtest`); it is not a CTR effect.

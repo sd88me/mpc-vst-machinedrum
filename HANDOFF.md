@@ -1586,6 +1586,8 @@ still published with older zips (Tap title "TAP FX", VOICES 6, a ROM cell): dele
 ## 2026-10-29: ModuleDrum adoption (mixer page, mute groups, master FX; v1.0.0 work)
 The state, decisions and commands are in [docs/HANDOFF-moduledrum-adoption.md](docs/HANDOFF-moduledrum-adoption.md); the log below is in the order it happened.
 
+**Current status (2026-10-30): read the linked file, it is the up-to-date one.** Branch `v1` (pushed) has the mixer page, mute groups, master effects, CTR machines, logos and the installer fix; `desktop-improvements` has the desktop counterparts. v1.0.0 with CTR is installed on the Live 3 and waits for the user's test; nothing is tagged, released or in a pull request. The entries below are the original log (in the order it happened) and are partly outdated, e.g. "not committed", "A/B", "CTR planned".
+
 - **2026-10-29: adopting ideas from ModuleDrum (github.com/K-X420/ModuleDrum, AGPL-3.0, a fork of Shnolk's Monomodule; branch `md-improvements`,
   NOT committed).** Review: it emulates the whole DSP1 (79 M instr/s); we keep our bit-exact C++ track FX/mixer and add only DSP1's master section
   (option A, user's choice). Done so far:
