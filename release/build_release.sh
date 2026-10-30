@@ -176,7 +176,9 @@ if [ $PUBLIC = 1 ]; then
 else
   # the plugin reads your OS file from its data dir under this exact name, so the installer carries it (your own file, per-user zip)
   cp -r vst/build/factory vst/build/payload/factory && cp "$OS" vst/build/payload/Elektron_SPS1-1UW_OS1.63.syx
-  EXTRAS=(--extra vst/build/payload:vst/machinedrum)
+  # --user-data: an upgrade keeps machinedrum/ as it is (the flash image, the user's own kits) instead of deleting it. Checked on a scratch install: a user file survives;
+  # the packaged OS file and factory data are only put in place on a first install (they do not change between versions: delete the folder to refresh them)
+  EXTRAS=(--extra vst/build/payload:vst/machinedrum --user-data machinedrum)
   REQUIRES="Your own Machinedrum OS 1.63 file (and, for the ROM machines and factory kits, flash image): this zip is built from them, contains Elektron-derived data and is for your own devices only"
   ABOUT="Machinemodule: the Elektron Machinedrum UW sound engine as an MPC OS instrument (built from your own firmware)"
 fi
