@@ -1,4 +1,4 @@
-// mdartdump: the LCD artwork of the user's own Machinedrum OS file (the six bitmap fonts, the dial ring, dot and group tie) as the
+// mdartdump: the LCD artwork of the user's own Machinedrum OS file (the six bitmap fonts, the dial ring, dot, group tie and the machine family badges) as the
 // JSON tools/mdskin/mk_skin.py draws the plugin's skin from. The Machinedrum and Monomachine OS share the Elektron LCD font family,
 // so the skin needs no second OS file. The two-state toggle icon is drawn here, not read from the OS. Addresses are those of
 // Machinedrum UW OS 1.63 (the only OS this port supports). The output is Elektron's artwork: per-user build data, never committed.
@@ -53,7 +53,7 @@ int main(int argc, char** argv)
 		putFont(a, "digitsBottom", true);
 		std::fputs("},\"bitmaps\":{", g_f);
 		bool first = true;
-		for(const char* n : {"dialRing", "ringPlain", "groupTie", "dialDot", "toggle"})
+		for(const char* n : {"dialRing", "ringPlain", "groupTie", "dialDot", "toggle", "familyBadge"})
 		{
 			const auto& list = a.bitmaps.at(n);
 			std::fprintf(g_f, "%s\"%s\":", first ? "" : ",", n);

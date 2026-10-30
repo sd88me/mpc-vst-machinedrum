@@ -86,6 +86,34 @@ namespace md::art
 			return f;
 		}
 
+		// The machine family badges: five boxed 23x13 icons (E-12, EFM, P-I, TRX, UW), found as five icon descriptors back to back
+		// (the way ModuleDrum's MdMachineText.h readRomBadges finds them). Returned bare: the box cropped, 17x9.
+		inline std::vector<Bmp> familyBadges(const Image& im)
+		{
+			const uint32_t end = kBase + uint32_t(im.d.size());
+			auto badge = [&](uint32_t a) {
+				if(a + 20 > end) return false;
+				const uint32_t w = im.u32(a), h = im.u32(a + 4), px = im.u32(a + 12), mask = im.u32(a + 16);
+				return w == 23 && h == 13 && px >= kBase && uint64_t(mask) == uint64_t(px) + 4 * w && uint64_t(mask) + 4 * w <= end;
+			};
+			for(uint32_t a = kBase; a + 100 <= end; a += 2)
+			{
+				bool all = true;
+				for(uint32_t i = 0; i < 5 && all; ++i) all = badge(a + 20 * i);
+				if(!all) continue;
+				std::vector<Bmp> out;
+				for(uint32_t i = 0; i < 5; ++i)
+				{
+					const Bmp full = icon(im, a + 20 * i, 23, 13);
+					Bmp b{17, 9, std::vector<uint64_t>(9, 0)};
+					for(int r = 0; r < 9; ++r) b.rows[size_t(r)] = (full.rows[size_t(r + 2)] << 3) & ~((uint64_t(1) << (64 - 17)) - 1);
+					out.push_back(b);
+				}
+				return out;
+			}
+			throw std::runtime_error("family badges not found");
+		}
+
 		// The OFF/ON icon of the randomise cells: a ring with a pointer (up-left = off, up-right = on), drawn for this project.
 		inline Bmp toggle(bool on)
 		{
@@ -117,6 +145,7 @@ namespace md::art
 		a.bitmaps["groupTie"] = {detail::icon(im, 0x259af8, 7, 3)};
 		for(int i = 0; i < 128; ++i) a.bitmaps["dialDot"].push_back(detail::icon(im, 0x259b0c + 20 * uint32_t(i), 7, 7));
 		a.bitmaps["toggle"] = {detail::toggle(false), detail::toggle(true)};
+		a.bitmaps["familyBadge"] = detail::familyBadges(im);	// E12 EFM P-I TRX UW
 		return a;
 	}
 

@@ -148,7 +148,8 @@ if [ $PUBLIC = 1 ]; then
   SKIN_MAIN="$WORK/skin/recipe/files/main/sd88me - VST - Machinemodule"
   SKIN_TAPFX="$WORK/skin/recipe/files/tapfx/sd88me - VST - Machinemodule Tap"
 else
-  tools/mdskin/build_skin.sh "$OS" "$MV" | tail -1
+  # Gen1 (armhf: no master effects there): the skin without the FX tab and the MST FX switch
+  tools/mdskin/build_skin.sh "$OS" "$MV" $([ $ARCH = armhf ] && echo gen=1) | tail -1
   SKIN_MAIN="vst/build/skin/sd88me - VST - Machinemodule"
   SKIN_TAPFX="vst/tapfx/build/skin/sd88me - VST - Machinemodule Tap"
 fi
