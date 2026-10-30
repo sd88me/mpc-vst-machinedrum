@@ -15,7 +15,7 @@ from one plugin instance, using the Machinedrum's own DSP code and its own machi
 
 **v0.3.4.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
 no downloadable build: it needs your own Machinedrum firmware, so you build the installer yourself with one script (see
-[Building](#building)). The Machinedrum's master effects are not built in: the reverb and delay sends come out through the new taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
+[Building](#building)). On Gen 1 devices (the Force) the Machinedrum's master effects are not built in: the reverb and delay sends come out through the taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
 
 Not affiliated with Elektron. Nothing of Elektron's is in this repository or distributed from it; the plugin
 needs your own Machinedrum OS 1.63 file, and ideally a flash image for the ROM machines and factory kits (see [What you need](#what-you-need)).
@@ -69,6 +69,20 @@ A first-generation Force has four slow ARM cores shared with MPC itself, so some
 - **8.7 ms of added latency:** the engine renders 3 blocks ahead, which rides out the stalls MPC's own audio threads cause.
 - **Not offered:** RAM, INP and MID/CTR machines (no sampling, no audio input and no MIDI output here); a kit that uses one
   shows a blank bar. No sequencer: MPC plays the notes.
+
+### New in v1
+
+Ideas and code adapted from [ModuleDrum](https://github.com/K-X420/ModuleDrum) (KX, AGPL-3.0), a desktop fork of Monomodule for the Machinedrum:
+
+- **Mixer page** on the GLOBAL tab: 16 strips with PAN, LEV, a level meter, and M (mute) and S (solo) keys. PAN and LEV each have their own Q-Link page.
+- **Mute groups:** a kit's mute group is honoured, so a closed hi-hat chokes the open one, as on the unit.
+- **Master effects (Gen 2 only):** the Machinedrum's own reverb (Gate Box), delay (Rhythm Echo), EQ and dynamix, from the unit's own DSP code,
+  on by default (the MST FX switch on the GLOBAL tab turns them off). Their knobs are on the new FX tab, and kits load their master settings.
+  They cost about 45 microseconds per 32-frame block on an MPC Live III (6% of the time available). The output is then at the unit's own level,
+  about 15 dB louder than the dry mix, so turn the track fader down at first. Gen 1 devices (the Force) do not run them: use the taps.
+- **Machine logos and descriptions:** the machine block and picker show the Machinedrum's own family badges (read from your OS file; nothing
+  of Elektron's is shipped) and a line about the machine.
+- **Q-Link outlines** for every page.
 
 ### Taps: each track or send on its own MPC track
 
@@ -367,6 +381,9 @@ The work behind this, in order (`HANDOFF.md` has the full log and `docs/` the pr
 - **shnolk's [Monomodule](https://github.com/shnolk/monomodule)**: the approach this follows (the machine's own
   DSP in an emulator, a host model for the main processor, plugin and skin design), the OS-file decoder adapted in
   `tools/mdfw`, and the Elektron LCD fonts and dial art the skin borrows.
+- **KX's [ModuleDrum](https://github.com/K-X420/ModuleDrum)** (AGPL-3.0), a fork of Monomodule for the Machinedrum: the mixer page, mute groups and
+  master-effects design, the addresses and conversion sections of the Machinedrum OS used for the master effects, and the machine descriptions
+  were adapted from it (credited in the source files).
 - **[gearmulator-md-mm](https://github.com/joelanders/gearmulator-md-mm)** by Joe Landers: a full-system Machinedrum
   emulation, used as the tracing and correctness reference, and the Musashi 68k core inside it, used by the machine
   routines. Not part of the plugin.
