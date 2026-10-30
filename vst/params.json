@@ -4941,6 +4941,687 @@
    "min": 0,
    "max": 0,
    "display": "string"
+  },
+  {
+   "key": "track0_mute",
+   "name": "T1 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track0_solo",
+   "name": "T1 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track1_mute",
+   "name": "T2 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track1_solo",
+   "name": "T2 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track2_mute",
+   "name": "T3 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track2_solo",
+   "name": "T3 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track3_mute",
+   "name": "T4 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track3_solo",
+   "name": "T4 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track4_mute",
+   "name": "T5 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track4_solo",
+   "name": "T5 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track5_mute",
+   "name": "T6 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track5_solo",
+   "name": "T6 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track6_mute",
+   "name": "T7 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track6_solo",
+   "name": "T7 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track7_mute",
+   "name": "T8 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track7_solo",
+   "name": "T8 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track8_mute",
+   "name": "T9 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track8_solo",
+   "name": "T9 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track9_mute",
+   "name": "T10 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track9_solo",
+   "name": "T10 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track10_mute",
+   "name": "T11 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track10_solo",
+   "name": "T11 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track11_mute",
+   "name": "T12 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track11_solo",
+   "name": "T12 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track12_mute",
+   "name": "T13 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track12_solo",
+   "name": "T13 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track13_mute",
+   "name": "T14 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track13_solo",
+   "name": "T14 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track14_mute",
+   "name": "T15 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track14_solo",
+   "name": "T15 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track15_mute",
+   "name": "T16 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track15_solo",
+   "name": "T16 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track0_meter",
+   "name": "T1 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track1_meter",
+   "name": "T2 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track2_meter",
+   "name": "T3 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track3_meter",
+   "name": "T4 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track4_meter",
+   "name": "T5 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track5_meter",
+   "name": "T6 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track6_meter",
+   "name": "T7 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track7_meter",
+   "name": "T8 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track8_meter",
+   "name": "T9 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track9_meter",
+   "name": "T10 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track10_meter",
+   "name": "T11 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track11_meter",
+   "name": "T12 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track12_meter",
+   "name": "T13 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track13_meter",
+   "name": "T14 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track14_meter",
+   "name": "T15 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track15_meter",
+   "name": "T16 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "master_fx",
+   "name": "Master FX",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 1
+  },
+  {
+   "key": "rv1",
+   "name": "REV DVOL",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "rv2",
+   "name": "REV PRED",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "rv3",
+   "name": "REV DEC",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "rv4",
+   "name": "REV DAMP",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "rv5",
+   "name": "REV HP",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "rv6",
+   "name": "REV LP",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "rv7",
+   "name": "REV GATE",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "rv8",
+   "name": "REV LEV",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "dl1",
+   "name": "DEL TIME",
+   "min": 0,
+   "max": 127,
+   "default": 24,
+   "display": "int"
+  },
+  {
+   "key": "dl2",
+   "name": "DEL MOD",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl3",
+   "name": "DEL MFRQ",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl4",
+   "name": "DEL FB",
+   "min": 0,
+   "max": 127,
+   "default": 32,
+   "display": "int"
+  },
+  {
+   "key": "dl5",
+   "name": "DEL FLTF",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl6",
+   "name": "DEL FLTW",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "dl7",
+   "name": "DEL MONO",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl8",
+   "name": "DEL LEV",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "eq1",
+   "name": "EQ LF",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq2",
+   "name": "EQ LG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq3",
+   "name": "EQ HF",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq4",
+   "name": "EQ HG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq5",
+   "name": "EQ PF",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq6",
+   "name": "EQ PG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq7",
+   "name": "EQ PQ",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq8",
+   "name": "EQ GAIN",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "dx1",
+   "name": "DYN ATCK",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx2",
+   "name": "DYN REL",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "dx3",
+   "name": "DYN TRHD",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "dx4",
+   "name": "DYN RTIO",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx5",
+   "name": "DYN KNEE",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx6",
+   "name": "DYN HP",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx7",
+   "name": "DYN OUTG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "dx8",
+   "name": "DYN MIX",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
   }
  ],
  "sections": [
@@ -5302,6 +5983,44 @@
     "tempo",
     "max_voices",
     "rom_enabled"
+   ]
+  },
+  {
+   "label": "MASTER FX",
+   "keys": [
+    "master_fx",
+    "rv1",
+    "rv2",
+    "rv3",
+    "rv4",
+    "rv5",
+    "rv6",
+    "rv7",
+    "rv8",
+    "dl1",
+    "dl2",
+    "dl3",
+    "dl4",
+    "dl5",
+    "dl6",
+    "dl7",
+    "dl8",
+    "eq1",
+    "eq2",
+    "eq3",
+    "eq4",
+    "eq5",
+    "eq6",
+    "eq7",
+    "eq8",
+    "dx1",
+    "dx2",
+    "dx3",
+    "dx4",
+    "dx5",
+    "dx6",
+    "dx7",
+    "dx8"
    ]
   }
  ]

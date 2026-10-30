@@ -49,6 +49,7 @@ int main(int argc, char** argv)
 		show("fresh +2 s");
 		return 0;
 	}
+	if(const char* mf = std::getenv("MD_SMOKE_MASTER")) e->set_param(in, "master_fx", mf);	// 0 = off, 1 = on (the default)
 	// machine 0 (GND--) is silent by design; assign real machines to the 3 tracks this test triggers
 	// (ids from the OS's own descriptor table, not guaranteed stable across OS versions - fine for a smoke
 	// test, not something a real preset should hardcode).

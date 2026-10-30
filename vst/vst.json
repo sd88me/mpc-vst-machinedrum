@@ -2,6 +2,6 @@
   "name": "Machinemodule", "vendor": "sd88me", "uid": "MdOn", "version": 1000,
   "so": "machinedrum_one.so",
   "params": "params.json", "custom_skin": true,
-  "defines": {"MODULE_SUBDIR": "\"machinedrum\"", "MODULE_DIR": "\"/sdcard/vst/machinedrum\"", "HAS_LFO_BPM": 1},
+  "defines": {"MODULE_SUBDIR": "\"machinedrum\"", "MODULE_DIR": "\"/sdcard/vst/machinedrum\"", "HAS_LFO_BPM": 1, "HAS_DISPLAY_REV": 1, "DISPLAY_REV_NO_UPDATE": 1},
   "build": {"root": "..", "sources": [], "cflags": [], "libs": []}
 }
