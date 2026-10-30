@@ -13,9 +13,10 @@ from one plugin instance, using the Machinedrum's own DSP code and its own machi
 
 <img width="640" height="400" alt="image" src="https://github.com/user-attachments/assets/30d1c99b-333c-4b98-b9e5-2c3339ef0c29" />
 
-**v0.3.4.** It plays, saves and reloads with the project, and it is tested on a real Force (MPC OS 3.9.1). There is
-no downloadable build: it needs your own Machinedrum firmware, so you build the installer yourself with one script (see
-[Building](#building)). On Gen 1 devices (the Force) the Machinedrum's master effects are not built in: the reverb and delay sends come out through the taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
+**v1.0.0.** It plays, saves and reloads with the project. Gen 1 devices (the Force) are built by you from your own Machinedrum firmware
+with one script (see [Building](#building); tested on a real Force with MPC OS 3.9.1, v0.3.4). Gen 2 devices (the MPC Live III) have a download
+that needs only your own OS file (the Gen2 download, see [Building](#building); tested on a Live III, v0.5.0). See [New in v1](#new-in-v1) for what this version adds.
+On Gen 1 devices the Machinedrum's master effects are not built in: the reverb and delay sends come out through the taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
 
 Not affiliated with Elektron. Nothing of Elektron's is in this repository or distributed from it; the plugin
 needs your own Machinedrum OS 1.63 file, and ideally a flash image for the ROM machines and factory kits (see [What you need](#what-you-need)).
@@ -49,8 +50,8 @@ The sound comes from the Machinedrum's own code, not a re-creation of it:
 
 A first-generation Force has four slow ARM cores shared with MPC itself, so some things are added, left out or changed:
 
-- **No master effects.** The Machinedrum's master section (rhythm echo, gate box/reverb, EQ, dynamix) is not included. The
-  reverb and delay sends come out through the taps (below) so MPC's own effects can do that job.
+- **No master effects on Gen 1.** The Machinedrum's master section (rhythm echo, gate box/reverb, EQ, dynamix) is not included on these
+  devices (Gen 2 has it, see [New in v1](#new-in-v1)). The reverb and delay sends come out through the taps (below) so MPC's own effects can do that job.
 - **Taps: each track or send on its own MPC track** (added; see below). The Machinedrum's individual outputs become separate
   MPC tracks, submixes or return tracks to be processed by MPC OS insert effects.
 - **Voice budget, default 16** (added; it was 6 until 0.5.0 - lower it on a Force, which can sound only about 6 busy voices). The VOICES knob on GLOBAL is a CPU budget, not a plain voice count. Most machines cost
@@ -64,7 +65,7 @@ A first-generation Force has four slow ARM cores shared with MPC itself, so some
 - **ROM on/off switch** (GLOBAL, on by default; the Gen2 download has no switch, because the JIT build gains nothing from it). Off, tracks on a ROM machine stay silent and the randomiser leaves ROM
   machines out; each track keeps its ROM setting. The quickest way to make a busy kit safe.
 - **Randomise** (GLOBAL): machines on all tracks, tracks 1-8, tracks 9-16, or a random kit.
-- **GLOBAL tab:** a 16-track level mixer, VOICES, ROM, randomise, and the bank and kit selectors.
+- **GLOBAL tab:** a 16-track mixer (PAN, LEV, meter, mute and solo), VOICES, ROM, MST FX (Gen 2), randomise, and the bank and kit selectors. On Gen 2 the **FX tab** next to it holds the master effects.
 - **Tempo follows MPC's**, so the LFOs stay in time with the project.
 - **8.7 ms of added latency:** the engine renders 3 blocks ahead, which rides out the stalls MPC's own audio threads cause.
 - **Not offered:** RAM, INP and MID/CTR machines (no sampling, no audio input and no MIDI output here); a kit that uses one
@@ -138,8 +139,9 @@ offers is checked to make sound as part of the build.### Known limits
 
 ### Roadmap
 
-- **Faithful build for faster devices (Gen 2 and later):** the Machinedrum's master effects built in (about 13 M DSP
-  instructions a second more than the voices), and no voice budget.
+- **Faithful build for faster devices (Gen 2 and later):** the master effects are in as of v1 (about 45 microseconds a block on a Live III);
+  still to do: no voice budget.
+- **CTR control machines on Gen 2** (CTR-AL, CTR-8P, CTR-RE/GB/EQ/DX): planned. The desktop version already has them.
 - **More voices on Gen 1:** hide the OS tick behind the voice rendering (about 190 us of each 2.9 ms block), cut each voice
   thread's fixed cost, and better recompiled DSP code (2.1x the plain emulator today; 3.8x was reached for the Monomachine).
 - **Bank and kit picker list** like the machine one (today: arrows).
@@ -240,7 +242,9 @@ The Gen2 zips carry their own catalog ids (`machinemodule-gen2`, `machinemodule-
 
 ![Machinemodule on an MPC Live III: track 1](docs/img/machinemodule-gen2.png)
 ![The kit list: 16 factory kits, 32 to a page](docs/img/machinemodule-gen2-kits.png)
-![The GLOBAL tab: mixer, VOICES, randomise, banks and kits](docs/img/machinemodule-gen2-global.png)
+![The GLOBAL tab: mixer, VOICES, randomise, banks and kits (v0.5)](docs/img/machinemodule-gen2-global.png)
+![The v1 GLOBAL tab with the new mixer page: a render of the skin, not a device photo](docs/img/machinemodule-v1-mixer-render.png)
+![The v1 FX tab (Gen 2): a render of the skin, not a device photo](docs/img/machinemodule-v1-fx-render.png)
 ![Machinemodule Tap on an MPC Live III](docs/img/machinemodule-tap-gen2.png)
 
 **Tested on an MPC Live III** (v0.5.0), with the plugin's own paced render test and MPC running alongside: 16 tracks of TRX machines
