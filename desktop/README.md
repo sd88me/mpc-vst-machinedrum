@@ -18,9 +18,10 @@ Not affiliated with Elektron. The plugin contains nothing of Elektron's: it need
 3. The editor: the machine block (click it for the machine picker), the **KIT** strip (`<` `>` step through the kits, click the name for
    the list), the **LEV** column and the four pages of the selected track (SYN, AMP/EFX, ROUTE, LFO). The **TRACKS** panel on the right
    selects a track; each cell has an **L** key (lock: the track keeps its sound when a kit loads) and an **M** key (mute). **MIXER** shows
-   the 16 levels with meters; **MASTER** shows the master effects (reverb, echo, EQ, dynamix) with the **FX ON** switch. Drag a knob
-   (shift = fine), click its number to type a value, double-click to reset. **MENU**: select the OS file, load a kit file, import a flash
+   every track's **PAN** (drag the bar; double-click centres it), **LEV** with its output meter, and **M** (mute) and **S** (solo) keys (while a track is soloed, the others are silent); **MASTER** shows the master effects (reverb, echo, EQ, dynamix) with the **FX ON** switch. Drag a knob
+   (shift = fine), click its number to type a value, double-click to reset. The footer, between the version and the credit, says what the selected track's machine is. **MENU**: select the OS file, load a kit file, import a flash
    image, choose the skin (the Machinedrum's red LCD by default), engine status.
+3a. **Mute groups:** a kit's mute groups are honoured (a trigger of a track silences the track its kit names, until that track is triggered again), so a closed hi-hat chokes the open one as on the unit. Each track has a `Mute group` parameter (0 = none, 1-16 = the track silenced).
 4. MIDI notes **36-51** play tracks 1-16 (notes 0-15 do too). Every knob of every track is a host parameter (raw 0-127, like a kit byte).
 5. Outputs: **Main** is the dry main mix with the master effects. **Track 1-16** are extra outputs (enable them in your DAW's plugin
    routing): each carries one track after its effects and VOL, the same signal left and right, like the Machinedrum's own individual
@@ -68,7 +69,7 @@ The helpers: `cmake --build <build> --target md-import mdsamples` in the repo ro
 
 - `MmRender <OS.syx> [out.wav]` plays notes through the processor and checks that (a) at 44.1 kHz the main output is sample-identical to
   the bare engine, (b) at 48 kHz the level matches, (c) a track on its own output leaves the main mix and appears on its output, (d) a muted
-  track is silent. It uses an empty data folder, so installed factory data does not change the result.
+  track is silent, (e) the control machines, (f) the audio input, (g) mute groups, (h) solo. It uses an empty data folder, so installed factory data does not change the result.
 - `MmSnapshot <OS.syx> <outdir>` renders the editor (track, mixer, master and picker views) to PNGs; `MmSnapshot --import-test <OS.syx>
   <flash.bin>` runs the flash import through the processor (set `MM_IMPORT_HELPER` and `MACHINEMODULE_DATA_DIR`).
 - The VST3 passes [pluginval](https://github.com/Tracktion/pluginval) at strictness 5.
