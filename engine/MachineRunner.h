@@ -44,6 +44,10 @@ namespace md::engine
 		// Call any OS routine (C calling convention, up to 4 32-bit arguments). Returns d0, or -1 on a fault.
 		int64_t call(uint32_t _address, std::initializer_list<uint32_t> _args);
 
+		// Run OS code from _entry until the PC reaches _stopPc (an address inside a routine, not a return): the master effects'
+		// knob conversions are inline sections of the OS tick that all end at the same join point. False on a fault.
+		bool runTo(uint32_t _entry, uint32_t _stopPc);
+
 		// OS memory, as the ColdFire sees it: main RAM $200000-$2fffff (initialised from the OS image, so its
 		// initialised data is right), internal SRAM $1000000-$100ffff (the OS's copy of its fast routines from
 		// image $2622f4, and their data). Big-endian.

@@ -23,6 +23,7 @@ include(cmake/dsp56300.cmake)
 add_library(mdcore STATIC
   engine/HostModel.cpp
   engine/MachineRunner.cpp
+  engine/MasterFx.cpp
   engine/Mixer.cpp
   engine/ParallelVoiceEngine.cpp
   engine/TrackFx.cpp
@@ -54,6 +55,9 @@ target_link_libraries(md-skin-gen PRIVATE mdcore)
 # mdcost: per-machine cost of one playing voice (instructions and wall time), for the Force
 add_executable(md-cost tools/mdcost/mdcost.cpp)
 target_link_libraries(md-cost PRIVATE mdcore pthread dl)
+# md-mastertest: engine/MasterFx (the master section on its own DSP, fed by the native mixer) against the whole mixer DSP
+add_executable(md-mastertest tools/mdmix/mdmastertest.cpp tools/mdmix/MixerRef.cpp)
+target_link_libraries(md-mastertest PRIVATE mdcore pthread dl)
 # mdhash: an audio hash of a fixed pattern, to compare builds
 add_executable(md-hash tools/mdhash/mdhash.cpp)
 target_link_libraries(md-hash PRIVATE mdcore pthread dl)

@@ -6,7 +6,7 @@
 // It also produces each track's inputs to the mixer DSP (DSP1): the 9 effect words (Y:$200+$40k) and the
 // 5 mix words (Y:$100+5k), computed as the tick routine does ($20b1f6-$20b302).
 //
-// Not yet modelled: parameter locks and trigger groups (sequencer features).
+// Not yet modelled: parameter locks and trigger groups (sequencer features). Mute groups are (setMuteGroup).
 #pragma once
 #include <algorithm>
 #include <array>
@@ -63,6 +63,10 @@ namespace md::engine
 		void setLevel(int _track, int _level);
 		void setMute(int _track, bool _mute) { m_mute[_track] = _mute; }
 		void setRouting(int _track, int _route) { m_route[_track] = static_cast<uint8_t>(_route); }
+		// The kit's MUTE GROUP (-1 = none): as MainOS $20b3b0, a trigger of the track flags _target, whose mixer words
+		// (volume, pan, sends) then go to DSP1 as 0 until _target's own next trigger clears the flag ($20b210).
+		void setMuteGroup(int _track, int _target) { m_muteGroup[_track] = static_cast<int8_t>(_target >= 0 && _target < kTracks && _target != _track ? _target : -1); }
+		bool groupMuted(int _track) const { return m_groupMuted[_track]; }
 
 		// Per-track inputs to the mixer DSP, as of the last tick.
 		struct MixerInput
@@ -105,6 +109,9 @@ namespace md::engine
 		std::array<uint8_t, kTracks> m_velocity{};	// last trigger's velocity (0 until triggered, as on the MD)
 		std::array<bool, kTracks> m_accent{};
 		std::array<bool, kTracks> m_mute{};
+		std::array<int8_t, kTracks> m_muteGroup = filledMuteGroups();
+		std::array<bool, kTracks> m_groupMuted{};
+		static constexpr std::array<int8_t, kTracks> filledMuteGroups() { std::array<int8_t, kTracks> a{}; for(auto& v : a) v = -1; return a; }
 		std::array<uint8_t, kTracks> m_route{};
 		std::array<MixerInput, kTracks> m_mixer{};
 		int m_accentAmount = 0;

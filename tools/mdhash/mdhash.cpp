@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <vector>
+#include <chrono>
 #include "MdEngine.h"
 #include "Firmware.h"
 template<class E>
@@ -46,6 +47,26 @@ static void run(E& eng, int argc, char** argv)
 		run("later", 100);
 		return;
 	}
+	if(getenv("MD_MUTEGROUP"))	// track 7's trigger silences track 6 (the only one on MAIN) until track 6 is triggered again
+	{
+		for(int t = 0; t < 16; ++t) h.setRouting(t, t == 6 ? 6 : 1);
+		h.setMuteGroup(7, 6);
+		auto run = [&](const char* tag, int n){ int32_t peak = 0; for(int i = 0; i < n; ++i) { eng.render(out); for(int f = 0; f < 32; ++f) peak = std::max(peak, std::abs(out.mix.main[f][0])); } printf("%s: main peak %d\n", tag, peak); };
+		auto per = [&](int n){ for(int i = 0; i < n; ++i) { int32_t p = 0; eng.render(out); for(int f = 0; f < 32; ++f) p = std::max(p, std::abs(out.mix.main[f][0])); printf(" %d", p); } printf("\n"); };
+		run("boot", 10);
+		h.trigger(6, 100); run("track 6 triggered", 20);
+		h.trigger(7, 100); per(30);
+		h.trigger(6, 100); run("track 6 triggered again", 20);
+		return;
+	}
+	// MD_MASTER=0|1: the master effects off / on (the hash then covers their output). MD_TIME=1: wall time of each render() call,
+	// printed as mean / p99 / worst microseconds against the 725 us a 32-frame block has at 44.1 kHz (run it where the speed matters)
+	if(getenv("MD_MASTER"))
+	{
+		std::array<std::array<uint8_t, 8>, 4> mk{{{0, 0, 64, 64, 0, 127, 127, 127}, {24, 0, 0, 32, 0, 127, 0, 127}, {64, 64, 64, 64, 64, 64, 64, 64}, {0, 64, 127, 0, 0, 0, 64, 0}}};
+		if(!eng.setMasterFx(atoi(getenv("MD_MASTER")) != 0, mk)) { printf("master FX could not start\n"); return; }
+	}
+	std::vector<double> blockUs;
 	int maxActive = 0; long sumActive = 0, nb = 0;
 	if(getenv("MD_BUDGET")) h.setMaxActiveVoices(atoi(getenv("MD_BUDGET")));
 	if(getenv("MD_RELEASE")) h.setSilenceRelease(128, atoi(getenv("MD_RELEASE")));	// silence release, hold in blocks
@@ -53,12 +74,21 @@ static void run(E& eng, int argc, char** argv)
 	for(int b = 0; b < 44100 * 12 / 32; ++b)
 	{
 		if(b % 300 == 0) for(int k = 0; k < 4; ++k) h.trigger(rnd() % 16, 100);
+		const auto t0 = std::chrono::steady_clock::now();
 		eng.render(out);
+		if(getenv("MD_TIME")) blockUs.push_back(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count());
 		if(b > 2000) { const int a = eng.voices().activeVoicesLastBlock(); maxActive = a > maxActive ? a : maxActive; sumActive += a; ++nb; }
 		if(raw) fwrite(out.mix.main.data(), sizeof(int32_t), 64, raw);
 		for(int f = 0; f < 32; ++f) for(int ch = 0; ch < 2; ++ch){ mix(out.mix.main[f][ch]); for(int q = 0; q < 6; ++q) mix(out.mix.frame[f][q]); mix(out.mix.rev[f][ch]); mix(out.mix.del[f][ch]); }
 	}
 	if(raw) fclose(raw);
+	if(!blockUs.empty())
+	{
+		std::sort(blockUs.begin() + 2000, blockUs.end());
+		const auto n = blockUs.size() - 2000; double sum = 0;
+		for(size_t i = 2000; i < blockUs.size(); ++i) sum += blockUs[i];
+		printf("render us per 32-frame block (budget 725): mean %.0f  p99 %.0f  worst %.0f  (master %s)\n", sum / n, blockUs[2000 + n * 99 / 100], blockUs.back(), getenv("MD_MASTER") && atoi(getenv("MD_MASTER")) ? "on" : "off");
+	}
 	printf("hash %016llx\n", (unsigned long long)hash);
 	if(getenv("MD_BUDGET") || getenv("MD_RELEASE")) printf("budget %s release %s: max rendered voices %d, mean %.2f, released %u\n", getenv("MD_BUDGET") ? getenv("MD_BUDGET") : "-", getenv("MD_RELEASE") ? getenv("MD_RELEASE") : "-", maxActive, double(sumActive) / (nb ? nb : 1), h.silenceReleases());
 }

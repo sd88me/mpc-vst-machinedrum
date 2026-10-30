@@ -132,9 +132,9 @@ namespace md::mixref
 		return ok;
 	}
 
-	bool MixerRef::runMaster()
+	bool MixerRef::runMaster(const uint32_t _stop)
 	{
-		const TWord stop = 0x971;
+		const TWord stop = _stop;
 		const TWord saved = m_dsp->memory().get(MemArea_P, stop);
 		m_dsp->memWriteP(stop, 0x0c0000 | stop);
 		m_dsp->setPC(0x342);
