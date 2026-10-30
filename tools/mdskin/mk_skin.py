@@ -386,7 +386,8 @@ MACHINES = parse_machines(sys.argv[2])
 # (a kit using one shows a blank bar and grid): MID/CTR (no audio), INP (no audio input), RAM (no sampling) and the
 # ROM slots the factory image leaves empty (ROM33-48).
 def drawn(m):
-    return m["group"] not in ("MID", "CTR", "INP", "RAM") and not (m["group"] == "ROM" and int(m["short"]) > 32)
+    # the control machines (CTR: CTR-AL, CTR-8P, CTR-RE / GB / EQ / DX) are offered except in the Gen 1 skin (its memory is tight; they act in the plugin on any device)
+    return m["group"] not in (("MID", "INP", "RAM") if not GEN1 else ("MID", "CTR", "INP", "RAM")) and not (m["group"] == "ROM" and int(m["short"]) > 32)
 
 
 ALL_DRAWN = [m for m in MACHINES if drawn(m)]
@@ -658,6 +659,24 @@ def syn_overlay(m, cache={}):
     return cache[key]
 
 
+CTR_8P = next((m for m in DRAWN_MACHINES if m["name"] == "CTR8P"), None)
+
+
+def ctr8p_overlay(page, first):
+    """CTR-8P's targets: the track's AMP and ROUTE cells hold its eight (track, parameter) pairs (HostModel raw 8-23), so while the machine is CTR-8P the
+    two pages are drawn as TRK n / PRM n cells, transparent over their live dials as the SYN grid is (the title bar is covered too)."""
+    cells = []
+    for k in range(4):
+        cells += [P("TRK%d" % (first + k)), P("PRM%d" % (first + k))]
+    im = page_canvas(page, cells, "TARGETS %d-%d" % (first, first + 3)).image().convert("RGBA")
+    dr = ImageDraw.Draw(im)
+    for k in range(8):
+        x = ((k % 4) * CW + FR_X) * S
+        y = (GRID_Y + (k // 4) * CELL + FR_Y) * S
+        dr.rectangle([x, y, x + FR_W * S - 1, y + FR_H * S - 1], fill=(0, 0, 0, 0))
+    return save_png("ctr8p_%d" % first, im)
+
+
 defs["mdLfoParamText"] = ss._local("mdLfoParamText", [], [ss._value_label(0, 0, FR_W * S, (CONTENT_H + VALUE_H - 2) * S, 26.0,
                                                                          "%02x%02x%02x" % INK)])
 for t in range(TRACKS):
@@ -670,8 +689,14 @@ for t in range(TRACKS):
                    cond=enabling(tk("machine"), m["id"], NMACH))
     cell_touch("SYN", SYN_ANY, syn_keys, t)
     cell_dials("AMP", AMP_CELLS, [tk(k) for k in AMP_KEYS], t)
+    if CTR_8P:
+        ax, ay = page_origin("AMP")
+        image_comp("CTR-8P targets 1-4", ctr8p_overlay("AMP", 1), ax, ay, LCD_W * S, PAGE_LCD_H * S, t, cond=enabling(tk("machine"), CTR_8P["id"], NMACH))
     cell_touch("AMP", AMP_CELLS, [tk(k) for k in AMP_KEYS], t)
     cell_dials("ROUTE", ROUTE_CELLS, [tk(k) for k in ROUTE_KEYS], t)
+    if CTR_8P:
+        rx, ry = page_origin("ROUTE")
+        image_comp("CTR-8P targets 5-8", ctr8p_overlay("ROUTE", 5), rx, ry, LCD_W * S, PAGE_LCD_H * S, t, cond=enabling(tk("machine"), CTR_8P["id"], NMACH))
     cell_touch("ROUTE", ROUTE_CELLS, [tk(k) for k in ROUTE_KEYS], t)
     cell_dials("TRACK", LFO_CELLS, [tk(k) for k in LFO_KEYS], t)
     lx, ly = page_origin("TRACK")   # PARAM's text: MPC's own value label (the destination's live name, "dynamic_display")
@@ -1119,3 +1144,5 @@ preview({}, os.path.join(sys.argv[4], "preview_global.png"), GT)
 if not GEN1:
     preview({}, os.path.join(sys.argv[4], "preview_fx.png"), FT)
 preview({"track0_machine": PREVIEW_MACHINE, "track0_machine__open": 1}, os.path.join(sys.argv[4], "preview_open.png"), 0)
+if CTR_8P:
+    preview({"track0_machine": CTR_8P["id"]}, os.path.join(sys.argv[4], "preview_ctr8p.png"), 0)

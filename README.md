@@ -68,8 +68,8 @@ A first-generation Force has four slow ARM cores shared with MPC itself, so some
 - **GLOBAL tab:** a 16-track mixer (PAN, LEV, meter, mute and solo), VOICES, ROM, MST FX (Gen 2), randomise, and the bank and kit selectors. On Gen 2 the **FX tab** next to it holds the master effects.
 - **Tempo follows MPC's**, so the LFOs stay in time with the project.
 - **8.7 ms of added latency:** the engine renders 3 blocks ahead, which rides out the stalls MPC's own audio threads cause.
-- **Not offered:** RAM, INP and MID/CTR machines (no sampling, no audio input and no MIDI output here); a kit that uses one
-  shows a blank bar. No sequencer: MPC plays the notes.
+- **Not offered:** RAM, INP and MID machines (no sampling, no audio input and no MIDI output here); a kit that uses one
+  shows a blank bar. The CTR control machines are offered on Gen 2 (see [New in v1](#new-in-v1)). No sequencer: MPC plays the notes.
 
 ### New in v1
 
@@ -83,6 +83,10 @@ Ideas and code adapted from [ModuleDrum](https://github.com/K-X420/ModuleDrum) (
   about 15 dB louder than the dry mix, so turn the track fader down at first. Gen 1 devices (the Force) do not run them: use the taps.
 - **Machine logos and descriptions:** the machine block and picker show the Machinedrum's own family badges (read from your OS file; nothing
   of Elektron's is shipped) and a line about the machine.
+- **CTR control machines (Gen 2):** CTR-AL (a knob move on its SYN k moves SYN k of every other sounding track by the same amount, clamped),
+  CTR-RE / GB / EQ / DX (their SYN1-8 are the delay, reverb, EQ and dynamix master knobs) and CTR-8P (P1-P8, its SYN1-8, are written every block into eight
+  (track, parameter) targets that its own AMP and ROUTE cells hold, shown as TRK n / PRM n; the values are the OS's, counted from 0: TRK 0 is track 1, PRM 0 is SYN1;
+  a new CTR-8P points P1-P8 at SYN1 of tracks 1-8). The rules are the OS's own, as checked in the desktop version, and run in the plugin for any kit that uses them.
 - **Q-Link outlines** for every page.
 
 ### Taps: each track or send on its own MPC track
@@ -141,7 +145,6 @@ offers is checked to make sound as part of the build.### Known limits
 
 - **Faithful build for faster devices (Gen 2 and later):** the master effects are in as of v1 (about 45 microseconds a block on a Live III);
   still to do: no voice budget.
-- **CTR control machines on Gen 2** (CTR-AL, CTR-8P, CTR-RE/GB/EQ/DX): planned. The desktop version already has them.
 - **More voices on Gen 1:** hide the OS tick behind the voice rendering (about 190 us of each 2.9 ms block), cut each voice
   thread's fixed cost, and better recompiled DSP code (2.1x the plain emulator today; 3.8x was reached for the Monomachine).
 - **Bank and kit picker list** like the machine one (today: arrows).
