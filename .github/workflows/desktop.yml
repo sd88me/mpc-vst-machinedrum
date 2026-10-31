@@ -19,7 +19,7 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-24.04, name: linux-x64, targets: "Machinemodule_VST3 Machinemodule_Standalone" }
-          - { os: macos-14, name: macos-arm64, targets: "Machinemodule_VST3 Machinemodule_AU Machinemodule_Standalone" }
+          - { os: macos-15, name: macos-arm64, targets: "Machinemodule_VST3 Machinemodule_AU Machinemodule_Standalone" }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
