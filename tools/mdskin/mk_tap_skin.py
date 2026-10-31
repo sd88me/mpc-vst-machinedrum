@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the MPC skin for Machinemodule Tap / Machinemodule Tap FX: one LCD page of on/off cells, one per source (the 16 tracks,
+"""Builds the MPC skin for Machinemodule Tap: one LCD page of on/off cells, one per source (the 16 tracks,
 the reverb send, the delay send, and on the FX build "THRU": pass the plugin's own input through). Several can be on at once:
 the tap outputs their sum, so one MPC track (or submix) can receive any set of Machinedrum channels. Same LCD look as
 mk_skin.py (the Module's skin generator: fonts and toggle icon from art.json (tools/mdskin/mdartdump), drawing code copied, not
@@ -109,8 +109,8 @@ def text_width(font, s):
 CELLS = [("TRK %d" % (i + 1), "src%d" % (i + 1)) for i in range(16)] + [("REV", "src_rev"), ("DEL", "src_del")]
 if FX:
     CELLS.append(("THRU", "through"))
-TITLE = "MACHINEMODULE TAP FX" if FX else "MACHINEMODULE TAP"
-NAME, VENDOR = ("Machinemodule Tap FX" if FX else "Machinemodule Tap"), "sd88me"
+TITLE = "MACHINEMODULE TAP"
+NAME, VENDOR = "Machinemodule Tap", "sd88me"
 OUT = os.path.join(sys.argv[3], "%s - VST - %s" % (VENDOR, NAME))
 SKIN = os.path.join(OUT, "Plugin Skins")
 os.makedirs(SKIN, exist_ok=True)

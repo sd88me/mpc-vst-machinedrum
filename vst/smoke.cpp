@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 	{
 		if(e->get_param(in, "ready", buf, sizeof buf) > 0 && buf[0] == '1') break;
 		std::this_thread::sleep_for(std::chrono::milliseconds(20));
-		if(Clock::now() - t0 > std::chrono::seconds(60)) { puts("engine never became ready"); return 1; }
+		if(Clock::now() - t0 > std::chrono::seconds(std::getenv("MD_SMOKE_READY_S") ? std::atoi(std::getenv("MD_SMOKE_READY_S")) : 60)) { puts("engine never became ready"); return 1; }	// the first load makes the factory data from a flash image (minutes)
 	}
 	printf("ready after %.0f ms\n", std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
 
@@ -49,6 +49,7 @@ int main(int argc, char** argv)
 		show("fresh +2 s");
 		return 0;
 	}
+	if(const char* mf = std::getenv("MD_SMOKE_MASTER")) e->set_param(in, "master_fx", mf);	// 0 = off, 1 = on (the default)
 	// machine 0 (GND--) is silent by design; assign real machines to the 3 tracks this test triggers
 	// (ids from the OS's own descriptor table, not guaranteed stable across OS versions - fine for a smoke
 	// test, not something a real preset should hardcode).

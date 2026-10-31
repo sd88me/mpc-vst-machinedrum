@@ -30,6 +30,7 @@ add_library(mdcore STATIC
   ${MD_ROOT}/engine/HostModel.cpp
   ${MD_ROOT}/engine/MachineRunner.cpp
   ${MD_ROOT}/engine/MasterFx.cpp
+  ${MD_ROOT}/engine/MasterFxOs.cpp
   ${MD_ROOT}/engine/Mixer.cpp
   ${MD_ROOT}/engine/ParallelVoiceEngine.cpp
   ${MD_ROOT}/engine/TrackFx.cpp

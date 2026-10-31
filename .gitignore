@@ -8,3 +8,4 @@ build*/
 *.wav
 dist/
 build-helpers/
+__pycache__/

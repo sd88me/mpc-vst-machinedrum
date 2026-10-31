@@ -14,6 +14,7 @@
 
 #include "Firmware.h"
 #include "VoiceEngine.h"
+#include "romsamples.h"
 #include "dsp56kEmu/dsp.h"
 
 int main(int argc, char** argv)
@@ -25,30 +26,23 @@ int main(int argc, char** argv)
 	std::FILE* f = std::fopen(argv[2], "rb");
 	if(!f) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 1; }
 	std::vector<uint32_t> dump(0x800000);
-	const size_t n = std::fread(dump.data(), 4, dump.size(), f);
+	std::fread(dump.data(), 4, dump.size(), f);
 	std::fclose(f);
-	// From $140000: the ROM sample directory the MD writes into the program's own table area at boot
-	// ($147e00-$147f08, 4 words per slot: start, length, loop, flags) and the sample data after it ($150000-).
-	// Lower differences are the program's runtime state, not sample data.
-	constexpr uint32_t progEnd = 0x140000;
 	std::FILE* o = std::fopen(argv[3], "wb");
 	std::fwrite("MDS1", 1, 4, o);
-	uint32_t total = 0, runs = 0;
-	for(uint32_t a = progEnd; a < n && a < mem.sizeP();)
+	uint32_t total = 0;
+	const auto runs = md::romsamples::diff(dump, 0, mem.sizeP(), [&](uint32_t a) { return mem.get(dsp56k::MemArea_P, a); });
+	for(const auto& r : runs)
 	{
-		if((dump[a] & 0xffffff) == (mem.get(dsp56k::MemArea_P, a) & 0xffffff)) { ++a; continue; }
-		uint32_t e = a;
-		while(e < n && e < mem.sizeP() && (dump[e] & 0xffffff) != (mem.get(dsp56k::MemArea_P, e) & 0xffffff)) ++e;
-		const uint32_t count = e - a;
-		std::fwrite(&a, 4, 1, o);
+		const uint32_t count = static_cast<uint32_t>(r.words.size());
+		std::fwrite(&r.address, 4, 1, o);
 		std::fwrite(&count, 4, 1, o);
-		std::fwrite(&dump[a], 4, count, o);
-		total += count; ++runs;
-		a = e;
+		std::fwrite(r.words.data(), 4, count, o);
+		total += count;
 	}
 	const uint32_t zero[2] = {0, 0};
 	std::fwrite(zero, 4, 2, o);
 	std::fclose(o);
-	std::fprintf(stderr, "%s: %u words in %u runs, above $%06x\n", argv[3], total, runs, progEnd);
+	std::fprintf(stderr, "%s: %u words in %u runs, above $%06x\n", argv[3], total, uint32_t(runs.size()), md::romsamples::kProgEnd);
 	return total ? 0 : 1;
 }

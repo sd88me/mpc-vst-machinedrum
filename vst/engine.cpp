@@ -23,19 +23,28 @@
 #include <ctime>
 #include <memory>
 #include <string>
+#include <mutex>
 #include <thread>
 #include <vector>
 
 #include <dirent.h>
+#include <fcntl.h>
+#include <spawn.h>
+#include <sys/wait.h>
 #include <pthread.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
+#include <cerrno>
 #include <sched.h>
 #include <unistd.h>
 
 #include "MdEngine.h"
 #include "Firmware.h"
 #include "tap_shared.h"
+#include "md_art.h"
+#include "skin_recipe.h"
+#include "romsamples.h"
 
 extern "C" {
 #include "engine.h"
@@ -146,14 +155,50 @@ constexpr int kSlotTempo = kSlotTrack + kTracks * kSlotsPerTrack;
 constexpr int kSlotMaxVoices = kSlotTempo + 1;
 constexpr int kSlotHostBpm = kSlotMaxVoices + 1;	// MPC's tempo x 100 (wrapper "lfo_bpm", vst.json HAS_LFO_BPM); 0 = none yet
 constexpr int kSlotRomEnabled = kSlotHostBpm + 1;	// ROM machines on (1) / off (0)
-constexpr int kNumSlots = kSlotRomEnabled + 1;
+constexpr int kSlotMute = kSlotRomEnabled + 1;	// 16 tracks' MUTE (mixer page), then 16 SOLO: a track sounds when not muted and, if any
+constexpr int kSlotSolo = kSlotMute + kTracks;	// track is soloed, only if it is one of them (HostModel::setMute)
+constexpr int kSlotMasterOn = kSlotSolo + kTracks;	// the master effects (engine/MasterFx) on / off, then the kit's 4 x 8 master knobs
+constexpr int kSlotMasterFx = kSlotMasterOn + 1;
+constexpr int kNumSlots = kSlotMasterFx + 4 * 8;
+// reverb DVOL PRED DEC DAMP HP LP GATE LEV | delay TIME MOD MFRQ FB FLTF FLTW MONO LEV | EQ LF LG HF HG PF PG PQ GAIN | dynamix ATCK REL TRHD RTIO KNEE HP OUTG MIX
+constexpr int kMasterDefaults[4][8] = {{0, 0, 64, 64, 0, 127, 127, 127}, {24, 0, 0, 32, 0, 127, 0, 127}, {64, 64, 64, 64, 64, 64, 64, 64}, {0, 64, 127, 0, 0, 0, 64, 0}};
+constexpr const char* kMasterKeyPrefix[4] = {"rv", "dl", "eq", "dx"};
+#if defined(__arm__) && !defined(__aarch64__)
+constexpr bool kMasterFxSupported = false;	// the 32-bit ARM devices (the Force, Gen1 MPCs) cannot afford a second DSP: the sends leave through the taps
+#else
+constexpr bool kMasterFxSupported = true;
+#endif
+// The control machines (CTR): no audio, they act on parameters, as the OS's own rules do (adapted from the desktop version, which checked them against the OS).
+// CTR-AL (112) moves SYN k of every other sounding track by the amount its own SYN k moves; CTR-RE / GB / EQ / DX (120-123) are SYN1-8 of the delay / reverb / EQ /
+// dynamix master effects; CTR-8P (113) writes P1-P8 (its SYN1-8) into eight (track, parameter) targets that its raw parameters 9-24 name, every block.
+constexpr int kCtrAll = 112, kCtr8P = 113, kCtrEcho = 120, kCtrDynamix = 123;
+constexpr int kCtrMasterBlock[4] = {1, 0, 2, 3};	// CTR-RE / GB / EQ / DX -> the kit's master block (reverb 0, delay 1, EQ 2, dynamix 3)
+constexpr bool isControlMachine(int _id) { return (_id & 0xf0) == 0x70; }
+constexpr bool isMasterControl(int _id) { return _id >= kCtrEcho && _id <= kCtrDynamix; }
+// The slot (within a track) of HostModel raw parameter _raw: 0-7 SYN1-8, 8-15 AMD..SRR, 16 DIST, 17 VOL, 18 PAN, 19-23 DEL REV LFOS LFOD LFOM
+constexpr int rawSlot(int _raw)
+{
+	return _raw < 8 ? kSlotSyn + _raw : _raw < 16 ? 3 + (_raw - 8) : _raw == 16 ? 3 + kNumFx : _raw == 17 ? 1 : _raw == 18 ? 2 : 3 + kNumFx + (_raw - 18);
+}
+constexpr int kNumSlotsV1 = kSlotRomEnabled + 1;	// a saved state from before MUTE/SOLO has this many slots
 
 int slotOf(const char* key)
 {
 	if(!std::strcmp(key, "tempo")) return kSlotTempo;
 	if(!std::strcmp(key, "max_voices")) return kSlotMaxVoices;
 	if(!std::strcmp(key, "rom_enabled")) return kSlotRomEnabled;
+	if(!std::strcmp(key, "master_fx")) return kSlotMasterOn;
+	for(int f = 0; f < 4; ++f)
+	{
+		int k = 0, n = 0;
+		if(!std::strncmp(key, kMasterKeyPrefix[f], 2) && std::sscanf(key + 2, "%d%n", &k, &n) == 1 && key[2 + n] == '\0' && k >= 1 && k <= 8)
+			return kSlotMasterFx + f * 8 + k - 1;
+	}
 	int t = -1, consumed = 0;
+	if(std::sscanf(key, "track%d_mute%n", &t, &consumed) == 1 && key[consumed] == '\0' && t >= 0 && t < kTracks)
+		return kSlotMute + t;
+	if(std::sscanf(key, "track%d_solo%n", &t, &consumed) == 1 && key[consumed] == '\0' && t >= 0 && t < kTracks)
+		return kSlotSolo + t;
 	if(std::sscanf(key, "track%d_machine%n", &t, &consumed) == 1 && key[consumed] == '\0' && t >= 0 && t < kTracks)
 		return kSlotTrack + t * kSlotsPerTrack + 0;
 	if(std::sscanf(key, "track%d_vol%n", &t, &consumed) == 1 && key[consumed] == '\0' && t >= 0 && t < kTracks)
@@ -209,6 +254,8 @@ struct Kit
 	uint8_t params[kTracks][24];	// HostModel raw order: SYN1-8, AMD..SRR, DIST, VOL, PAN, DEL, REV, LFOS, LFOD, LFOM
 	uint8_t level[kTracks];
 	uint8_t lfo[kTracks][kNumLfo];	// destination track, destination param, shape 1, shape 2, update
+	uint8_t masterFx[4][8];	// reverb, delay, EQ, dynamics: the raw knob values
+	int8_t muteGroup[kTracks];	// the track a trigger of this one silences, -1 = none
 };
 struct Catalog { std::vector<Kit> kits; std::vector<std::string> banks; uint64_t signature = 0; };
 
@@ -235,8 +282,12 @@ bool parseKit(const uint8_t* _m, size_t _n, Kit& _k)
 		_k.level[t] = _m[0x19a + t] & 0x7f;
 	}
 	const auto mach = decode7(_m + 0x1aa, 74);
-	const auto lfo = decode7(_m + 0x1f4, 664);
-	if(mach.size() < 64 || lfo.size() < kTracks * 36) return false;
+	const auto lfo = decode7(_m + 0x1f4, 659);
+	// then the master effects (32 raw bytes) and 7-bit trig groups 16 + mute groups 16 (0xff = off)
+	const auto groups = decode7(_m + 0x4a7, 37);
+	if(mach.size() < 64 || lfo.size() < kTracks * 36 || groups.size() < 32) return false;
+	std::memcpy(_k.masterFx, _m + 0x487, sizeof _k.masterFx);
+	for(int t = 0; t < kTracks; ++t) _k.muteGroup[t] = static_cast<int8_t>(groups[16 + t] < kTracks && groups[16 + t] != t ? groups[16 + t] : -1);
 	for(int t = 0; t < kTracks; ++t)
 	{
 		_k.machine[t] = mach[t * 4 + 3];	// a 32-bit big-endian word; the machine id is its low byte
@@ -354,6 +405,12 @@ struct Inst
 	bool romSlot[48] = {};	// which ROM sample slots hold a sample (set once the sample memory is loaded)
 	std::atomic<int> param[kNumSlots];
 	std::atomic<bool> synUntouched[kTracks][kNumSyn];
+	std::atomic<int> muteGroup[kTracks];
+	// The mixer page's meters: each track's peak after VOL (what a tap of it carries), 0-127 = -48..0 dBFS, held and
+	// falling about 24 dB/s; displayRev moves when one changes (the wrapper's HAS_DISPLAY_REV poll, every 100 ms)
+	std::atomic<int> meter[kTracks];
+	std::atomic<uint32_t> displayRev{0};
+	std::atomic<bool> masterFxActive{false};	// the master effects are running (on, and their DSP booted)	// the kit's mute groups (-1 = none): kit data, not host params; saved with the state
 	MachineTable machines;
 	std::atomic<bool> stop{false}, ready{false};
 	std::atomic<uint32_t> underruns{0}, blocks{0}, dutyNaps{0};
@@ -379,10 +436,14 @@ struct Inst
 	Inst()
 	{
 		for(auto& p : param) p.store(0);
+		for(auto& g : muteGroup) g.store(-1);
+		for(auto& m : meter) m.store(0);
 		for(auto& t : synUntouched) for(auto& u : t) u.store(true);
 		param[kSlotTempo].store(120);
 		param[kSlotRomEnabled].store(1);
-		param[kSlotMaxVoices].store(6);	// the VOICES knob's default (gen_params.py): a cost budget, ROM voices count double
+		param[kSlotMasterOn].store(1);	// on by default
+		for(int f = 0; f < 4; ++f) for(int k = 0; k < 8; ++k) param[kSlotMasterFx + f * 8 + k].store(kMasterDefaults[f][k]);
+		param[kSlotMaxVoices].store(16);	// the VOICES knob's default (gen_params.py): a cost budget, ROM voices count double
 		// Matches gen_params.py's declared defaults: the host normally pushes these via set_param right
 		// after create(), but this is what plays if render() is called before that (or from a host that
 		// doesn't restore params on creation).
@@ -404,6 +465,67 @@ struct Inst
 	void run();
 
 	// A machine change, as the host makes it: SYN1-8 go back to "untouched", taking the new machine's defaults.
+	// ---- the control machines (see kCtrAll): host thread ----
+	int allLast[kTracks][kNumSyn] = {};	// CTR-AL: each knob as the OS keeps it (1-126), the next move is measured from there
+	bool ctrArmed() const { return ready.load(std::memory_order_acquire) && std::chrono::steady_clock::now() - born > std::chrono::milliseconds(1500); }
+	int machineOf(int _t) const { return std::clamp(param[kSlotTrack + _t * kSlotsPerTrack].load(std::memory_order_relaxed), 0, 191); }
+	int synOf(int _t, int _k) const { return param[kSlotTrack + _t * kSlotsPerTrack + kSlotSyn + _k].load(std::memory_order_relaxed); }
+	void ctrResync()	// the table was replaced (a kit, a saved state): remember the CTR-AL knobs as they are, without acting on them
+	{
+		for(int t = 0; t < kTracks; ++t) for(int k = 0; k < kNumSyn; ++k) allLast[t][k] = synOf(t, k);
+	}
+	// Track _t's SYN _k was set by the host to a new value: the rules of a control machine. Ignored for the first moments after the instance is made
+	// (a host that restores a project value by value would otherwise run them), and when the value did not change.
+	void ctrSynMoved(int _t, int _k, int _old, int _val)
+	{
+		if(_old == _val || !ctrArmed()) { if(machineOf(_t) == kCtrAll) allLast[_t][_k] = synOf(_t, _k); return; }
+		const int m = machineOf(_t);
+		bool moved = false;
+		if(m == kCtrAll)
+		{
+			const int delta = _val - allLast[_t][_k];
+			allLast[_t][_k] = std::clamp(_val, 1, 126);
+			if(delta == 0) return;
+			for(int d = 0; d < kTracks; ++d)
+			{
+				const int dm = machineOf(d);
+				if(isControlMachine(dm) || (dm & 0xf0) == 0x60) continue;	// CTR and MID tracks make no sound
+				if(dm == 160 || dm == 161 || dm == 165 || dm == 166) continue;	// the OS leaves these (SYN 1-8 are not parameters there)
+				auto& x = param[kSlotTrack + d * kSlotsPerTrack + kSlotSyn + _k];
+				x.store(std::clamp(x.load(std::memory_order_relaxed) + delta, 0, 127), std::memory_order_relaxed);
+				synUntouched[d][_k].store(false);
+				moved = true;
+			}
+		}
+		else if(isMasterControl(m))
+		{
+			param[kSlotMasterFx + kCtrMasterBlock[m - kCtrEcho] * 8 + _k].store(std::clamp(_val, 0, 127), std::memory_order_relaxed);
+			moved = true;
+		}
+		if(moved) displayRev.fetch_add(1, std::memory_order_relaxed);	// the host re-reads what the rule changed
+	}
+	// A control machine was just picked by the host: the starting values the OS gives it (CTR-RE.. start at the master block's current values; CTR-8P points
+	// P1-P8 at SYN1 of tracks 1-8 and starts from their values; CTR-AL keeps the machine's defaults), kept over the machine defaults the engine thread adopts.
+	void ctrDefaults(int _t, int _m)
+	{
+		const int base = kSlotTrack + _t * kSlotsPerTrack;
+		if(isMasterControl(_m))
+			for(int i = 0; i < kNumSyn; ++i)
+			{
+				param[base + kSlotSyn + i].store(std::clamp(param[kSlotMasterFx + kCtrMasterBlock[_m - kCtrEcho] * 8 + i].load(std::memory_order_relaxed), 0, 127), std::memory_order_relaxed);
+				synUntouched[_t][i].store(false);
+			}
+		else if(_m == kCtr8P)
+			for(int k = 0; k < 8; ++k)
+			{
+				param[base + rawSlot(8 + 2 * k)].store(k, std::memory_order_relaxed);	// target track k+1
+				param[base + rawSlot(9 + 2 * k)].store(0, std::memory_order_relaxed);	// parameter SYN1
+				param[base + kSlotSyn + k].store(synOf(k, 0), std::memory_order_relaxed);
+				synUntouched[_t][k].store(false);
+			}
+		for(int k = 0; k < kNumSyn; ++k) allLast[_t][k] = synOf(_t, k);
+	}
+
 	void setMachine(int _t, int _v)
 	{
 		const int slot = kSlotTrack + _t * kSlotsPerTrack;
@@ -414,6 +536,8 @@ struct Inst
 			if(known) param[slot + kSlotSyn + i].store(machines.defaults[_v][i], std::memory_order_relaxed);
 			synUntouched[_t][i].store(true);
 		}
+		if(isControlMachine(_v)) ctrDefaults(_t, _v);
+		else for(int i = 0; i < kNumSyn; ++i) allLast[_t][i] = synOf(_t, i);
 	}
 
 	std::vector<int> kitsInBank() const
@@ -432,12 +556,8 @@ struct Inst
 	}
 	void stepBank(int _dir)
 	{
-		const auto banks = bankList();
-		int idx = 0;
-		for(size_t i = 0; i < banks.size(); ++i) if(banks[i] == bankName) idx = static_cast<int>(i);
-		const int n = static_cast<int>(banks.size());
-		bankName = banks[static_cast<size_t>(((idx + _dir) % n + n) % n)];
-		kitIdx = -1;	// the kit list changed: the next KIT press starts at its first/last kit
+		const int n = static_cast<int>(bankList().size());
+		selectBank(((bankIndex() + _dir) % n + n) % n);	// the kit list changed: the next KIT press starts at its first/last kit
 	}
 	std::string bankLabel() const { return bankName.empty() ? "ALL" : bankName; }
 	void stepKit(int _dir)
@@ -466,8 +586,11 @@ struct Inst
 			for(int i = 0; i < 24; ++i) param[base + kRawToSlot[i]].store(k.params[t][i], std::memory_order_relaxed);
 			param[base + kSlotLevel].store(k.level[t], std::memory_order_relaxed);
 			for(int i = 0; i < kNumLfo; ++i) param[base + kSlotLfo + i].store(k.lfo[t][i], std::memory_order_relaxed);
+			muteGroup[t].store(k.muteGroup[t], std::memory_order_relaxed);
 		}
+		for(int f = 0; f < 4; ++f) for(int i = 0; i < 8; ++i) param[kSlotMasterFx + f * 8 + i].store(k.masterFx[f][i] & 0x7f, std::memory_order_relaxed);
 		kitIdx = _idx;
+		ctrResync();
 		for(int i = 0; i < kSlotTempo; ++i) snap[i] = param[i].load(std::memory_order_relaxed);
 	}
 	// A fresh instance plays the first kit instead of eight empty tracks. The host pushes every param right after
@@ -492,15 +615,75 @@ struct Inst
 			if(param[i].load(std::memory_order_relaxed) != snap[i]) return name + " *";
 		return name;
 	}
-	// The whole instance for the host's project/program/plugin-preset chunk: "v1|<every slot>|<snap>|<kitIdx>|<bank>".
+	// The bank and kit pop-up lists: bank_sK / kit_sK are live text (the entry K of the current page), *_pick sends the choice back
+	static constexpr int kBankSlots = 24, kKitSlots = 32;	// entries per page: the bank list is 3 x 8, the kit list 4 x 8
+	int bankPageNum = 0, bankPageSeen = 0, kitPageNum = 0, kitPageSeen = 0;
+	std::mutex pickMu;
+	std::vector<std::string> kitNames;	// the kits of the selected bank, rebuilt when the catalog or the bank changes
+	const Catalog* kitNamesCat = nullptr; std::string kitNamesBank;
+	const std::vector<std::string>& kitNameList()	// pickMu held
+	{
+		const Catalog* c = cat.load();
+		if(c != kitNamesCat || bankName != kitNamesBank)
+		{
+			kitNamesCat = c; kitNamesBank = bankName; kitNames.clear();
+			if(c) for(int i : kitsInBank()) kitNames.push_back(c->kits[static_cast<size_t>(i)].name);
+		}
+		return kitNames;
+	}
+	int bankIndex() const
+	{
+		const auto banks = bankList();
+		for(size_t i = 0; i < banks.size(); ++i) if(banks[i] == bankName) return static_cast<int>(i);
+		return 0;
+	}
+	void selectBank(int _idx)
+	{
+		const auto banks = bankList();
+		if(_idx < 0 || _idx >= static_cast<int>(banks.size())) return;
+		bankName = banks[static_cast<size_t>(_idx)];
+		kitIdx = -1;
+		kitPageSeen = -1;
+	}
+	int bankPages() const { return (static_cast<int>(bankList().size()) + kBankSlots - 1) / kBankSlots; }
+	int bankPage()
+	{
+		const int bi = bankIndex();
+		if(bi != bankPageSeen) { bankPageSeen = bi; bankPageNum = bi / kBankSlots; }
+		return bankPageNum;
+	}
+	void stepBankPage(int _dir) { const int p = bankPage() + _dir; if(p >= 0 && p < bankPages()) bankPageNum = p; }
+	int kitPages() { std::lock_guard<std::mutex> g(pickMu); return (static_cast<int>(kitNameList().size()) + kKitSlots - 1) / kKitSlots; }
+	int kitPage()	// follows the current kit until the pager is used
+	{
+		if(kitIdx != kitPageSeen) { kitPageSeen = kitIdx; kitPageNum = std::max(kitIdx, 0) / kKitSlots; }
+		return kitPageNum;
+	}
+	void stepKitPage(int _dir) { const int p = kitPage() + _dir; if(p >= 0 && p < kitPages()) kitPageNum = p; }
+	std::string kitEntry(int _k)
+	{
+		std::lock_guard<std::mutex> g(pickMu);
+		const auto& l = kitNameList();
+		const size_t i = static_cast<size_t>(kitPage()) * kKitSlots + static_cast<size_t>(_k);
+		return i < l.size() ? l[i] : std::string();
+	}
+	void pickKit(int _k)
+	{
+		if(_k < 0 || _k >= kKitSlots) return;
+		loadKit(kitPage() * kKitSlots + _k);
+	}
+	// The whole instance for the host's project/program/plugin-preset chunk:
+	// "v2|<every slot>|<snap>|<kitIdx>|<mute groups>|<bank>" (v1, read too, has no mute groups).
 	// The host-tempo slot is live host state, not part of a sound, so it is written as 0 and never restored.
 	std::string saveState() const
 	{
-		std::string o = "v1|";
+		std::string o = "v2|";
 		for(int i = 0; i < kNumSlots; ++i) { if(i) o += ','; o += std::to_string(i == kSlotHostBpm ? 0 : param[i].load(std::memory_order_relaxed)); }
 		o += '|';
 		for(int i = 0; i < kSlotTempo; ++i) { if(i) o += ','; o += std::to_string(snap[i]); }
-		o += '|' + std::to_string(kitIdx) + '|' + bankName;
+		o += '|' + std::to_string(kitIdx) + '|';
+		for(int t = 0; t < kTracks; ++t) { if(t) o += ','; o += std::to_string(muteGroup[t].load(std::memory_order_relaxed)); }
+		o += '|' + bankName;
 		return o;
 	}
 	// Returns false (and changes nothing) if the chunk is malformed. Values are stored straight into the slots (not through
@@ -508,12 +691,16 @@ struct Inst
 	// keeps the restored values when it applies the machine.
 	bool loadState(const char* _str)
 	{
-		if(std::strncmp(_str, "v1|", 3)) return false;
+		const bool v2 = !std::strncmp(_str, "v2|", 3);
+		if(!v2 && std::strncmp(_str, "v1|", 3)) return false;
 		const char* c = _str + 3;
 		std::vector<int> vals(kNumSlots), sn(kSlotTempo);
-		auto parse = [&c](std::vector<int>& dst) {
+		for(int i = 0; i < kNumSlots; ++i) vals[i] = param[i].load(std::memory_order_relaxed);	// slots an older state lacks keep their current value
+		// _min: an older state may stop there (the slots after it keep their defaults: MUTE/SOLO off)
+		auto parse = [&c](std::vector<int>& dst, size_t _min) {
 			for(size_t i = 0; i < dst.size(); ++i)
 			{
+				if(i >= _min && *c == '|') return true;
 				char* e;
 				dst[i] = static_cast<int>(std::strtol(c, &e, 10));
 				if(e == c) return false;
@@ -522,10 +709,17 @@ struct Inst
 			}
 			return true;
 		};
-		if(!parse(vals) || *c++ != '|' || !parse(sn) || *c++ != '|') return false;
+		if(!parse(vals, kNumSlotsV1) || *c++ != '|' || !parse(sn, sn.size()) || *c++ != '|') return false;
 		char* e;
 		const int idx = static_cast<int>(std::strtol(c, &e, 10));
 		if(e == c || *e != '|') return false;
+		std::vector<int> mg(kTracks, -1);
+		if(v2)
+		{
+			c = e + 1;
+			if(!parse(mg, mg.size()) || *c != '|') return false;
+			e = const_cast<char*>(c);
+		}
 		for(int t = 0; t < kTracks; ++t)
 		{
 			const int base = kSlotTrack + t * kSlotsPerTrack;
@@ -536,11 +730,15 @@ struct Inst
 		vals[kSlotTempo] = std::clamp(vals[kSlotTempo], 30, 300);
 		vals[kSlotMaxVoices] = std::clamp(vals[kSlotMaxVoices], 1, kTracks);
 		vals[kSlotRomEnabled] = vals[kSlotRomEnabled] ? 1 : 0;
+		for(int i = kSlotMute; i < kSlotMasterOn + 1; ++i) vals[i] = vals[i] ? 1 : 0;
+		for(int i = kSlotMasterFx; i < kNumSlots; ++i) vals[i] = std::clamp(vals[i], 0, 127);
 		bankName = e + 1;
 		for(int t = 0; t < kTracks; ++t) for(int i = 0; i < kNumSyn; ++i) synUntouched[t][i].store(false);
 		for(int i = 0; i < kNumSlots; ++i) if(i != kSlotHostBpm) param[i].store(vals[i], std::memory_order_relaxed);
 		for(int i = 0; i < kSlotTempo; ++i) snap[i] = sn[i];
+		for(int t = 0; t < kTracks; ++t) muteGroup[t].store(mg[t] >= 0 && mg[t] < kTracks && mg[t] != t ? mg[t] : -1, std::memory_order_relaxed);
 		kitIdx = idx;
+		ctrResync();
 		defaultKitDone = true;	// a restored sound must not be replaced by the "fresh instance" default kit
 		return true;
 	}
@@ -554,12 +752,135 @@ struct Inst
 	}
 };
 
+// The skin's LCD art, filled in from the user's OS file (the Gen2 download ships <plugin folder>/skin-recipe/art.bin instead of art:
+// vst/skin_recipe.h).
+// Writes the images of every Machinemodule plugin folder found next to this one (the Module and its taps) that has not got them yet,
+// once (a marker file in each). MPC reads skins when it starts, so the new skin shows from the next start. No recipe: nothing to do.
+static void makeSkins(const std::string& dataDir, const std::vector<uint8_t>& section0)
+{
+	const auto cut = [](const std::string& p) { const size_t s = p.find_last_of('/'); return s == std::string::npos ? std::string(".") : p.substr(0, s); };
+	const std::string recipe = cut(dataDir) + "/skin-recipe/art.bin";	// <Synths>/<plugin folder>/skin-recipe (dataDir: .../machinedrum)
+	struct stat st{};
+	if(stat(recipe.c_str(), &st) != 0) return;
+	const std::string synths = cut(cut(dataDir));
+	const std::string stamp = std::to_string(section0.size()) + " " + std::to_string(st.st_size) + " " + std::to_string(st.st_mtime);
+	std::vector<std::string> made;
+	try
+	{
+		const auto bits = md::art::bits(md::art::read(section0));
+		std::string err;
+		const int n = md::skin::fill(recipe, bits, [&](const std::string&, const std::string& folder) -> std::string
+		{
+			const std::string dir = synths + "/" + folder;
+			if(!md::skin::isDir(dir)) return {};	// that plugin is not installed
+			std::vector<uint8_t> have;
+			if(md::skin::readFile(dir + "/" + md::skin::kMarker, have) && std::string(have.begin(), have.end()) == stamp) return {};
+			if(std::find(made.begin(), made.end(), dir) == made.end()) made.push_back(dir);
+			return dir;
+		}, err);
+		if(n < 0) { std::fprintf(stderr, "[machinedrum] skin: %s\n", err.c_str()); return; }
+		for(const auto& dir : made)
+			if(std::FILE* f = std::fopen((dir + "/" + md::skin::kMarker).c_str(), "w")) { std::fputs(stamp.c_str(), f); std::fclose(f); }
+		if(n) std::fprintf(stderr, "[machinedrum] skin: %d images made from your OS file (shown from MPC's next start)\n", n);
+	}
+	catch(const std::exception& e)
+	{
+		std::fprintf(stderr, "[machinedrum] skin: %s\n", e.what());
+	}
+}
+
+
+// The factory kits and the ROM machines' samples from the user's own flash image, made on the device the first time: if an 8 MB
+// .bin sits in the data folder (next to the OS file) and <plugin folder>/extract/mdextract is there, that helper boots the emulated MD
+// from it (about a minute) and dumps its kits and the voice DSP's memory; the kits become factory/FACTORY.syx and the memory that
+// differs from the engine's own becomes factory/ROM_SAMPLES.bin (tools/mdkits/romsamples.h), exactly what the full build ships.
+// Done once per image (a stamp file); a failure is remembered the same way. Returns true if ROM_SAMPLES.bin was made.
+template<class V>
+static bool extractFlash(const std::string& dataDir, V& voices)
+{
+	const auto cut = [](const std::string& p) { const size_t s = p.find_last_of('/'); return s == std::string::npos ? std::string(".") : p.substr(0, s); };
+	const std::string helper = cut(dataDir) + "/extract/mdextract", outDir = dataDir + "/factory";
+	struct stat st{};
+	if(stat(helper.c_str(), &st) != 0) return false;
+	chmod(helper.c_str(), 0755);	// a zip may not keep the mode
+	std::string image;
+	if(DIR* d = opendir(dataDir.c_str()))
+	{
+		while(const dirent* e = readdir(d))
+		{
+			const std::string n = e->d_name;
+			if(n.size() > 4 && !strcasecmp(n.c_str() + n.size() - 4, ".bin") && stat((dataDir + "/" + n).c_str(), &st) == 0 && st.st_size == 8 * 1024 * 1024)
+				image = dataDir + "/" + n;
+		}
+		closedir(d);
+	}
+	if(image.empty() || stat(image.c_str(), &st) != 0) return false;
+	const std::string stamp = std::to_string(st.st_size) + " " + std::to_string(st.st_mtime);
+	const std::string marker = outDir + "/.flash-stamp";
+	const auto readStamp = [&](const std::string& f) { char b[128] = {}; if(std::FILE* m = std::fopen(f.c_str(), "r")) { if(!std::fgets(b, sizeof b, m)) b[0] = 0; std::fclose(m); } return std::string(b); };
+	const auto writeStamp = [&](const std::string& f) { if(std::FILE* m = std::fopen(f.c_str(), "w")) { std::fputs(stamp.c_str(), m); std::fclose(m); } };
+	if(readStamp(outDir + "/.flash-failed") == stamp) return false;	// this image already failed once
+	struct stat so{};
+	const bool have = stat((outDir + "/ROM_SAMPLES.bin").c_str(), &so) == 0 && so.st_size > 0;
+	if(have && readStamp(marker) == stamp) return false;	// made already; the normal load picks it up
+	mkdir(outDir.c_str(), 0755);
+	const std::string dump = outDir + "/dsp2_hi.bin";
+	std::fprintf(stderr, "[machinedrum] making the factory kits and ROM samples from %s (about a minute, once)\n", image.c_str());
+	pid_t pid = 0;
+	// through sh: MPC's soft stack limit is 1 MB, which the emulator overruns; the helper gets the usual 8 MB
+	char* const argv[] = {const_cast<char*>("sh"), const_cast<char*>("-c"), const_cast<char*>("ulimit -s 8192; exec \"$0\" \"$1\" \"$2\""),
+		const_cast<char*>(helper.c_str()), const_cast<char*>(image.c_str()), const_cast<char*>(outDir.c_str()), nullptr};
+	const auto fail = [&](const char* why) { std::fprintf(stderr, "[machinedrum] flash image: %s\n", why); writeStamp(outDir + "/.flash-failed"); unlink(dump.c_str()); return false; };
+	posix_spawn_file_actions_t fa;	// the emulator is chatty: its output goes nowhere
+	posix_spawn_file_actions_init(&fa);
+	posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+	posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
+	char* const envp[] = {const_cast<char*>("PATH=/usr/bin:/bin"), nullptr};	// not MPC's: its LD_PRELOAD add-ins crash the helper
+	const int spawned = posix_spawn(&pid, "/bin/sh", &fa, nullptr, argv, envp);
+	posix_spawn_file_actions_destroy(&fa);
+	if(spawned != 0) return fail("cannot start mdextract");
+	// the helper runs at the lowest priority: MPC keeps its audio threads
+	setpriority(PRIO_PROCESS, static_cast<id_t>(pid), 19);
+	int status = 0;
+	while(waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+	if(!WIFEXITED(status) || WEXITSTATUS(status) != 0) return fail("mdextract failed");
+	std::vector<uint32_t> words;
+	if(std::FILE* f = std::fopen(dump.c_str(), "rb"))
+	{
+		std::fseek(f, 0, SEEK_END);
+		words.resize(static_cast<size_t>(std::ftell(f)) / 4);
+		std::fseek(f, 0, SEEK_SET);
+		if(std::fread(words.data(), 4, words.size(), f) != words.size()) words.clear();
+		std::fclose(f);
+	}
+	unlink(dump.c_str());
+	const auto runs = md::romsamples::diff(words, md::romsamples::kProgEnd, 0x800000, [&](uint32_t a) { return voices.readP(a); });
+	if(runs.empty()) return fail("no sample data in the dump");
+	std::FILE* o = std::fopen((outDir + "/ROM_SAMPLES.bin").c_str(), "wb");
+	if(!o) return fail("cannot write ROM_SAMPLES.bin");
+	std::fwrite("MDS1", 1, 4, o);
+	for(const auto& r : runs)
+	{
+		const uint32_t count = static_cast<uint32_t>(r.words.size());
+		std::fwrite(&r.address, 4, 1, o);
+		std::fwrite(&count, 4, 1, o);
+		std::fwrite(r.words.data(), 4, count, o);
+	}
+	const uint32_t zero[2] = {0, 0};
+	std::fwrite(zero, 4, 2, o);
+	std::fclose(o);
+	writeStamp(marker);
+	std::fprintf(stderr, "[machinedrum] factory kits and ROM samples made\n");
+	return true;
+}
+
 void Inst::run()
 {
 	try
 	{
 		const auto fwv = md::fw::loadFirmware(osPath);
 		auto c = md::fw::parseContainer(md::fw::parseSysex(md::fw::readFile(osPath)));
+		makeSkins(dataDir, c.sections.at(0).data);
 		int groups = kDefaultGroups;
 		if(const char* e = std::getenv("MD_GROUPS")) groups = std::atoi(e);
 		if(std::FILE* gf = std::fopen("/tmp/md-groups", "r"))	// A/B on the device without env: echo 1 > /tmp/md-groups, re-insert the plugin
@@ -570,7 +891,8 @@ void Inst::run()
 		}
 		Engine eng(fwv, std::move(c.sections.at(0).data), std::clamp(groups, 1, 4));
 		auto& h = eng.host();
-		// ROM machines: their samples, if the installer put the extracted sample memory in place
+		// ROM machines: their samples, if the installer put the extracted sample memory in place (or the user's flash image makes them)
+		extractFlash(dataDir, eng.voices());
 		if(loadSamples(eng.voices(), dataDir + "/factory/ROM_SAMPLES.bin") > 0)
 		{
 			romAvail = true;
@@ -661,11 +983,15 @@ void Inst::run()
 		int appliedFx[kTracks][kNumFx];
 		int appliedRoute[kTracks][kNumRoute];
 		int appliedSyn[kTracks][kNumSyn];
-		int appliedLevel[kTracks];
+		int appliedLevel[kTracks], appliedMuteGroup[kTracks], appliedMute[kTracks];
+		float meterDb[kTracks];	// the held peak, dBFS
 		int appliedLfo[kTracks][kNumLfo];
 		for(int t = 0; t < kTracks; ++t)
 		{
 			appliedMachine[t] = appliedEff[t] = appliedVol[t] = appliedPan[t] = appliedLevel[t] = -1;
+			appliedMuteGroup[t] = -2;
+			appliedMute[t] = -1;
+			meterDb[t] = -96.f;
 			for(int i = 0; i < kNumFx; ++i) appliedFx[t][i] = -1;
 			for(int i = 0; i < kNumRoute; ++i) appliedRoute[t][i] = -1;
 			for(int i = 0; i < kNumSyn; ++i) appliedSyn[t][i] = -1;
@@ -696,6 +1022,14 @@ void Inst::run()
 		double pTick = 0, pDsp = 0, pFx = 0, pMix = 0;	// stage timers at the last stats line (Engine::timingOn, only with stats on)
 		eng.timingOn = statsOn;
 		eng.voices().timingOn = statsOn;
+		std::array<std::array<uint8_t, 8>, 4> mfxKnobs{};
+		auto applyMasterFx = [&]
+		{
+			for(int f = 0; f < 4; ++f) for(int k = 0; k < 8; ++k) mfxKnobs[f][k] = static_cast<uint8_t>(std::clamp(param[kSlotMasterFx + f * 8 + k].load(std::memory_order_relaxed), 0, 127));
+			eng.setMasterFx(kMasterFxSupported && param[kSlotMasterOn].load(std::memory_order_relaxed) != 0, mfxKnobs);
+			masterFxActive.store(eng.masterFxOn(), std::memory_order_relaxed);
+		};
+		applyMasterFx();	// builds its DSP now, before the audio runs
 		ready.store(true);
 
 		while(!stop.load(std::memory_order_acquire))
@@ -712,8 +1046,24 @@ void Inst::run()
 			const int hostBpm = param[kSlotHostBpm].load(std::memory_order_relaxed);
 			const int tempo = hostBpm > 0 ? std::clamp(hostBpm, 3000, 30000) : std::clamp(param[kSlotTempo].load(std::memory_order_relaxed), 30, 300) * 100;
 			if(tempo != appliedTempo) { appliedTempo = tempo; h.setTempo(tempo / 100.0); }
+			applyMasterFx();
 			const int maxVoices = std::clamp(param[kSlotMaxVoices].load(std::memory_order_relaxed), 1, kTracks);
 			if(maxVoices != appliedMaxVoices) { appliedMaxVoices = maxVoices; h.setMaxActiveVoices(maxVoices); }
+			// CTR-8P: P1-P8 (its SYN1-8) are written into the (track, parameter) targets its parameters 9-24 name (track 0-15, parameter 0-23, clamped), every block,
+			// except into control machines; a target's own knob keeps its value (the override is only what the engine is given)
+			int ovr[kTracks][24];
+			for(auto& row : ovr) for(int& x : row) x = -1;
+			for(int c = 0; c < kTracks; ++c)
+			{
+				if(machineOf(c) != kCtr8P) continue;
+				const int cb = kSlotTrack + c * kSlotsPerTrack;
+				for(int k = 0; k < 8; ++k)
+				{
+					const int dt = std::clamp(param[cb + rawSlot(8 + 2 * k)].load(std::memory_order_relaxed), 0, kTracks - 1);
+					const int dp = std::clamp(param[cb + rawSlot(9 + 2 * k)].load(std::memory_order_relaxed), 0, 23);
+					if(!isControlMachine(machineOf(dt))) ovr[dt][dp] = std::clamp(param[cb + kSlotSyn + k].load(std::memory_order_relaxed), 0, 127);
+				}
+			}
 			for(int t = 0; t < kTracks; ++t)
 			{
 				const int m = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 0].load(std::memory_order_relaxed), 0, 191);
@@ -743,7 +1093,7 @@ void Inst::run()
 						for(int i = 0; i < kNumSyn; ++i) appliedSyn[t][i] = -1;
 					}
 				}
-				const int vol = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 1].load(std::memory_order_relaxed), 0, 127);
+				const int vol = ovr[t][17] >= 0 ? ovr[t][17] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 1].load(std::memory_order_relaxed), 0, 127);
 				// VOL (param 17, read by the mixer's own gain formula) - not setLevel(), a separate kit LEV
 				// knob (HostModel.h) that also gates level but isn't what mdrender.cpp's working demo kit uses.
 				if(vol != appliedVol[t]) { appliedVol[t] = vol; h.setParam(t, 17, vol); }
@@ -760,21 +1110,29 @@ void Inst::run()
 				}
 				const int lev = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + kSlotLevel].load(std::memory_order_relaxed), 0, 127);
 				if(lev != appliedLevel[t]) { appliedLevel[t] = lev; h.setLevel(t, lev); }
-				const int pan = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 2].load(std::memory_order_relaxed), 0, 127);
+				{
+					bool anySolo = false;
+					for(int u = 0; u < kTracks; ++u) anySolo |= param[kSlotSolo + u].load(std::memory_order_relaxed) != 0;
+					const int mute = param[kSlotMute + t].load(std::memory_order_relaxed) != 0 || (anySolo && !param[kSlotSolo + t].load(std::memory_order_relaxed)) ? 1 : 0;
+					if(mute != appliedMute[t]) { appliedMute[t] = mute; h.setMute(t, mute != 0); }
+				}
+				const int mg = muteGroup[t].load(std::memory_order_relaxed);
+				if(mg != appliedMuteGroup[t]) { appliedMuteGroup[t] = mg; h.setMuteGroup(t, mg); }
+				const int pan = ovr[t][18] >= 0 ? ovr[t][18] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 2].load(std::memory_order_relaxed), 0, 127);
 				if(pan != appliedPan[t]) { appliedPan[t] = pan; h.setParam(t, 18, pan); }
 				for(int i = 0; i < kNumFx; ++i)
 				{
-					const int v = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + i].load(std::memory_order_relaxed), 0, 127);
+					const int v = ovr[t][kFxRawParamBase + i] >= 0 ? ovr[t][kFxRawParamBase + i] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + i].load(std::memory_order_relaxed), 0, 127);
 					if(v != appliedFx[t][i]) { appliedFx[t][i] = v; h.setParam(t, kFxRawParamBase + i, v); }
 				}
 				for(int i = 0; i < kNumRoute; ++i)
 				{
-					const int v = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + kNumFx + i].load(std::memory_order_relaxed), 0, 127);
+					const int v = ovr[t][kRouteRawParam[i]] >= 0 ? ovr[t][kRouteRawParam[i]] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + 3 + kNumFx + i].load(std::memory_order_relaxed), 0, 127);
 					if(v != appliedRoute[t][i]) { appliedRoute[t][i] = v; h.setParam(t, kRouteRawParam[i], v); }
 				}
 				for(int i = 0; i < kNumSyn; ++i)
 				{
-					const int v = std::clamp(param[kSlotTrack + t * kSlotsPerTrack + kSlotSyn + i].load(std::memory_order_relaxed), 0, 127);
+					const int v = ovr[t][i] >= 0 ? ovr[t][i] : std::clamp(param[kSlotTrack + t * kSlotsPerTrack + kSlotSyn + i].load(std::memory_order_relaxed), 0, 127);
 					if(v != appliedSyn[t][i]) { appliedSyn[t][i] = v; h.setParam(t, i, v); }
 				}
 			}
@@ -796,6 +1154,7 @@ void Inst::run()
 			}
 			int16_t* dst = ring[w % kRing];
 			const auto t0 = std::chrono::steady_clock::now();
+			int32_t peak[kTracks] = {};
 			for(int i = 0; i < kInner; ++i)
 			{
 				if(!eng.render(out))
@@ -809,6 +1168,12 @@ void Inst::run()
 					// 24-bit -> 16-bit
 					dst[2 * idx + 0] = static_cast<int16_t>(std::clamp(out.mix.main[f][0] >> 8, -32768, 32767));
 					dst[2 * idx + 1] = static_cast<int16_t>(std::clamp(out.mix.main[f][1] >> 8, -32768, 32767));
+				}
+				for(int t = 0; t < kTracks; ++t)
+				{
+					const uint32_t vol = h.mixerInput(t).mix[1];
+					if(!vol) continue;
+					for(int f = 0; f < Engine::kBlock; ++f) peak[t] = std::max(peak[t], std::abs(md::engine::Mixer::solo(out.tracks[t][f], vol)));
 				}
 				if(tapOwner)
 				{
@@ -828,6 +1193,18 @@ void Inst::run()
 						planes[mdtap::kPlaneDel + 1][i * Engine::kBlock + f] = q(out.mix.del[f][1]);
 					}
 				}
+			}
+			{
+				constexpr float kFall = 24.f * kInner * Engine::kBlock / 44100.f;	// dB per ring block
+				bool moved = false;
+				for(int t = 0; t < kTracks; ++t)
+				{
+					const float db = peak[t] > 0 ? 20.f * std::log10(static_cast<float>(peak[t]) / 8388608.f) : -96.f;
+					meterDb[t] = std::max(db, meterDb[t] - kFall);
+					const int v = std::clamp(static_cast<int>(std::lround((meterDb[t] + 48.f) * 127.f / 48.f)), 0, 127);
+					if(v != meter[t].load(std::memory_order_relaxed)) { meter[t].store(v, std::memory_order_relaxed); moved = true; }
+				}
+				if(moved) displayRev.fetch_add(1, std::memory_order_relaxed);
 			}
 			if(tapOwner) g_tap.written.store(w + 1, std::memory_order_release);
 			rWrite.store(w + 1, std::memory_order_release);
@@ -955,6 +1332,10 @@ void eSet(void* p, const char* key, const char* val)
 	}
 	// momentary actions (the wrapper springs them back; they read back as 0)
 	const bool on = std::atof(val) > 0.5;
+	if(!std::strcmp(key, "bank_pick")) { const int k = static_cast<int>(std::lround(std::atof(val))); if(k >= 0 && k < Inst::kBankSlots) in->selectBank(in->bankPage() * Inst::kBankSlots + k); return; }
+	if(!std::strcmp(key, "kit_pick")) { in->pickKit(static_cast<int>(std::lround(std::atof(val)))); return; }
+	if(!std::strcmp(key, "bank_pgprev") || !std::strcmp(key, "bank_pgnext")) { if(on) in->stepBankPage(key[7] == 'n' ? 1 : -1); return; }
+	if(!std::strcmp(key, "kit_pgprev") || !std::strcmp(key, "kit_pgnext")) { if(on) in->stepKitPage(key[6] == 'n' ? 1 : -1); return; }
 	if(!std::strcmp(key, "kit_prev") || !std::strcmp(key, "kit_next")) { if(on) in->stepKit(key[4] == 'n' ? 1 : -1); return; }
 	if(!std::strcmp(key, "bank_prev") || !std::strcmp(key, "bank_next")) { if(on) in->stepBank(key[5] == 'n' ? 1 : -1); return; }
 	if(!std::strcmp(key, "randomize_all")) { if(on) in->randomiseMachines(0, 15); return; }
@@ -978,7 +1359,8 @@ void eSet(void* p, const char* key, const char* val)
 	else
 	{
 		if(s >= kSlotSyn) in->synUntouched[t][s - kSlotSyn].store(false);
-		in->param[slot].store(v, std::memory_order_relaxed);
+		const int old = in->param[slot].exchange(v, std::memory_order_relaxed);
+		if(s >= kSlotSyn && s < kSlotSyn + kNumSyn) in->ctrSynMoved(t, s - kSlotSyn, old, v);
 	}
 }
 
@@ -989,6 +1371,26 @@ int eGet(void* p, const char* key, char* buf, int bufLen)
 	if(!std::strcmp(key, "state")) return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", in->saveState().c_str()) > 0;
 	if(!std::strcmp(key, "kit_name")) return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", in->kitLabel().c_str()) > 0;
 	if(!std::strcmp(key, "bank_name")) return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", in->bankLabel().c_str()) > 0;
+	if(!std::strcmp(key, "bank_pick"))
+	{
+		const int k = in->bankIndex() - in->bankPage() * Inst::kBankSlots;
+		return std::snprintf(buf, static_cast<size_t>(bufLen), "%d", k >= 0 && k < Inst::kBankSlots ? k : Inst::kBankSlots) > 0;
+	}
+	if(!std::strcmp(key, "kit_pick"))
+	{
+		const int k = in->kitIdx - in->kitPage() * Inst::kKitSlots;
+		return std::snprintf(buf, static_cast<size_t>(bufLen), "%d", in->kitIdx >= 0 && k >= 0 && k < Inst::kKitSlots ? k : Inst::kKitSlots) > 0;
+	}
+	if(!std::strncmp(key, "bank_s", 6) && std::isdigit(static_cast<unsigned char>(key[6])))
+	{
+		const auto banks = in->bankList();
+		const size_t k = static_cast<size_t>(in->bankPage() * Inst::kBankSlots + std::atoi(key + 6));
+		return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", k >= banks.size() ? "" : k == 0 ? "ALL" : banks[k].c_str()) >= 0;
+	}
+	if(!std::strncmp(key, "kit_s", 5) && std::isdigit(static_cast<unsigned char>(key[5])))
+		return std::snprintf(buf, static_cast<size_t>(bufLen), "%s", in->kitEntry(std::atoi(key + 5)).c_str()) >= 0;
+	if(!std::strcmp(key, "bank_page")) return std::snprintf(buf, static_cast<size_t>(bufLen), "PAGE %d/%d", in->bankPage() + 1, std::max(in->bankPages(), 1)) > 0;
+	if(!std::strcmp(key, "kit_page")) return std::snprintf(buf, static_cast<size_t>(bufLen), "PAGE %d/%d", in->kitPage() + 1, std::max(in->kitPages(), 1)) > 0;
 	if(!std::strncmp(key, "kit_", 4) || !std::strncmp(key, "bank_", 5) || !std::strncmp(key, "randomize_", 10))
 		return std::snprintf(buf, static_cast<size_t>(bufLen), "0") > 0;	// momentary: always reads back off
 	if(!std::strcmp(key, "ready"))
@@ -997,6 +1399,13 @@ int eGet(void* p, const char* key, char* buf, int bufLen)
 		return std::snprintf(buf, static_cast<size_t>(bufLen), "%u", in->underruns.load(std::memory_order_relaxed)) > 0;
 	if(!std::strcmp(key, "blocks"))
 		return std::snprintf(buf, static_cast<size_t>(bufLen), "%u", in->blocks.load(std::memory_order_relaxed)) > 0;
+	if(!std::strcmp(key, "display_rev"))
+		return std::snprintf(buf, static_cast<size_t>(bufLen), "%u", in->displayRev.load(std::memory_order_relaxed)) > 0;
+	{
+		int t = -1, n = 0;
+		if(std::sscanf(key, "track%d_meter%n", &t, &n) == 1 && key[n] == '\0' && t >= 0 && t < kTracks)
+			return std::snprintf(buf, static_cast<size_t>(bufLen), "%d", in->meter[t].load(std::memory_order_relaxed)) > 0;
+	}
 	if(!std::strcmp(key, "core"))
 		return std::snprintf(buf, static_cast<size_t>(bufLen), "%d", in->core.load(std::memory_order_relaxed)) > 0;
 	// "track<N>_lfo_param_display": the LFO destination's label, as the MD shows it (params.json dynamic_display)

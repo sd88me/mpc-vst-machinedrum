@@ -16,8 +16,9 @@ apply() { if git -C "$1" apply --reverse --check "$2" >/dev/null 2>&1; then echo
 apply "$GM" "$HERE/gearmulator-md-mm.patch"
 apply "$GM/source/dsp56300" "$HERE/dsp56300-md-mm.patch"
 cp "$HERE/mdProbe.cpp" "$HERE/mdTraceTool.cpp" source/elektron/md/mdLibTest/
+cp "$ROOT/tools/mdkits/mdextract.cpp" source/elektron/md/mdLibTest/mdExtract.cpp
 [ -n "${MDPROBE_PREPARE_ONLY:-}" ] && { echo "mdProbe sources prepared in $GM"; exit 0; }	# schwung/scripts/build.sh cross-builds it itself
 # MDPROBE_CMAKE_ARGS adds cmake arguments (CI: the static C runtime on Windows). MDPROBE_GENERATOR overrides the generator (default Ninja; on Windows run from a Visual Studio developer prompt, or let CI set it up)
 cmake -S . -B build -G "${MDPROBE_GENERATOR:-Ninja}" -DCMAKE_BUILD_TYPE=RelWithDebInfo -Dgearmulator_BUILD_JUCEPLUGIN=OFF -Dgearmulator_BUILD_JUCEPLUGIN_CLAP=OFF -DBUILD_TESTING=ON ${MDPROBE_CMAKE_ARGS:-} >/dev/null
-cmake --build build --config RelWithDebInfo --target mdProbe
+cmake --build build --config RelWithDebInfo --target mdProbe mdExtract
 echo "mdProbe: $GM/build/source/elektron/md/mdLibTest/mdProbe"

@@ -37,7 +37,7 @@ sections = []
 for t in range(16):
     keys = []
     params.append({"key": "track%d_machine" % t, "name": "T%d Machine" % (t + 1), "min": 0, "max": 191,
-                    "default": 0, "display": "int"})
+                    "default": 0, "display": "int", "refresh_display": True})
     keys.append("track%d_machine" % t)
     params.append({"key": "track%d_vol" % t, "name": "T%d Vol" % (t + 1), "min": 0, "max": 127,
                     "default": 100, "display": "int"})
@@ -56,7 +56,7 @@ for t in range(16):
     sections.append(("TRACK %d" % (t + 1), keys))
 
 params.append({"key": "tempo", "name": "Tempo", "min": 30, "max": 300, "default": 120, "display": "int"})
-params.append({"key": "max_voices", "name": "Voice Budget", "min": 1, "max": 16, "default": 6, "display": "int"})
+params.append({"key": "max_voices", "name": "Voice Budget", "min": 1, "max": 16, "default": 16, "display": "int"})
 sections.append(("GLOBAL", ["tempo", "max_voices", "rom_enabled"]))
 
 # Machine picker "open" flags (HANDOFF.md, "Machine picker: duplicating Monomodule's own design").
@@ -87,9 +87,10 @@ for t in range(16):
 # The track's LFO page (engine.cpp kLfoKeys), appended last. lfo_param's shown text is the destination's own label
 # ("dynamic_display": the wrapper asks the DSP for "<key>_display").
 for t in range(16):
-    params.append({"key": "track%d_lfo_track" % t, "name": "T%d LFO Track" % (t + 1), "min": 0, "max": 15, "default": t, "display": "int"})
+    params.append({"key": "track%d_lfo_track" % t, "name": "T%d LFO Track" % (t + 1), "min": 0, "max": 15, "default": t, "display": "int",
+                   "refresh_display": True})
     params.append({"key": "track%d_lfo_param" % t, "name": "T%d LFO Param" % (t + 1), "min": 0, "max": 23, "default": 0, "display": "int",
-                   "dynamic_display": True})
+                   "dynamic_display": True, "refresh_display": True})
     params.append({"key": "track%d_lfo_shp1" % t, "name": "T%d LFO Shape 1" % (t + 1), "min": 0, "max": 5, "default": 0, "display": "int"})
     params.append({"key": "track%d_lfo_shp2" % t, "name": "T%d LFO Shape 2" % (t + 1), "min": 0, "max": 5, "default": 0, "display": "int"})
     params.append({"key": "track%d_lfo_type" % t, "name": "T%d LFO Update" % (t + 1), "min": 0, "max": 2, "default": 0, "display": "int"})
@@ -109,6 +110,37 @@ for key, name in (("randomize_all", "Randomise Machines"), ("randomize_1_8", "Ra
 # ROM machines on/off (appended, like every later param, to keep the indices of saved projects). Off: tracks on a ROM
 # machine stay silent (engine.cpp swaps in the empty machine; the track keeps its ROM setting for when it is back on).
 params.append({"key": "rom_enabled", "name": "ROM Machines", "options": ["OFF", "ON"], "default": 1})
+
+# the bank and kit pop-up lists (appended last, never reorder): per list an open flag, the pick (entry K of the page, "-" = none),
+# the live-text slots, a pager and its text. Bank list 3 x 8, kit list 4 x 8.
+BANK_SLOTS, KIT_SLOTS = 24, 32
+for lst, n_, label in (("bank", BANK_SLOTS, "Bank"), ("kit", KIT_SLOTS, "Kit")):
+    params.append({"key": "%s_open" % lst, "name": "%s List" % label, "options": ["Closed", "Open"], "default": 0, "popup_of": "%s_pick" % lst})
+    params.append({"key": "%s_pick" % lst, "name": "%s Pick" % label, "options": [str(k + 1) for k in range(n_)] + ["-"], "default": n_})
+    for k in range(n_):
+        params.append({"key": "%s_s%d" % (lst, k), "name": "%s %d" % (label, k + 1), "min": 0, "max": 0, "display": "string"})
+    params.append({"key": "%s_pgprev" % lst, "name": "%s Page Prev" % label, "min": 0, "max": 1, "momentary": True})
+    params.append({"key": "%s_pgnext" % lst, "name": "%s Page Next" % label, "min": 0, "max": 1, "momentary": True})
+    params.append({"key": "%s_page" % lst, "name": "%s Page" % label, "min": 0, "max": 0, "display": "string"})
+# The mixer page (ModuleDrum's): MUTE / SOLO per track (engine.cpp kSlotMute / kSlotSolo, saved with the instance), and a
+# meter the engine drives (the track's peak after VOL, 0-127 = -48..0 dBFS; vst.json HAS_DISPLAY_REV reports it). Appended last.
+for t in range(16):
+    params.append({"key": "track%d_mute" % t, "name": "T%d Mute" % (t + 1), "options": ["OFF", "ON"], "default": 0})
+    params.append({"key": "track%d_solo" % t, "name": "T%d Solo" % (t + 1), "options": ["OFF", "ON"], "default": 0})
+for t in range(16):
+    params.append({"key": "track%d_meter" % t, "name": "T%d Meter" % (t + 1), "min": 0, "max": 127, "default": 0, "display": "int"})
+
+# The master effects (engine/MasterFx: DSP1's own master section, Gen2 only; the kit's 4 x 8 master knobs): master_fx on/off (on by
+# default) then rv1-8 reverb (Gate Box), dl1-8 delay (Rhythm Echo), eq1-8, dx1-8 dynamix. Appended last. Defaults: engine.cpp kMasterDefaults.
+params.append({"key": "master_fx", "name": "Master FX", "options": ["OFF", "ON"], "default": 1})
+MASTER = [("rv", "REV", ["DVOL", "PRED", "DEC", "DAMP", "HP", "LP", "GATE", "LEV"], [0, 0, 64, 64, 0, 127, 127, 127]),
+          ("dl", "DEL", ["TIME", "MOD", "MFRQ", "FB", "FLTF", "FLTW", "MONO", "LEV"], [24, 0, 0, 32, 0, 127, 0, 127]),
+          ("eq", "EQ", ["LF", "LG", "HF", "HG", "PF", "PG", "PQ", "GAIN"], [64] * 8),
+          ("dx", "DYN", ["ATCK", "REL", "TRHD", "RTIO", "KNEE", "HP", "OUTG", "MIX"], [0, 64, 127, 0, 0, 0, 64, 0])]
+for pre, nm, labels, defs_ in MASTER:
+    for k in range(8):
+        params.append({"key": "%s%d" % (pre, k + 1), "name": "%s %s" % (nm, labels[k]), "min": 0, "max": 127, "default": defs_[k], "display": "int"})
+sections.append(("MASTER FX", ["master_fx"] + ["%s%d" % (m[0], k + 1) for m in MASTER for k in range(8)]))
 
 json.dump({"name": "Machinemodule", "params": params,
            "sections": [{"label": l, "keys": k} for l, k in sections]},

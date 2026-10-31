@@ -180,7 +180,7 @@ void fill(Tap* t, int16_t* out, int frames)
 
 void eRender(void* p, int16_t* out, int frames) { fill(static_cast<Tap*>(p), out, frames); }
 
-// The effect build ("Machinemodule Tap FX", on an MPC return/FX track): its output is the tapped source, plus the input it
+// The effect build ("Machinemodule Tap", on an MPC return/FX track): its output is the tapped source, plus the input it
 // was given when "through" is on, so MPC's own insert effects after it process the Machinedrum's reverb or delay send.
 void eProcess(void* p, const int16_t* in, int16_t* out, int frames)
 {

@@ -7,7 +7,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track0_vol",
@@ -143,7 +144,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track1_vol",
@@ -279,7 +281,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track2_vol",
@@ -415,7 +418,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track3_vol",
@@ -551,7 +555,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track4_vol",
@@ -687,7 +692,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track5_vol",
@@ -823,7 +829,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track6_vol",
@@ -959,7 +966,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track7_vol",
@@ -1095,7 +1103,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track8_vol",
@@ -1231,7 +1240,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track9_vol",
@@ -1367,7 +1377,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track10_vol",
@@ -1503,7 +1514,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track11_vol",
@@ -1639,7 +1651,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track12_vol",
@@ -1775,7 +1788,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track13_vol",
@@ -1911,7 +1925,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track14_vol",
@@ -2047,7 +2062,8 @@
    "min": 0,
    "max": 191,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track15_vol",
@@ -2190,7 +2206,7 @@
    "name": "Voice Budget",
    "min": 1,
    "max": 16,
-   "default": 6,
+   "default": 16,
    "display": "int"
   },
   {
@@ -3623,7 +3639,8 @@
    "min": 0,
    "max": 15,
    "default": 0,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track0_lfo_param",
@@ -3632,7 +3649,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track0_lfo_shp1",
@@ -3664,7 +3682,8 @@
    "min": 0,
    "max": 15,
    "default": 1,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track1_lfo_param",
@@ -3673,7 +3692,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track1_lfo_shp1",
@@ -3705,7 +3725,8 @@
    "min": 0,
    "max": 15,
    "default": 2,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track2_lfo_param",
@@ -3714,7 +3735,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track2_lfo_shp1",
@@ -3746,7 +3768,8 @@
    "min": 0,
    "max": 15,
    "default": 3,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track3_lfo_param",
@@ -3755,7 +3778,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track3_lfo_shp1",
@@ -3787,7 +3811,8 @@
    "min": 0,
    "max": 15,
    "default": 4,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track4_lfo_param",
@@ -3796,7 +3821,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track4_lfo_shp1",
@@ -3828,7 +3854,8 @@
    "min": 0,
    "max": 15,
    "default": 5,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track5_lfo_param",
@@ -3837,7 +3864,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track5_lfo_shp1",
@@ -3869,7 +3897,8 @@
    "min": 0,
    "max": 15,
    "default": 6,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track6_lfo_param",
@@ -3878,7 +3907,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track6_lfo_shp1",
@@ -3910,7 +3940,8 @@
    "min": 0,
    "max": 15,
    "default": 7,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track7_lfo_param",
@@ -3919,7 +3950,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track7_lfo_shp1",
@@ -3951,7 +3983,8 @@
    "min": 0,
    "max": 15,
    "default": 8,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track8_lfo_param",
@@ -3960,7 +3993,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track8_lfo_shp1",
@@ -3992,7 +4026,8 @@
    "min": 0,
    "max": 15,
    "default": 9,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track9_lfo_param",
@@ -4001,7 +4036,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track9_lfo_shp1",
@@ -4033,7 +4069,8 @@
    "min": 0,
    "max": 15,
    "default": 10,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track10_lfo_param",
@@ -4042,7 +4079,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track10_lfo_shp1",
@@ -4074,7 +4112,8 @@
    "min": 0,
    "max": 15,
    "default": 11,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track11_lfo_param",
@@ -4083,7 +4122,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track11_lfo_shp1",
@@ -4115,7 +4155,8 @@
    "min": 0,
    "max": 15,
    "default": 12,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track12_lfo_param",
@@ -4124,7 +4165,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track12_lfo_shp1",
@@ -4156,7 +4198,8 @@
    "min": 0,
    "max": 15,
    "default": 13,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track13_lfo_param",
@@ -4165,7 +4208,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track13_lfo_shp1",
@@ -4197,7 +4241,8 @@
    "min": 0,
    "max": 15,
    "default": 14,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track14_lfo_param",
@@ -4206,7 +4251,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track14_lfo_shp1",
@@ -4238,7 +4284,8 @@
    "min": 0,
    "max": 15,
    "default": 15,
-   "display": "int"
+   "display": "int",
+   "refresh_display": true
   },
   {
    "key": "track15_lfo_param",
@@ -4247,7 +4294,8 @@
    "max": 23,
    "default": 0,
    "display": "int",
-   "dynamic_display": true
+   "dynamic_display": true,
+   "refresh_display": true
   },
   {
    "key": "track15_lfo_shp1",
@@ -4367,6 +4415,1213 @@
     "ON"
    ],
    "default": 1
+  },
+  {
+   "key": "bank_open",
+   "name": "Bank List",
+   "options": [
+    "Closed",
+    "Open"
+   ],
+   "default": 0,
+   "popup_of": "bank_pick"
+  },
+  {
+   "key": "bank_pick",
+   "name": "Bank Pick",
+   "options": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "-"
+   ],
+   "default": 24
+  },
+  {
+   "key": "bank_s0",
+   "name": "Bank 1",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s1",
+   "name": "Bank 2",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s2",
+   "name": "Bank 3",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s3",
+   "name": "Bank 4",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s4",
+   "name": "Bank 5",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s5",
+   "name": "Bank 6",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s6",
+   "name": "Bank 7",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s7",
+   "name": "Bank 8",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s8",
+   "name": "Bank 9",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s9",
+   "name": "Bank 10",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s10",
+   "name": "Bank 11",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s11",
+   "name": "Bank 12",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s12",
+   "name": "Bank 13",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s13",
+   "name": "Bank 14",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s14",
+   "name": "Bank 15",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s15",
+   "name": "Bank 16",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s16",
+   "name": "Bank 17",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s17",
+   "name": "Bank 18",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s18",
+   "name": "Bank 19",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s19",
+   "name": "Bank 20",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s20",
+   "name": "Bank 21",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s21",
+   "name": "Bank 22",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s22",
+   "name": "Bank 23",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_s23",
+   "name": "Bank 24",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_pgprev",
+   "name": "Bank Page Prev",
+   "min": 0,
+   "max": 1,
+   "momentary": true
+  },
+  {
+   "key": "bank_pgnext",
+   "name": "Bank Page Next",
+   "min": 0,
+   "max": 1,
+   "momentary": true
+  },
+  {
+   "key": "bank_page",
+   "name": "Bank Page",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_open",
+   "name": "Kit List",
+   "options": [
+    "Closed",
+    "Open"
+   ],
+   "default": 0,
+   "popup_of": "kit_pick"
+  },
+  {
+   "key": "kit_pick",
+   "name": "Kit Pick",
+   "options": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "-"
+   ],
+   "default": 32
+  },
+  {
+   "key": "kit_s0",
+   "name": "Kit 1",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s1",
+   "name": "Kit 2",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s2",
+   "name": "Kit 3",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s3",
+   "name": "Kit 4",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s4",
+   "name": "Kit 5",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s5",
+   "name": "Kit 6",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s6",
+   "name": "Kit 7",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s7",
+   "name": "Kit 8",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s8",
+   "name": "Kit 9",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s9",
+   "name": "Kit 10",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s10",
+   "name": "Kit 11",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s11",
+   "name": "Kit 12",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s12",
+   "name": "Kit 13",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s13",
+   "name": "Kit 14",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s14",
+   "name": "Kit 15",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s15",
+   "name": "Kit 16",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s16",
+   "name": "Kit 17",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s17",
+   "name": "Kit 18",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s18",
+   "name": "Kit 19",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s19",
+   "name": "Kit 20",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s20",
+   "name": "Kit 21",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s21",
+   "name": "Kit 22",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s22",
+   "name": "Kit 23",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s23",
+   "name": "Kit 24",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s24",
+   "name": "Kit 25",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s25",
+   "name": "Kit 26",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s26",
+   "name": "Kit 27",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s27",
+   "name": "Kit 28",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s28",
+   "name": "Kit 29",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s29",
+   "name": "Kit 30",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s30",
+   "name": "Kit 31",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_s31",
+   "name": "Kit 32",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "kit_pgprev",
+   "name": "Kit Page Prev",
+   "min": 0,
+   "max": 1,
+   "momentary": true
+  },
+  {
+   "key": "kit_pgnext",
+   "name": "Kit Page Next",
+   "min": 0,
+   "max": 1,
+   "momentary": true
+  },
+  {
+   "key": "kit_page",
+   "name": "Kit Page",
+   "min": 0,
+   "max": 0,
+   "display": "string"
+  },
+  {
+   "key": "track0_mute",
+   "name": "T1 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track0_solo",
+   "name": "T1 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track1_mute",
+   "name": "T2 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track1_solo",
+   "name": "T2 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track2_mute",
+   "name": "T3 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track2_solo",
+   "name": "T3 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track3_mute",
+   "name": "T4 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track3_solo",
+   "name": "T4 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track4_mute",
+   "name": "T5 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track4_solo",
+   "name": "T5 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track5_mute",
+   "name": "T6 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track5_solo",
+   "name": "T6 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track6_mute",
+   "name": "T7 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track6_solo",
+   "name": "T7 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track7_mute",
+   "name": "T8 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track7_solo",
+   "name": "T8 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track8_mute",
+   "name": "T9 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track8_solo",
+   "name": "T9 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track9_mute",
+   "name": "T10 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track9_solo",
+   "name": "T10 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track10_mute",
+   "name": "T11 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track10_solo",
+   "name": "T11 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track11_mute",
+   "name": "T12 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track11_solo",
+   "name": "T12 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track12_mute",
+   "name": "T13 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track12_solo",
+   "name": "T13 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track13_mute",
+   "name": "T14 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track13_solo",
+   "name": "T14 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track14_mute",
+   "name": "T15 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track14_solo",
+   "name": "T15 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track15_mute",
+   "name": "T16 Mute",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track15_solo",
+   "name": "T16 Solo",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 0
+  },
+  {
+   "key": "track0_meter",
+   "name": "T1 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track1_meter",
+   "name": "T2 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track2_meter",
+   "name": "T3 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track3_meter",
+   "name": "T4 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track4_meter",
+   "name": "T5 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track5_meter",
+   "name": "T6 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track6_meter",
+   "name": "T7 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track7_meter",
+   "name": "T8 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track8_meter",
+   "name": "T9 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track9_meter",
+   "name": "T10 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track10_meter",
+   "name": "T11 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track11_meter",
+   "name": "T12 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track12_meter",
+   "name": "T13 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track13_meter",
+   "name": "T14 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track14_meter",
+   "name": "T15 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "track15_meter",
+   "name": "T16 Meter",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "master_fx",
+   "name": "Master FX",
+   "options": [
+    "OFF",
+    "ON"
+   ],
+   "default": 1
+  },
+  {
+   "key": "rv1",
+   "name": "REV DVOL",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "rv2",
+   "name": "REV PRED",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "rv3",
+   "name": "REV DEC",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "rv4",
+   "name": "REV DAMP",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "rv5",
+   "name": "REV HP",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "rv6",
+   "name": "REV LP",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "rv7",
+   "name": "REV GATE",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "rv8",
+   "name": "REV LEV",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "dl1",
+   "name": "DEL TIME",
+   "min": 0,
+   "max": 127,
+   "default": 24,
+   "display": "int"
+  },
+  {
+   "key": "dl2",
+   "name": "DEL MOD",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl3",
+   "name": "DEL MFRQ",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl4",
+   "name": "DEL FB",
+   "min": 0,
+   "max": 127,
+   "default": 32,
+   "display": "int"
+  },
+  {
+   "key": "dl5",
+   "name": "DEL FLTF",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl6",
+   "name": "DEL FLTW",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "dl7",
+   "name": "DEL MONO",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dl8",
+   "name": "DEL LEV",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "eq1",
+   "name": "EQ LF",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq2",
+   "name": "EQ LG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq3",
+   "name": "EQ HF",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq4",
+   "name": "EQ HG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq5",
+   "name": "EQ PF",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq6",
+   "name": "EQ PG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq7",
+   "name": "EQ PQ",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "eq8",
+   "name": "EQ GAIN",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "dx1",
+   "name": "DYN ATCK",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx2",
+   "name": "DYN REL",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "dx3",
+   "name": "DYN TRHD",
+   "min": 0,
+   "max": 127,
+   "default": 127,
+   "display": "int"
+  },
+  {
+   "key": "dx4",
+   "name": "DYN RTIO",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx5",
+   "name": "DYN KNEE",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx6",
+   "name": "DYN HP",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "dx7",
+   "name": "DYN OUTG",
+   "min": 0,
+   "max": 127,
+   "default": 64,
+   "display": "int"
+  },
+  {
+   "key": "dx8",
+   "name": "DYN MIX",
+   "min": 0,
+   "max": 127,
+   "default": 0,
+   "display": "int"
   }
  ],
  "sections": [
@@ -4728,6 +5983,44 @@
     "tempo",
     "max_voices",
     "rom_enabled"
+   ]
+  },
+  {
+   "label": "MASTER FX",
+   "keys": [
+    "master_fx",
+    "rv1",
+    "rv2",
+    "rv3",
+    "rv4",
+    "rv5",
+    "rv6",
+    "rv7",
+    "rv8",
+    "dl1",
+    "dl2",
+    "dl3",
+    "dl4",
+    "dl5",
+    "dl6",
+    "dl7",
+    "dl8",
+    "eq1",
+    "eq2",
+    "eq3",
+    "eq4",
+    "eq5",
+    "eq6",
+    "eq7",
+    "eq8",
+    "dx1",
+    "dx2",
+    "dx3",
+    "dx4",
+    "dx5",
+    "dx6",
+    "dx7",
+    "dx8"
    ]
   }
  ]

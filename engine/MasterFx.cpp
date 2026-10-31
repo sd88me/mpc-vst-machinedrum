@@ -16,17 +16,41 @@ namespace md::engine
 	namespace
 	{
 		constexpr TWord kSizeP = 0x800000, kSizeXY = 0x800000, kBridge = 0x020000;
-		// DSP1 state after the ColdFire's first-stage loader, read from a running gearmulator-md-mm (OS 1.63), as tools/mdmix/MixerRef
+		// DSP1 state after the ColdFire's first-stage loader, read from a running gearmulator-md-mm (OS 1.63)
 		constexpr TWord kAar[4] = {0x100539, 0x140639, 0x180539, 0x1c0639};
 		constexpr TWord kOmr = 0x00490d;
-		constexpr TWord kEntry = 0x24;			// sr = $300, jsr $100000 (init), then unmask and wait for the link DMA
-		constexpr TWord kAfterInit = 0x2d;
-		constexpr TWord kMasterStart = 0x342;	// the master section; the mix before it is engine/Mixer
-		constexpr TWord kOutputEnd = 0x9a8;		// after the output stage's last store (a `bra` back to the main loop)
-		constexpr TWord kEqStart = 0x67c;		// the EQ's coefficients, after the reverb and echo returns are added to the main mix
-		constexpr TWord kDynamixEnd = 0x96f;	// after the dynamix: the output stage follows
-		constexpr TWord kMain = 0x180, kRev = 0x1c0, kDel = 0x600, kFrames = 0x400, kFramePtr = 0x640;
-		constexpr TWord kParamA = 0x150, kParamB = 0x170;
+		constexpr TWord kEntry = 0x24, kAfterInit = 0x2d;
+		constexpr TWord kMasterStart = 0x342;	// after the mix (P:$294-$341), which engine/Mixer does natively
+		constexpr TWord kBlockEnd = 0x9a8;		// 'bra $3c' back to the block loop: parked instead
+		constexpr TWord kMainDry = 0x180, kReverbSend = 0x1c0, kDelaySend = 0x600;	// X: 32 interleaved L/R pairs each
+		constexpr TWord kFrameBuffer = 0x400, kFrameBase = 0x640;	// X: 32 frames x 6 channels; the pointer the output stage reads
+		constexpr int kMainLeft = 2, kMainRight = 5;	// the main outputs' channels in a frame
+		constexpr uint64_t kMaxInit = 100'000'000, kMaxBlock = 4'000'000;
+	}
+
+	const MasterFxSection& masterFxSection(const MasterFxId _fx)
+	{
+		static const MasterFxSection sections[kNumMasterFx] = {
+			{0x20B940, 0x1000D9C, 0x1001B74, 0x185, 8},		// reverb (Gate Box)
+			{0x20B4AE, 0x1000DAC, 0x1001AF4, 0x150, 9},		// delay (Rhythm Echo)
+			{0x20B74E, 0x1000DBC, 0x1001B44, 0x170, 10},	// EQ
+			{0x20B604, 0x1000DCC, 0x1001B18, 0x17A, 11},	// dynamics
+		};
+		return sections[static_cast<int>(_fx)];
+	}
+
+	bool convertMasterFx(MachineRunner& _os, const MasterFxId _fx, const uint8_t* _knobs, std::array<uint32_t, 16>& _words)
+	{
+		constexpr uint32_t kJoin = 0x20BA4C;	// where the effects' sections meet again in the tick
+		const auto& s = masterFxSection(_fx);
+		for(uint32_t k = 0; k < 8; ++k)
+			_os.poke16(s.rawAddr + 2 * k, static_cast<uint16_t>(_knobs[k] << 7));
+		if(!_os.runTo(s.entry, kJoin))
+			return false;
+		_words.fill(0);
+		for(int k = 0; k < s.words && k < 16; ++k)
+			_words[static_cast<size_t>(k)] = _os.peek32(s.mirror + 4 * static_cast<uint32_t>(k)) & 0xffffff;
+		return true;
 	}
 
 	MasterFx::MasterFx(const fw::Firmware& _fw)
@@ -41,12 +65,14 @@ namespace md::engine
 			auto cfg = m_dsp->getJit().getConfig();
 			cfg.dynamicFastInterrupts = true;
 			cfg.aguSupportBitreverse = true;
-			cfg.linkJitBlocks = true;	// the section runs with interrupts masked, start to end: linking is bit-exact here, and ~6% faster
-			cfg.interruptRegionIsCode = true;	// as VoiceEngine: code below $100 is code, not interrupt vectors
+			cfg.linkJitBlocks = false;
+			cfg.interruptRegionIsCode = true;
 			m_dsp->getJit().setConfig(cfg);
 		}
 		else
-			m_dsp->setInterpreterEnabled(true);	// no JIT on 32-bit ARM, see VoiceEngine.cpp
+		{
+			m_dsp->setInterpreterEnabled(true);	// see VoiceEngine: no JIT on 32-bit ARM
+		}
 		for(auto* essi : {&m_periphX->getEssi0(), &m_periphX->getEssi1()})
 		{
 			essi->setReadRxCallback([](uint64_t& _i, Audio::RxFrame& _f) { _f.resize(2); _f[0] = {}; _f[1] = {}; ++_i; });
@@ -67,37 +93,39 @@ namespace md::engine
 			m_periphX->write(0xfffff9 - static_cast<TWord>(i), kAar[i]);
 		m_dsp->regs().omr.var = kOmr;
 
-		m_dsp->memWriteP(kAfterInit, 0x0c0000 | kAfterInit);	// jmp <$2d: a spin after the init
+		m_dsp->memWriteP(kAfterInit, 0x0c0000 | kAfterInit);	// the program's init ends in a wait for the link: spin here
 		m_dsp->setPC(kEntry);
-		if(!runUntil(kAfterInit, 100'000'000))
-			throw std::runtime_error("mixer DSP init did not complete: " + m_fault);
-		m_dsp->memWriteP(kAfterInit, 0x0c0000 | kAfterInit);
-		// The section ends in a jmp to itself, written once: process() stops when the PC gets there, so the original instruction (a
-		// `bra` back to the main loop) never runs here. Patching it in and out every block made the JIT recompile that code twice per
-		// 32 frames, which was most of the section's cost on ARM (Move: 2.4 ms per 128-frame block).
-		m_dsp->memWriteP(kOutputEnd, 0x0c0000 | kOutputEnd);
-		m_eqStartWord = m_dsp->memory().get(MemArea_P, kEqStart);
+		{
+			const auto start = m_dsp->getInstructionCounter();
+			while(m_dsp->getPC().toWord() != kAfterInit)
+			{
+				m_dsp->exec();
+				if(m_dsp->getInstructionCounter() - start > kMaxInit)
+					throw std::runtime_error("mixer DSP init did not complete");
+			}
+		}
+		m_dsp->memWriteP(kBlockEnd, 0x0c0000 | kBlockEnd);	// park at the end of the block
 	}
 
 	MasterFx::~MasterFx() = default;
 
-	void MasterFx::setReverbEchoOnly(const bool _on)
+	void MasterFx::setParams(const MasterFxId _fx, const std::array<uint32_t, 16>& _words)
 	{
-		if(_on == m_reverbEchoOnly) return;
-		m_reverbEchoOnly = _on;
-		m_dsp->memWriteP(kEqStart, _on ? (0x0c0000 | kDynamixEnd) : m_eqStartWord);	// jmp <$96f, or the original instruction back
+		const auto& s = masterFxSection(_fx);
+		for(int k = 0; k < s.words; ++k)
+			m_dsp->memWrite(MemArea_Y, s.dspAddr + static_cast<TWord>(k), _words[static_cast<size_t>(k)] & 0xffffff);
 	}
 
-	bool MasterFx::runUntil(const uint32_t _pc, const uint64_t _max)
+	bool MasterFx::runToPark(const uint64_t _max)
 	{
 		const auto start = m_dsp->getInstructionCounter();
-		while(m_dsp->getPC().toWord() != _pc)
+		while(m_dsp->getPC().toWord() != kBlockEnd)
 		{
 			m_dsp->exec();
 			if(m_dsp->getInstructionCounter() - start > _max)
 			{
 				std::ostringstream o;
-				o << "instruction budget exceeded at PC=$" << std::hex << m_dsp->getPC().toWord();
+				o << "master section: instruction budget exceeded at PC=$" << std::hex << m_dsp->getPC().toWord();
 				m_fault = o.str();
 				return false;
 			}
@@ -106,48 +134,41 @@ namespace md::engine
 		return true;
 	}
 
-	void MasterFx::setParams(const uint32_t* _a9, const uint32_t* _b29)
+	bool MasterFx::process(const Mixer::Output& _mix, Stereo& _out)
 	{
-		std::copy_n(_a9, kWordsA, m_a.begin());
-		std::copy_n(_b29, kWordsB, m_b.begin());
-	}
-
-	bool MasterFx::process(Mixer::Output& _io)
-	{
-		auto& d = *m_dsp;
-		for(int i = 0; i < kWordsA; ++i) d.memWrite(MemArea_Y, kParamA + static_cast<TWord>(i), m_a[static_cast<size_t>(i)] & 0xffffff);
-		for(int i = 0; i < kWordsB; ++i) d.memWrite(MemArea_Y, kParamB + static_cast<TWord>(i), m_b[static_cast<size_t>(i)] & 0xffffff);
-		for(int f = 0; f < kBlock; ++f)
+		if(!m_fault.empty())
 		{
-			const TWord o = static_cast<TWord>(2 * f);
-			for(int c = 0; c < 2; ++c)
-			{
-				d.memWrite(MemArea_X, kMain + o + static_cast<TWord>(c), static_cast<uint32_t>(_io.main[static_cast<size_t>(f)][static_cast<size_t>(c)]) & 0xffffff);
-				d.memWrite(MemArea_X, kRev + o + static_cast<TWord>(c), static_cast<uint32_t>(_io.rev[static_cast<size_t>(f)][static_cast<size_t>(c)]) & 0xffffff);
-				d.memWrite(MemArea_X, kDel + o + static_cast<TWord>(c), static_cast<uint32_t>(_io.del[static_cast<size_t>(f)][static_cast<size_t>(c)]) & 0xffffff);
-			}
-			for(int c = 0; c < 6; ++c)
-				d.memWrite(MemArea_X, kFrames + static_cast<TWord>(6 * f + c), static_cast<uint32_t>(_io.frame[static_cast<size_t>(f)][static_cast<size_t>(c)]) & 0xffffff);
+			for(auto& f : _out) f = {0, 0};
+			return false;
 		}
-		d.memWrite(MemArea_X, kFramePtr, kFrames);
-		d.writeReg(Reg_SR, TReg24(d.getSR().toWord() | 0x300));	// interrupts masked: only this code runs
-		d.setPC(kMasterStart);
-		if(!runUntil(kOutputEnd, 10'000'000)) return false;	// kOutputEnd holds a jmp to itself (see the constructor)
-		// The main output is X:$180 after the section has run in place on it: the output routine ($270) copies those 64 words to the
-		// serial port's DMA buffer (the individual outputs come from the 6-channel frames, where the section adds its output
-		// with the opposite sign).
-		for(int f = 0; f < kBlock; ++f)
+		for(int i = 0; i < kFrames; ++i)
+		{
+			const auto k = static_cast<TWord>(2 * i);
 			for(int c = 0; c < 2; ++c)
 			{
-				const TWord v = d.memory().get(MemArea_X, kMain + static_cast<TWord>(2 * f + c));
-				_io.main[static_cast<size_t>(f)][static_cast<size_t>(c)] = static_cast<int32_t>(v << 8) >> 8;
+				m_dsp->memWrite(MemArea_X, kMainDry + k + static_cast<TWord>(c), static_cast<TWord>(_mix.main[static_cast<size_t>(i)][static_cast<size_t>(c)]) & 0xffffff);
+				m_dsp->memWrite(MemArea_X, kReverbSend + k + static_cast<TWord>(c), static_cast<TWord>(_mix.rev[static_cast<size_t>(i)][static_cast<size_t>(c)]) & 0xffffff);
+				m_dsp->memWrite(MemArea_X, kDelaySend + k + static_cast<TWord>(c), static_cast<TWord>(_mix.del[static_cast<size_t>(i)][static_cast<size_t>(c)]) & 0xffffff);
 			}
-		for(int f = 0; f < kBlock; ++f)
 			for(int c = 0; c < 6; ++c)
-			{
-				const TWord v = d.memory().get(MemArea_X, kFrames + static_cast<TWord>(6 * f + c));
-				_io.frame[static_cast<size_t>(f)][static_cast<size_t>(c)] = static_cast<int32_t>(v << 8) >> 8;
-			}
+				m_dsp->memWrite(MemArea_X, kFrameBuffer + static_cast<TWord>(6 * i + c), static_cast<TWord>(_mix.frame[static_cast<size_t>(i)][static_cast<size_t>(c)]) & 0xffffff);
+		}
+		m_dsp->memWrite(MemArea_X, kFrameBase, kFrameBuffer);
+		for(int i = 0; i < 8; ++i)
+			m_dsp->writeReg(static_cast<EReg>(Reg_M0 + i), TReg24(0xffffff));
+		m_dsp->writeReg(Reg_SR, TReg24(m_dsp->getSR().toWord() | 0x300));	// interrupts masked: only this section runs
+		m_dsp->setPC(kMasterStart);
+		if(!runToPark(kMaxBlock))
+		{
+			for(auto& f : _out) f = {0, 0};
+			return false;
+		}
+		for(int i = 0; i < kFrames; ++i)
+		{
+			const auto l = m_mem->get(MemArea_X, kFrameBuffer + static_cast<TWord>(6 * i + kMainLeft)) & 0xffffff;
+			const auto r = m_mem->get(MemArea_X, kFrameBuffer + static_cast<TWord>(6 * i + kMainRight)) & 0xffffff;
+			_out[static_cast<size_t>(i)] = {static_cast<int32_t>(l << 8) >> 8, static_cast<int32_t>(r << 8) >> 8};
+		}
 		return true;
 	}
 }

@@ -47,6 +47,9 @@ namespace md::engine
 		// Run OS code that is not a function: from _start until the PC reaches _stop (never executed). Registers start undefined, the
 		// stack is a fresh one. Returns false on a fault or an access outside the mapped memory (faultReason() says which).
 		bool runRange(uint32_t _start, uint32_t _stop);
+		// Run OS code from _entry until the PC reaches _stopPc (an address inside a routine, not a return): the master effects'
+		// knob conversions are inline sections of the OS tick that all end at the same join point. False on a fault.
+		bool runTo(uint32_t _entry, uint32_t _stopPc);
 
 		// OS memory, as the ColdFire sees it: main RAM $200000-$2fffff (initialised from the OS image, so its
 		// initialised data is right), internal SRAM $1000000-$100ffff (the OS's copy of its fast routines from

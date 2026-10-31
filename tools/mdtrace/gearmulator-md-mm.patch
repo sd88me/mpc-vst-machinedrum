@@ -287,15 +287,18 @@ index 2666e3c2..a76d9cd5 100644
  		uint32_t getResetPC() override;
  		uint32_t getResetSP() override;
 diff --git a/source/elektron/md/mdLibTest/CMakeLists.txt b/source/elektron/md/mdLibTest/CMakeLists.txt
-index ef2797e4..f280c8b7 100644
+index ef2797e4..81b9f82d 100644
 --- a/source/elektron/md/mdLibTest/CMakeLists.txt
 +++ b/source/elektron/md/mdLibTest/CMakeLists.txt
-@@ -3,6 +3,13 @@ cmake_minimum_required(VERSION 3.15)
+@@ -3,6 +3,16 @@ cmake_minimum_required(VERSION 3.15)
  add_executable(mdLibTest mdRuntimeTest.cpp)
  target_link_libraries(mdLibTest PRIVATE mdLib)
  
 +add_executable(mdProbe mdProbe.cpp)
 +target_link_libraries(mdProbe PRIVATE mdLib)
++
++add_executable(mdExtract mdExtract.cpp)
++target_link_libraries(mdExtract PRIVATE mdLib)
 +
 +add_executable(mdTraceTool mdTraceTool.cpp)
 +target_link_libraries(mdTraceTool PRIVATE mdLib)

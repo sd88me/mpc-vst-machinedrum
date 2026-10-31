@@ -13,6 +13,7 @@
 #include "HostModel.h"
 #include "MachineRunner.h"
 #include "MasterFx.h"
+#include "MasterFxOs.h"
 #include "Mixer.h"
 #include "ParallelVoiceEngine.h"
 #include "TrackFx.h"
@@ -36,7 +37,7 @@ namespace md::engine
 		// _osImage: the OS file's section 0 (the ColdFire OS), decompressed. Constructs TVoices with just the
 		// firmware (VoiceEngine's own constructor).
 		EngineT(const fw::Firmware& _fw, std::vector<uint8_t> _osImage)
-			: m_tables(_fw), m_mixer(m_tables), m_fw(&_fw)
+			: m_fw(&_fw), m_tables(_fw), m_mixer(m_tables)
 		{
 			m_os = std::make_unique<MachineRunner>(std::move(_osImage));
 			m_voices = std::make_unique<TVoices>(_fw);
@@ -47,7 +48,7 @@ namespace md::engine
 		// count). Only ever instantiated for a TVoices whose constructor actually takes (firmware, _voicesArg).
 		template<class TVoicesArg>
 		EngineT(const fw::Firmware& _fw, std::vector<uint8_t> _osImage, TVoicesArg _voicesArg)
-			: m_tables(_fw), m_mixer(m_tables), m_fw(&_fw)
+			: m_fw(&_fw), m_tables(_fw), m_mixer(m_tables)
 		{
 			m_os = std::make_unique<MachineRunner>(std::move(_osImage));
 			m_voices = std::make_unique<TVoices>(_fw, _voicesArg);
@@ -56,22 +57,22 @@ namespace md::engine
 
 		~EngineT() = default;
 
-		// The Machinedrum's master effects (see MasterFx.h). On: the OS's parameter code runs every tick and render() runs the mixer
+		// The Machinedrum's master effects (see MasterFxOs.h). On: the OS's parameter code runs every tick and render() runs the mixer
 		// DSP's master section on the mix, and Output::mix.main becomes the processed main output. Off (default, the Force build):
 		// Output::mix.main is the dry mix, bit-exact with the plain mixer.
 		void enableMasterFx(const bool _on)
 		{
-			if(_on && !m_master) { m_master = std::make_unique<MasterFx>(*m_fw); m_master->setReverbEchoOnly(m_masterReverbEchoOnly); }
+			if(_on && !m_masterOs) { m_masterOs = std::make_unique<MasterFxOs>(*m_fw); m_masterOs->setReverbEchoOnly(m_masterReverbEchoOnly); }
 			m_host->enableMasterParams(_on);
-			if(!_on) m_master.reset();
+			if(!_on) m_masterOs.reset();
 		}
-		bool masterFxEnabled() const { return m_master != nullptr; }
+		bool masterFxEnabled() const { return m_masterOs != nullptr; }
 		// Bypassed: the main output is the dry mix again and the section is not run (it keeps its state, so switching back resumes).
 		void setMasterBypass(const bool _b) { m_masterBypass = _b; }
 		const Mixer& mixer() const { return m_mixer; }
 		// Reverb and echo only (MasterFx::setReverbEchoOnly): kept across enableMasterFx. Call between renders (with a master thread:
 		// while no renderMaster is running).
-		void setMasterReverbEchoOnly(const bool _on) { m_masterReverbEchoOnly = _on; if(m_master) m_master->setReverbEchoOnly(_on); }
+		void setMasterReverbEchoOnly(const bool _on) { m_masterReverbEchoOnly = _on; if(m_masterOs) m_masterOs->setReverbEchoOnly(_on); }
 		void setMasterFx(const uint8_t* _bytes32, const bool _snap = false) { m_host->setMasterFx(_bytes32); if(_snap) m_host->snapMasterFx(); }
 
 
@@ -96,7 +97,38 @@ namespace md::engine
 		// are HostModel's (host().tickUs / dspUs).
 		uint32_t dryMute = 0;	// tracks kept out of the dry main mix (see Mixer::process); set by the caller between renders
 		bool timingOn = false;
-		double fxUs = 0, mixUs = 0;
+		double fxUs = 0, mixUs = 0, masterUs = 0;
+
+		// The master effects (reverb, delay, EQ, dynamix: MasterFx, DSP1's own section on the emulator) take the dry main mix
+		// and the two sends and give the hardware's main output. _knobs: the kit's 4 x 8 master knobs (0-127), converted by the
+		// OS's own code when they change. Built on first use (it boots a DSP: do it before the audio runs). False if it cannot
+		// run; then the plain mix is what render() gives.
+		bool setMasterFx(const bool _on, const std::array<std::array<uint8_t, 8>, 4>& _knobs)
+		{
+			m_masterOn = false;
+			if(!_on) return true;
+			if(m_masterFault) return false;
+			if(!m_master)
+			{
+				try { m_master = std::make_unique<MasterFx>(*m_fw); }
+				catch(const std::exception&) { m_masterFault = true; return false; }
+				m_masterKnobs = {};
+				m_masterKnown = false;
+			}
+			for(int fx = 0; fx < kNumMasterFx; ++fx)
+			{
+				const auto f = static_cast<size_t>(fx);
+				if(m_masterKnown && m_masterKnobs[f] == _knobs[f]) continue;
+				std::array<uint32_t, 16> words{};
+				if(!convertMasterFx(*m_os, static_cast<MasterFxId>(fx), _knobs[f].data(), words)) { m_masterFault = true; return false; }
+				m_master->setParams(static_cast<MasterFxId>(fx), words);
+				m_masterKnobs[f] = _knobs[f];
+			}
+			m_masterKnown = true;
+			m_masterOn = true;
+			return true;
+		}
+		bool masterFxOn() const { return m_masterOn; }
 
 		static constexpr bool kParallel = std::is_same_v<TVoices, ParallelVoiceEngine>;
 
@@ -122,15 +154,21 @@ namespace md::engine
 
 		bool render(Output& _out)
 		{
-			if(!timingOn) return renderBlockDry(_out) && masterBlock(_out);
+			if(!timingOn) return renderBlockDry(_out) && knobMaster(_out) && masterBlock(_out);
 			if(!renderBlockDry(_out)) return false;
 			const auto t0 = std::chrono::steady_clock::now();
-			if(!masterBlock(_out)) return false;
+			if(!knobMaster(_out) || !masterBlock(_out)) return false;
 			mixUs += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
 			return true;
 		}
 
 	private:
+		bool knobMaster(Output& _out)	// the plugin's master section: knob words from setMasterFx(on, knobs)
+		{
+			Mixer::Stereo res;
+			if(m_masterOn && m_master && m_master->process(_out.mix, res)) _out.mix.main = res;
+			return true;
+		}
 		bool renderBlockDry(Output& _out)
 		{
 			m_host->timingOn = timingOn;
@@ -152,8 +190,10 @@ namespace md::engine
 			const auto tf1 = std::chrono::steady_clock::now();
 			m_mixer.process(in.data(), mix.data(), _out.mix, dryMute);
 			const auto tf2 = std::chrono::steady_clock::now();
+			const auto tf3 = std::chrono::steady_clock::now();
 			fxUs += std::chrono::duration<double, std::micro>(tf1 - tf0).count();
 			mixUs += std::chrono::duration<double, std::micro>(tf2 - tf1).count();
+			masterUs += std::chrono::duration<double, std::micro>(tf3 - tf2).count();
 			return true;
 		}
 
@@ -167,20 +207,20 @@ namespace md::engine
 		struct MasterJob
 		{
 			bool active = false;
-			uint32_t a[MasterFx::kWordsA], b[MasterFx::kWordsB];
+			uint32_t a[MasterFxOs::kWordsA], b[MasterFxOs::kWordsB];
 		};
 		bool renderDry(Output& _out, MasterJob& _job)
 		{
 			_job.active = false;
 			if(!renderBlockDry(_out)) return false;
-			if(m_master && !m_masterBypass) { _job.active = true; m_host->masterWords(_job.a, _job.b); }
+			if(m_masterOs && !m_masterBypass) { _job.active = true; m_host->masterWords(_job.a, _job.b); }
 			return true;
 		}
 		bool renderMaster(Output& _out, const MasterJob& _job)
 		{
-			if(!_job.active || !m_master) return true;
-			m_master->setParams(_job.a, _job.b);
-			return m_master->process(_out.mix);
+			if(!_job.active || !m_masterOs) return true;
+			m_masterOs->setParams(_job.a, _job.b);
+			return m_masterOs->process(_out.mix);
 		}
 
 		const std::string& fault() const { return m_voices->faultReason(); }
@@ -190,11 +230,11 @@ namespace md::engine
 	private:
 		bool masterBlock(Output& _out)
 		{
-			if(!m_master || m_masterBypass) return true;
-			uint32_t a[MasterFx::kWordsA], b[MasterFx::kWordsB];
+			if(!m_masterOs || m_masterBypass) return true;
+			uint32_t a[MasterFxOs::kWordsA], b[MasterFxOs::kWordsB];
 			m_host->masterWords(a, b);
-			m_master->setParams(a, b);
-			return m_master->process(_out.mix);
+			m_masterOs->setParams(a, b);
+			return m_masterOs->process(_out.mix);
 		}
 
 		void init()
@@ -217,6 +257,10 @@ namespace md::engine
 			}
 		}
 
+		const fw::Firmware* m_fw;
+		std::unique_ptr<MasterFx> m_master;
+		std::array<std::array<uint8_t, 8>, 4> m_masterKnobs{};
+		bool m_masterOn = false, m_masterFault = false, m_masterKnown = false;
 		std::unique_ptr<MachineRunner> m_os;
 		std::unique_ptr<TVoices> m_voices;
 		std::unique_ptr<HostModel<TVoices>> m_host;
@@ -224,8 +268,7 @@ namespace md::engine
 		std::vector<std::unique_ptr<TrackFx>> m_fxs;	// one per voice group (one when not parallel)
 		Output* m_out = nullptr;
 		Mixer m_mixer;
-		const fw::Firmware* m_fw;
-		std::unique_ptr<MasterFx> m_master;
+		std::unique_ptr<MasterFxOs> m_masterOs;
 		bool m_masterBypass = false, m_masterReverbEchoOnly = false;
 		std::array<TrackFx::State, kTracks> m_state{};
 		std::array<TrackFx::State, kTracks> m_settledState{};

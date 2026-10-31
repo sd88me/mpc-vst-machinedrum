@@ -1,0 +1,6 @@
+# Cross-compiler image for vst/build_so.sh aarch64 (Gen2 MPCs). Built automatically on first use.
+# debian:bookworm's crossbuild-essential-arm64 targets glibc ~2.36, below the Gen2 ceiling (2.39) that catalog_check allows.
+FROM debian:bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    crossbuild-essential-arm64 cmake ninja-build git file ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
