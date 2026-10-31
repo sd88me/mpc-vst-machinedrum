@@ -1,0 +1,131 @@
+# Builds the desktop Machinemodule (VST3 and Standalone, plus AU on macOS) on Linux, Windows and macOS (Apple Silicon). On Windows the
+# flash-image import helpers are built too, mdProbe included (tools/mdtrace/build_mdprobe.sh: the emulated Machinedrum the import boots),
+# and ride inside the plugin bundle and next to the standalone app.
+# Build only: running the engine needs the user's own Machinedrum OS file, which CI does not have, so the offline tests
+# (desktop/tests: MmRender, MmSnapshot) are run locally; see docs/HANDOFF-desktop.md.
+name: desktop
+
+on:
+  push:
+    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'tools/mdtrace/**', 'tools/mdimport/**', 'tools/mdkits/**', 'cmake/**', 'libs/dsp56300', 'libs/gearmulator-md-mm', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['desktop/**', 'engine/**', 'tools/mdfw/**', 'tools/mdtrace/**', 'tools/mdimport/**', 'tools/mdkits/**', 'cmake/**', 'libs/dsp56300', 'libs/gearmulator-md-mm', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, name: linux-x64, targets: "Machinemodule_VST3 Machinemodule_Standalone" }
+          - { os: macos-14, name: macos-arm64, targets: "Machinemodule_VST3 Machinemodule_AU Machinemodule_Standalone" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Submodules (only what the plugin build needs)
+        run: |
+          git submodule update --init --depth 1 libs/dsp56300 libs/gearmulator-md-mm
+          git -C libs/dsp56300 submodule update --init --depth 1 source/asmjit
+          git -C libs/gearmulator-md-mm submodule update --init --depth 1 source/mc68k
+      - name: Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev \
+            libxcomposite-dev libxext-dev libxrender-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: macOS packages
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Configure
+        run: cmake -S desktop -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: |
+          for t in ${{ matrix.targets }}; do cmake --build build --config Release --target "$t" --parallel 4; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: machinemodule-${{ matrix.name }}
+          path: |
+            build/Machinemodule_artefacts/Release/VST3
+            build/Machinemodule_artefacts/Release/AU
+            build/Machinemodule_artefacts/Release/Standalone
+          if-no-files-found: warn
+
+  mdprobe-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Keep LF line endings (the patches are applied with git apply)
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build mdProbe
+        shell: bash
+        env:
+          MDPROBE_GENERATOR: Ninja
+          MDPROBE_CMAKE_ARGS: -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_EXE_LINKER_FLAGS=/STACK:16777216
+        run: |
+          git submodule update --init --depth 1 libs/gearmulator-md-mm
+          bash tools/mdtrace/build_mdprobe.sh
+      - name: Smoke test (prints its usage and exits 2)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'   # the program prints to stderr, which PowerShell would otherwise treat as a failure
+          $exe = "libs\gearmulator-md-mm\build\source\elektron\md\mdLibTest\mdProbe.exe"
+          $out = (& $exe 2>&1 | Out-String)
+          $out
+          "exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 2) { exit 1 }
+          exit 0   # a pwsh step otherwise ends with the last program's exit code, which is the expected 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mdprobe-windows-x64
+          path: libs/gearmulator-md-mm/build/source/elektron/md/mdLibTest/mdProbe.exe
+          if-no-files-found: error
+
+  windows:
+    needs: mdprobe-windows
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Submodules (only what the plugin build needs)
+        shell: bash
+        run: |
+          git submodule update --init --depth 1 libs/dsp56300 libs/gearmulator-md-mm
+          git -C libs/dsp56300 submodule update --init --depth 1 source/asmjit
+          git -C libs/gearmulator-md-mm submodule update --init --depth 1 source/mc68k
+      - uses: actions/download-artifact@v4
+        with:
+          name: mdprobe-windows-x64
+          path: helpers
+      - name: Configure
+        shell: bash
+        run: cmake -S desktop -B build -G "Visual Studio 17 2022" -A x64 -DMM_MDPROBE="$PWD/helpers/mdProbe.exe"
+      - name: Build
+        shell: bash
+        run: |
+          for t in Machinemodule_VST3 Machinemodule_Standalone; do cmake --build build --config Release --target "$t" --parallel 4; done
+      - name: Import helper test (a bogus flash image must be reported by mdProbe itself, which proves md-import can start it)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $d = "build\Machinemodule_artefacts\Release\Standalone"
+          [IO.File]::WriteAllBytes("$PWD\zero.bin", (New-Object byte[] 8388608))
+          Set-Content -Path "$PWD\os.syx" -Value "x"
+          $out = (& "$d\md-import.exe" "$PWD\zero.bin" "$PWD\os.syx" "$PWD\imp" 2>&1 | Out-String)
+          $out
+          "exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -eq 0 -or $out -notmatch "ROM not valid") { exit 1 }
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: machinemodule-windows-x64
+          path: |
+            build/Machinemodule_artefacts/Release/VST3
+            build/Machinemodule_artefacts/Release/Standalone
+          if-no-files-found: warn

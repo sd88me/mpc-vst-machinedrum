@@ -1,5 +1,6 @@
 #include "MachineRunner.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -107,8 +108,8 @@ namespace md::engine
 			return true;
 		};
 		static const char kAnchor[] = "TRXB2PTCH";
-		const auto* hit = static_cast<const uint8_t*>(memmem(m_os.data(), m_os.size(), kAnchor, sizeof(kAnchor) - 1));
-		if(!hit || hit - m_os.data() < 5) throw std::runtime_error("machine table not found (not an MD OS 1.63 image?)");
+		const auto* hit = std::search(m_os.data(), m_os.data() + m_os.size(), kAnchor, kAnchor + sizeof(kAnchor) - 1);	// not memmem: absent on MSVC
+		if(hit == m_os.data() + m_os.size() || hit - m_os.data() < 5) throw std::runtime_error("machine table not found (not an MD OS 1.63 image?)");
 		size_t start = static_cast<size_t>(hit - m_os.data()) - 5;
 		while(start >= kRecordSize && valid(start - kRecordSize)) start -= kRecordSize;
 		for(size_t o = start; valid(o); o += kRecordSize)
@@ -173,6 +174,24 @@ namespace md::engine
 		m_lastInstructions = n;
 		if(cpu.m_badAccesses) { m_fault = "access outside main RAM / internal SRAM"; return false; }
 		return cpu.getPC() == _stopPc;
+	}
+
+	bool MachineRunner::runRange(const uint32_t _start, const uint32_t _stop)
+	{
+		m_fault.clear();
+		auto& cpu = *m_cpu;
+		cpu.setAReg(7, kStackTop);
+		cpu.setPC(_start);
+		cpu.m_badAccesses = 0;
+		uint64_t n = 0;
+		while(cpu.getPC() != _stop)
+		{
+			cpu.exec();
+			if(++n > kMaxInstructions) { m_fault = "instruction budget exceeded"; return false; }
+		}
+		m_lastInstructions = n;
+		if(cpu.m_badAccesses) { m_fault = "access outside main RAM / internal SRAM"; return false; }
+		return true;
 	}
 
 	int MachineRunner::compute(const uint8_t _machineId, const uint16_t* _params, uint32_t* _out, const int _outCapacity, const bool _trigger)

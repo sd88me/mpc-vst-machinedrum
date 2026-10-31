@@ -1,0 +1,192 @@
+// Machinemodule for the desktop: all 16 Machinedrum tracks in one instrument plugin. The sound is the parent repo's
+// engine (voice DSP in the dsp56300 JIT, the OS's own control code, the per-track effects and mixer as bit-exact C++),
+// the plugin framework follows shnolk's Monomodule (OS file chosen at run time, 44.1 kHz engine behind a band-limited
+// converter, parameters as raw 0-127 kit values).
+//   Outputs: "Main" (the dry main mix: all tracks, panned, with VOL) and "Track 1".."Track 16" (each track after its effects
+//   and VOL, no pan, mono on both channels). A track whose bus the host enables leaves the main mix.
+//   MIDI: notes 36-51 (and 0-15) play tracks 1-16, velocity = trigger velocity.
+//   Input: an optional stereo "Input" bus (off until the host enables it) is the Machinedrum's audio input: INP-GA/FA/EA process
+//   its left channel, INP-GB/FB/EB its right.
+//   Control machines (the OS's own rules, done here on the parameters): CTR-AL shifts SYN1-8 of every other track by the amount its own
+//   knob moves, CTR-8P sends P1-P8 to eight (track, parameter) targets, CTR-RE/GB/EQ/DX are SYN1-8 of the echo / reverb / EQ / dynamix.
+#pragma once
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <array>
+#include <atomic>
+#include <memory>
+#include <thread>
+#include <vector>
+
+#include "KitCodec.h"
+#include "EngineFeeder.h"
+#include "MdEngine.h"
+#include "Firmware.h"
+#include "Resampler.h"
+
+namespace mm
+{
+	juce::String masterId(int i);	// "mfx01" .. "mfx32"
+
+	juce::String paramId(int track, const juce::String& key);	// track 0-15 -> "t01_<key>"
+	juce::File dataDir();	// per-user folder (OS file path, factory kits, ROM samples)
+
+	class MdProcessor : public juce::AudioProcessor,
+	                    private juce::AudioProcessorValueTreeState::Listener,
+	                    private juce::AsyncUpdater,
+	                    private EngineFeeder::Host
+	{
+	public:
+		MdProcessor();
+		~MdProcessor() override;
+
+		void prepareToPlay(double sampleRate, int samplesPerBlock) override;
+		void releaseResources() override {}
+		bool isBusesLayoutSupported(const BusesLayout&) const override;
+		void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+		using juce::AudioProcessor::processBlock;
+
+		juce::AudioProcessorEditor* createEditor() override;
+		bool hasEditor() const override { return true; }
+		const juce::String getName() const override { return "Machinemodule"; }
+		bool acceptsMidi() const override { return true; }
+		bool producesMidi() const override { return false; }
+		bool isMidiEffect() const override { return false; }
+		double getTailLengthSeconds() const override { return 10.0; }
+		int getNumPrograms() override { return 1; }
+		int getCurrentProgram() override { return 0; }
+		void setCurrentProgram(int) override {}
+		const juce::String getProgramName(int) override { return {}; }
+		void changeProgramName(int, const juce::String&) override {}
+		void getStateInformation(juce::MemoryBlock&) override;
+		void setStateInformation(const void*, int) override;
+
+		// OS file (message thread). Loading runs on a background thread; the plugin is silent until it is ready.
+		juce::String osPath() const { return m_osPath; }
+		void setOsPath(const juce::String& path, bool persist = true);
+		bool engineReady() const { return m_ready.load(); }
+		juce::String statusText() const;
+
+		// Factory data from the user's own flash image (Phase 4): runs the md-import helper (boots the emulated Machinedrum once),
+		// which writes the 16 factory kits and the ROM machines' samples to the data folder; the plugin then reloads. Background; the
+		// plugin keeps working meanwhile. Needs the OS file to be selected.
+		void importFlashImage(const juce::File& flashImage);
+		bool importRunning() const { return m_importing.load(); }
+		static juce::File importHelper();	// the md-import executable, or a File that does not exist
+		// The OS's machine table (names and the eight SYN labels), for the editor; empty until the engine is ready.
+		using MachineList = std::shared_ptr<const std::vector<md::engine::MachineInfo>>;
+		MachineList machines() const { const juce::ScopedLock sl(m_statusLock); return m_machineList; }
+
+		// Kits (message thread): a kit .syx file may hold several; kit 0 is applied on load.
+		bool loadKitFile(const juce::File&, juce::String& error);
+		void stepKit(int dir);
+		juce::String kitLabel() const;
+		// Track lock: a locked track keeps its machine and settings when a kit is loaded (stored with the project).
+		bool trackLocked(int t) const;
+		void setTrackLocked(int t, bool locked);
+		int kitCount() const { return int(m_kits.size()); }
+		int kitIndex() const { return m_kitIndex; }
+		juce::String kitName(int i) const;	// the kit's own name, trimmed
+		void selectKit(int i);
+
+		// For the editor: output level of a track (0..1, falls off quickly) and the tempo the engine runs at.
+		float trackPeak(int t) const { return t >= 0 && t < kTracks ? m_peak[size_t(t)].load(std::memory_order_relaxed) : 0.0f; }
+		float hostBpm() const { return m_hostBpm.load(); }
+		int appliedValue(int t, int i) const { return m_feeder.applied(t, i); }	// what the engine was last given for a track's raw value (tests: after processBlock)
+
+		juce::AudioProcessorValueTreeState apvts;
+
+	private:
+		using Engine = md::engine::Engine;
+		static constexpr int kCh = 2 + kTracks;	// engine channels: main L, main R, track 1-16
+		static constexpr int kBlock = Engine::kBlock;
+		struct PendingNote { int64_t frame; uint8_t track, velocity; };
+
+		static BusesProperties makeBuses();
+		static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
+		void parameterChanged(const juce::String& id, float value) override;
+		void handleAsyncUpdate() override;
+		void applyKit(const Kit&);
+		void readValues(KitValues&) const;	// the parameters as a kit table (any thread)
+		void writeValues(const KitValues& now, const KitValues& was);	// the values that differ into the parameters (message thread)
+		bool takeDefaults(int t) override { return m_needsDefaults[size_t(t)].exchange(false); }
+		void defaultsChosen(int t, const int* values, int count) override;
+		void applyControlMachines();	// CTR-AL / CTR-RE...: knob moves that act on other parameters (message thread)
+		void resyncControlMachines();	// remember the current CTR-AL knob values without acting on them (a kit or project was loaded)
+		void pushInput(juce::AudioBuffer<float>& host, int n);
+		void engineInput(int32_t* lr64);
+		void startLoad(const juce::String& path);
+		void joinLoader();
+		void joinImporter();
+		void loadFactoryKits();
+		void applyParameters();
+		void renderFrames(int n, int64_t firstFrame);
+		void processChunk(juce::AudioBuffer<float>&, int offset, int n);
+		int64_t engineFrameOf(int64_t hostSample) const { return m_needsResample ? m_engineAt.ceilAt(hostSample) : hostSample; }
+
+		struct TrackParams
+		{
+			std::atomic<float>* machine = nullptr;
+			std::atomic<float>* raw[kRaw] = {};
+			std::atomic<float>* level = nullptr;
+			std::atomic<float>* mute = nullptr;
+			std::atomic<float>* muteGroup = nullptr;
+			std::atomic<float>* solo = nullptr;
+			std::atomic<float>* lfo[kNumLfo] = {};
+		};
+		std::array<std::atomic<float>*, kMasterBytes> m_master{};
+		std::atomic<float>* m_masterOn = nullptr;
+		std::array<TrackParams, kTracks> m_par{};
+		std::array<std::atomic<bool>, kTracks> m_needsDefaults{};	// the user changed the machine: it starts from its own values
+		std::array<std::atomic<bool>, kTracks> m_defaultsReady{};
+		std::array<std::array<std::atomic<int>, kRaw>, kTracks> m_defaultSyn{};	// a new machine's own starting values (SYN1-8; CTR-8P: all 24)
+		std::array<std::atomic<int>, kTracks> m_defaultCount{};
+		std::array<std::atomic<uint8_t>, kTracks> m_ctrDirty{};	// SYN knobs of CTR-AL / CTR-RE.. tracks that moved (bit k = SYN k+1)
+		ControlRules m_rules;	// message thread
+		std::atomic<bool> m_suppressDefaults{false};
+
+		// the engine, built on a background thread; the audio thread uses it under m_lock (try-lock, silent when busy)
+		juce::CriticalSection m_lock;
+		std::unique_ptr<md::fw::Firmware> m_fw;
+		std::unique_ptr<Engine> m_engine;
+		std::thread m_loader;
+		std::atomic<bool> m_ready{false}, m_loading{false};
+		std::thread m_importer;
+		std::atomic<bool> m_importing{false}, m_importFinished{false}, m_importOk{false};
+		juce::String m_osPath;
+		mutable juce::CriticalSection m_statusLock;
+		juce::String m_status;
+		bool m_stateRestored = false;
+		MachineList m_machineList;	// under m_statusLock
+
+		EngineFeeder m_feeder;	// audio thread (under m_lock): what the engine has been given
+		KitValues m_now;	// audio thread: this block's parameters
+
+		std::vector<Kit> m_kits;
+		int m_kitIndex = -1;
+		juce::String m_kitSource;
+
+		// audio
+		double m_hostRate = 44100.0;
+		bool m_needsResample = false;
+		int m_maxChunk = 512, m_maxEngine = 512, m_outLag = 0;
+		int64_t m_hostPos = 0, m_enginePos = 0, m_renderPos = 0;
+		mnm::dsp::RateMap m_engineAt;
+		mnm::dsp::SincKernel m_toHost;
+		std::vector<float> m_taps;
+		std::array<std::vector<float>, kCh> m_eng;	// the chunk's engine frames, per channel (44.1 kHz)
+		std::array<std::vector<float>, kCh> m_carry;	// frames rendered beyond the chunk (a block is 32 frames)
+		int m_carryN = 0;
+		std::array<mnm::dsp::History, kCh> m_hist;
+		std::vector<PendingNote> m_notes;
+		// the audio input: host samples in a ring, read at the engine's 44.1 kHz (linear interpolation when the host rate differs)
+		static constexpr int kInRing = 1 << 15;
+		std::array<std::vector<float>, 2> m_inBuf;
+		int64_t m_inWritten = 0;
+		double m_inPos = 0.0;
+		bool m_inputUsed = false;
+		std::atomic<float> m_hostBpm{120.0f};
+		std::array<std::atomic<float>, kTracks> m_peak{};
+		uint32_t m_dryMute = 0;
+		Engine::Output m_out;
+	};
+}

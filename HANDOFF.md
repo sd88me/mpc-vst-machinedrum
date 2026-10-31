@@ -1,5 +1,7 @@
 # Handoff
 
+> Desktop (VST3/AU/Standalone) work: see [docs/HANDOFF-desktop.md](docs/HANDOFF-desktop.md) and [docs/PLAN-desktop-vst3.md](docs/PLAN-desktop-vst3.md).
+
 Read this first in any new session. Keep it current at every checkpoint.
 
 ## The plan

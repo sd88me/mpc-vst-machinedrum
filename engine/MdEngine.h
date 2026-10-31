@@ -13,6 +13,7 @@
 #include "HostModel.h"
 #include "MachineRunner.h"
 #include "MasterFx.h"
+#include "MasterFxOs.h"
 #include "Mixer.h"
 #include "ParallelVoiceEngine.h"
 #include "TrackFx.h"
@@ -56,6 +57,29 @@ namespace md::engine
 
 		~EngineT() = default;
 
+		// The Machinedrum's master effects (see MasterFxOs.h). On: the OS's parameter code runs every tick and render() runs the mixer
+		// DSP's master section on the mix, and Output::mix.main becomes the processed main output. Off (default, the Force build):
+		// Output::mix.main is the dry mix, bit-exact with the plain mixer.
+		void enableMasterFx(const bool _on)
+		{
+			if(_on && !m_masterOs) { m_masterOs = std::make_unique<MasterFxOs>(*m_fw); m_masterOs->setReverbEchoOnly(m_masterReverbEchoOnly); }
+			m_host->enableMasterParams(_on);
+			if(!_on) m_masterOs.reset();
+		}
+		bool masterFxEnabled() const { return m_masterOs != nullptr; }
+		// Bypassed: the main output is the dry mix again and the section is not run (it keeps its state, so switching back resumes).
+		void setMasterBypass(const bool _b) { m_masterBypass = _b; }
+		const Mixer& mixer() const { return m_mixer; }
+		// Reverb and echo only (MasterFx::setReverbEchoOnly): kept across enableMasterFx. Call between renders (with a master thread:
+		// while no renderMaster is running).
+		void setMasterReverbEchoOnly(const bool _on) { m_masterReverbEchoOnly = _on; if(m_masterOs) m_masterOs->setReverbEchoOnly(_on); }
+		void setMasterFx(const uint8_t* _bytes32, const bool _snap = false) { m_host->setMasterFx(_bytes32); if(_snap) m_host->snapMasterFx(); }
+
+
+		// The audio input for the next render(): 32 stereo frames, interleaved L R, 24-bit signed (what the INP machines process;
+		// see VoiceEngine::setInput). Needed before every render once used.
+		void setInput(const int32_t* _lr) { m_voices->setInput(_lr); }
+
 		HostModel<TVoices>& host() { return *m_host; }
 		const MachineRunner& os() const { return *m_os; }
 		TVoices& voices() { return *m_voices; }
@@ -65,6 +89,9 @@ namespace md::engine
 			Mixer::Output mix;													// main, sends, individual outputs
 			std::array<std::array<int32_t, kBlock>, kTracks> tracks{};			// each track after its effects
 		};
+
+		// Main output sample f, channel c (0 = left) of a rendered block, with or without the master effects.
+		int32_t mainOut(const Output& _o, const int _f, const int _c) const { return _o.mix.main[_f][_c]; }
 
 		// Optional stage timing (microseconds, accumulated): track effects, and the mix. The OS tick and the voice DSP
 		// are HostModel's (host().tickUs / dspUs).
@@ -127,6 +154,23 @@ namespace md::engine
 
 		bool render(Output& _out)
 		{
+			if(!timingOn) return renderBlockDry(_out) && knobMaster(_out) && masterBlock(_out);
+			if(!renderBlockDry(_out)) return false;
+			const auto t0 = std::chrono::steady_clock::now();
+			if(!knobMaster(_out) || !masterBlock(_out)) return false;
+			mixUs += std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+			return true;
+		}
+
+	private:
+		bool knobMaster(Output& _out)	// the plugin's master section: knob words from setMasterFx(on, knobs)
+		{
+			Mixer::Stereo res;
+			if(m_masterOn && m_master && m_master->process(_out.mix, res)) _out.mix.main = res;
+			return true;
+		}
+		bool renderBlockDry(Output& _out)
+		{
 			m_host->timingOn = timingOn;
 			m_out = &_out;
 			if(!m_host->renderBlock(m_voiceOut))
@@ -142,16 +186,10 @@ namespace md::engine
 				in[t] = _out.tracks[t].data();
 				mix[t] = m_host->mixerInput(t).mix;
 			}
-			const auto master = [this, &_out]
-			{
-				Mixer::Stereo res;
-				if(m_masterOn && m_master && m_master->process(_out.mix, res)) _out.mix.main = res;
-			};
-			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); master(); return true; }
+			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); return true; }
 			const auto tf1 = std::chrono::steady_clock::now();
 			m_mixer.process(in.data(), mix.data(), _out.mix, dryMute);
 			const auto tf2 = std::chrono::steady_clock::now();
-			master();
 			const auto tf3 = std::chrono::steady_clock::now();
 			fxUs += std::chrono::duration<double, std::micro>(tf1 - tf0).count();
 			mixUs += std::chrono::duration<double, std::micro>(tf2 - tf1).count();
@@ -159,11 +197,46 @@ namespace md::engine
 			return true;
 		}
 
+	public:
+
+		// render() in two halves, so the master effects can run on another thread while the next block's voices render (the Schwung
+		// module's engine process): renderDry() is everything but the master section and takes the section's parameter words as the
+		// OS has them after this block's tick; renderMaster() runs the section on that block's mix. Call them in order, one
+		// renderMaster per renderDry, from at most two threads (the section's state is touched only by renderMaster). The same
+		// audio as render().
+		struct MasterJob
+		{
+			bool active = false;
+			uint32_t a[MasterFxOs::kWordsA], b[MasterFxOs::kWordsB];
+		};
+		bool renderDry(Output& _out, MasterJob& _job)
+		{
+			_job.active = false;
+			if(!renderBlockDry(_out)) return false;
+			if(m_masterOs && !m_masterBypass) { _job.active = true; m_host->masterWords(_job.a, _job.b); }
+			return true;
+		}
+		bool renderMaster(Output& _out, const MasterJob& _job)
+		{
+			if(!_job.active || !m_masterOs) return true;
+			m_masterOs->setParams(_job.a, _job.b);
+			return m_masterOs->process(_out.mix);
+		}
+
 		const std::string& fault() const { return m_voices->faultReason(); }
 
 		bool skipSettled = true;	// false: run every track's effects every block (for verifying the skip)
 
 	private:
+		bool masterBlock(Output& _out)
+		{
+			if(!m_masterOs || m_masterBypass) return true;
+			uint32_t a[MasterFxOs::kWordsA], b[MasterFxOs::kWordsB];
+			m_host->masterWords(a, b);
+			m_masterOs->setParams(a, b);
+			return m_masterOs->process(_out.mix);
+		}
+
 		void init()
 		{
 			m_host = std::make_unique<HostModel<TVoices>>(*m_os, *m_voices);
@@ -195,6 +268,8 @@ namespace md::engine
 		std::vector<std::unique_ptr<TrackFx>> m_fxs;	// one per voice group (one when not parallel)
 		Output* m_out = nullptr;
 		Mixer m_mixer;
+		std::unique_ptr<MasterFxOs> m_masterOs;
+		bool m_masterBypass = false, m_masterReverbEchoOnly = false;
 		std::array<TrackFx::State, kTracks> m_state{};
 		std::array<TrackFx::State, kTracks> m_settledState{};
 		std::array<bool, kTracks> m_settled{};

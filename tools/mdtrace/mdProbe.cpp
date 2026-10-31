@@ -112,7 +112,9 @@ int main(int argc, char** argv)
 	if(flash.empty())
 	{
 		std::cerr << "first-run flash initialisation (cached to " << argv[2] << ")\n";
-		md::Hardware init(rom, argv[1], md::MachineModel::Machinedrum);
+		// the emulated machine is far bigger than Windows' default 1 MB stack: both Hardware objects live on the heap
+		const std::unique_ptr<md::Hardware> initPtr(new md::Hardware(rom, argv[1], md::MachineModel::Machinedrum));
+		md::Hardware& init = *initPtr;
 		if(!init.isValid()) { std::cerr << "ROM not valid\n"; return 1; }
 		init.disqualifyFactoryFlashCache();
 		for(uint32_t f = 0; f < md::g_samplerate * 18 && !init.isFactoryFlashReadyForReboot(); f += 128)
@@ -122,7 +124,8 @@ int main(int argc, char** argv)
 		std::ofstream(argv[2], std::ios::binary).write(reinterpret_cast<const char*>(flash.data()), static_cast<std::streamsize>(flash.size()));
 	}
 
-	md::Hardware hw(rom, argv[1], md::MachineModel::Machinedrum, {}, {}, flash);
+	const std::unique_ptr<md::Hardware> hwPtr(new md::Hardware(rom, argv[1], md::MachineModel::Machinedrum, {}, {}, flash));
+	md::Hardware& hw = *hwPtr;
 	if(!hw.isValid()) { std::cerr << "hardware not valid\n"; return 1; }
 	uint32_t boot = 0;
 	const uint32_t bootFrames = std::getenv("MDPROBE_BOOT") ? static_cast<uint32_t>(std::atoi(std::getenv("MDPROBE_BOOT"))) : md::g_samplerate * 20;
@@ -200,6 +203,29 @@ int main(int argc, char** argv)
 			for(uint32_t a : {0x147fffu, 0x140u, 0x141u, 0x142u, 0x7ffu})
 				std::fprintf(stderr, " Y:%06x=%06x", a, dsp.memory().get(dsp56k::MemArea_Y, a));
 			std::fprintf(stderr, "\n");
+			continue;
+		}
+		if(kind == "poke8")	// poke8:ADDR:V[:V...] - ColdFire bytes (hex), e.g. the OS targets for the kit's master effects at $1000f6c
+		{
+			uint32_t a = static_cast<uint32_t>(std::strtoul(s.c_str() + 6, nullptr, 16));
+			for(auto pos = s.find(':', 6); pos != std::string::npos; pos = s.find(':', pos + 1))
+				hw.traceUc().write8(a++, static_cast<uint8_t>(std::strtoul(s.c_str() + pos + 1, nullptr, 16)));
+			continue;
+		}
+		if(kind == "dspmem")	// dspmem:DSP:X|Y|P:FROM:TO - print a DSP's X, Y or P words FROM..TO-1 (hex) to stderr, 8 per line
+		{
+			const auto p1 = s.find(':'), p2 = s.find(':', p1 + 1), p3 = s.find(':', p2 + 1), p4 = s.find(':', p3 + 1);
+			auto& mem = hw.traceDsp(static_cast<uint32_t>(std::atoi(s.c_str() + p1 + 1))).memory();
+			const char area = s[p2 + 1];
+			const auto from = static_cast<uint32_t>(std::strtoul(s.substr(p3 + 1, p4 - p3 - 1).c_str(), nullptr, 16));
+			const auto to = static_cast<uint32_t>(std::strtoul(s.c_str() + p4 + 1, nullptr, 16));
+			for(uint32_t a = from; a < to; a += 8)
+			{
+				std::fprintf(stderr, "   %c:%06x ", area, a);
+				for(uint32_t k = 0; k < 8 && a + k < to; ++k)
+					std::fprintf(stderr, " %06x", mem.get(area == 'X' ? dsp56k::MemArea_X : area == 'Y' ? dsp56k::MemArea_Y : dsp56k::MemArea_P, a + k) & 0xffffff);
+				std::fprintf(stderr, "\n");
+			}
 			continue;
 		}
 		if(kind == "dumpmem")	// dumpmem:FROM:TO:PATH - raw ColdFire memory to a file

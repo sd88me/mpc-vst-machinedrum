@@ -10,6 +10,7 @@
 // profiled" for the measurement this answers.
 #pragma once
 #include <array>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -39,8 +40,14 @@ namespace md::engine
 		// core there (real-time priority only once booted, like the caller's own thread).
 		void tuneWorkers(std::function<void(int)> _fn);
 
+		// Hand-off between the caller and the workers, every 32-frame block: each side waits on a condition variable, which costs a
+		// wake-up (tens of microseconds on a Cortex-A72) twice per block. With _us > 0 each side first spins up to that long, which
+		// a busy engine on otherwise idle cores wants (the Schwung module); 0 (default) never spins.
+		void setSpinUs(int _us) { m_spinUs = _us; }
+
 		void setSlot(int _voice, const uint32_t* _words, int _count = kSlotWords);
 		bool renderBlock(Block& _out);
+		void setInput(const int32_t* _lr) { for(auto& g : m_groups) g->setInput(_lr); }	// see VoiceEngine::setInput
 
 		// Work to run on each group's own thread right after its voices render (the engine's per-track effects:
 		// tracks t with groupOf(t) == group). Gets the group's block, valid for its own voices only.
@@ -86,9 +93,11 @@ namespace md::engine
 		std::vector<std::thread> m_workers;
 		std::mutex m_mx;
 		std::condition_variable m_wake, m_done;
-		uint64_t m_gen = 0, m_tuneGen = 0;
+		std::atomic<uint64_t> m_gen{0};	// written under m_mx; read without it while spinning
+		uint64_t m_tuneGen = 0;
+		int m_spinUs = 0;
 		std::function<void(int)> m_tune;
-		size_t m_pending = 0;
+		std::atomic<size_t> m_pending{0};
 		bool m_stop = false;
 		std::vector<uint8_t> m_ok;
 

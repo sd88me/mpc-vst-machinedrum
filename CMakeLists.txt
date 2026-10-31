@@ -24,6 +24,7 @@ add_library(mdcore STATIC
   engine/HostModel.cpp
   engine/MachineRunner.cpp
   engine/MasterFx.cpp
+  engine/MasterFxOs.cpp
   engine/Mixer.cpp
   engine/ParallelVoiceEngine.cpp
   engine/TrackFx.cpp
@@ -61,8 +62,18 @@ target_link_libraries(md-mastertest PRIVATE mdcore pthread dl)
 # mdhash: an audio hash of a fixed pattern, to compare builds
 add_executable(md-hash tools/mdhash/mdhash.cpp)
 target_link_libraries(md-hash PRIVATE mdcore pthread dl)
+# mdmfxref: a kit through the engine with the master effects, for comparison with the full-system emulation
+add_executable(md-mfxref tools/mdmix/mdmfxref.cpp)
+target_link_libraries(md-mfxref PRIVATE mdcore pthread dl)
+# mdinput: the audio input through the INP machines
+add_executable(md-input tools/mdhash/mdinput.cpp)
+target_link_libraries(md-input PRIVATE mdcore pthread dl)
+# mdmulti: several engines on several threads give the same audio as alone (desktop plugin instances)
+add_executable(md-multi tools/mdhash/mdmulti.cpp)
+target_link_libraries(md-multi PRIVATE mdcore pthread dl)
 # mdsamples: extracts the ROM machines' sample memory from a dump of the emulated MD's voice DSP (tools/mdkits)
 add_executable(mdsamples tools/mdkits/mdsamples.cpp)
+add_executable(md-import tools/mdimport/md_import.cpp)
 target_link_libraries(mdsamples PRIVATE mdcore pthread)
 target_include_directories(mdsamples PRIVATE tools/mdkits)
 

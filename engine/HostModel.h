@@ -68,6 +68,16 @@ namespace md::engine
 		void setMuteGroup(int _track, int _target) { m_muteGroup[_track] = static_cast<int8_t>(_target >= 0 && _target < kTracks && _target != _track ? _target : -1); }
 		bool groupMuted(int _track) const { return m_groupMuted[_track]; }
 
+		// Master effects (engine/MasterFx): the kit's 32 master bytes (reverb 8, echo 8, EQ 8, dynamix 8) are the targets of the
+		// OS's own smoother (slewed like the track levels), and each tick one of the OS's four time-sliced routines
+		// ($20b4a2-$20ba4c, selected by the tick counter $265404) turns the smoothed values into the mixer DSP's parameter words,
+		// exactly as the Machinedrum does. Off by default (the Force build has no master effects and runs none of this).
+		void enableMasterParams(bool _on) { m_masterParams = _on; }
+		void setMasterFx(const uint8_t* _bytes32);	// targets, 0-127 each
+		void snapMasterFx();						// the smoothed values jump to the targets and all four routines run (a new instance)
+		// The words for Y:$150-$158 (9) and Y:$170-$18c (29), as of the last tick's routine.
+		void masterWords(uint32_t* _a9, uint32_t* _b29) const;
+
 		// Per-track inputs to the mixer DSP, as of the last tick.
 		struct MixerInput
 		{
@@ -119,6 +129,8 @@ namespace md::engine
 		int m_blocksPerTick = 11;
 		int m_blockCount = 0;
 		uint32_t m_tickCount = 0;
+		bool m_masterParams = false;
+		uint32_t m_masterPhase = 0;
 		int m_maxActive = kTracks * 2;
 		std::array<bool, kTracks> m_silenceNext{};	// budget victims to silence on their next tick
 		std::array<float, kTracks> m_costEma{};	// DSP instructions per block a track costs while it sounds (moving average), for group balancing

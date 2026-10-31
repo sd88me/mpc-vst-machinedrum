@@ -1,6 +1,7 @@
 // Harness structure adapted from shnolk/monomodule src/core/dsp/DspEngine.cpp (AGPL-3.0).
 #include "VoiceEngine.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>
@@ -38,6 +39,9 @@ namespace md::engine
 		constexpr TWord kNextVoice = 0xd5;		// advance to the next voice
 		constexpr TWord kEndOfBlock = 0xe2;		// all 16 voices done; original: RAM-R input position, bra $64
 		constexpr TWord kBlockStart = 0x64;
+		constexpr TWord kInputRing = 0x100, kInputRingWords = 0x100;	// X: the ADC's DMA ring (ESSI1 receive), 128 stereo frames
+		constexpr TWord kInputPos = 0x256;		// X: where the block-end code ($e2, replaced by the harness) leaves the ring's block-aligned write position
+		constexpr TWord kDcr1 = 0xffffe8;		// DMA channel 1's control register: the ESSI1 receive DMA into the ring
 		constexpr TWord kStub = 0x0c00;			// free internal P RAM (the program's internal P ends at $3e2)
 		constexpr TWord kSkipStub = 0x0c20;	// silent-voice check, replaces kRenderFn's lookup
 		constexpr TWord kSkipNormal = 0x0c30;	// real render fn lookup, resumed
@@ -233,6 +237,24 @@ namespace md::engine
 			hi.readTX();
 	}
 
+	void VoiceEngine::setInput(const int32_t* _lr)
+	{
+		std::copy_n(_lr, m_input.size(), m_input.begin());
+		m_inputOn = true;
+	}
+
+	// The INP machines (and RAM-R) read the ring at the position their machine init copied from X:$256, 96 words behind it, one
+	// block of 64 words, and advance by 64 a block. So: this block's position is a multiple of 64 that steps by 64 each block, and
+	// the 64 words they will read are the input's.
+	void VoiceEngine::feedInput()
+	{
+		const TWord pos = static_cast<TWord>((m_inputBlock++ & 3) * 64);
+		m_dsp->memWrite(MemArea_X, kInputPos, kInputRing + pos);
+		const TWord first = (pos + kInputRingWords - 96) % kInputRingWords;
+		for(TWord j = 0; j < 64; ++j)
+			m_dsp->memWrite(MemArea_X, kInputRing + (first + j) % kInputRingWords, static_cast<TWord>(m_input[j]) & 0xffffff);
+	}
+
 	void VoiceEngine::setSlot(const int _voice, const uint32_t* _words, const int _count)
 	{
 		const TWord base = kSlotBase + kSlotStride * static_cast<TWord>(_voice);
@@ -310,6 +332,11 @@ namespace md::engine
 	bool VoiceEngine::renderBlock(Block& _out)
 	{
 		auto& hi = m_periphX->getHI08();
+		if(m_inputOn)
+		{
+			m_periphX->write(kDcr1, 0);	// the emulated DMA would overwrite the ring with its own silent frames
+			feedInput();
+		}
 		const TWord go = 1;
 		hi.writeRX(&go, 1);
 		const auto start = m_dsp->getInstructionCounter();
