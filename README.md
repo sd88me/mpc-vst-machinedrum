@@ -156,6 +156,7 @@ offers is checked to make sound as part of the build.### Known limits
 
 - An MPC OS standalone device (developed on a Force; other MPC OS devices use the same plugin host).
 - **Your own Machinedrum OS 1.63 `.syx`** (`Elektron_SPS1-1UW_OS1.63.syx`). This is the sound engine. It is still a free download from Elektron's website (the Machinedrum support/downloads page), so it is the easy one to get; the flash image below has to come from your own unit.
+  The installer app's **Your ROMs and files** step can do this for you: it checks each file before copying it into the right folder and saves it as `Elektron_SPS1-1UW_OS1.63.syx` (rules: `release/userfiles.json`).
 - **Your own full flash image** of a Machinedrum UW (8 MB `.bin`), used once at build time. It holds the ROM machines'
   samples and the source of the factory kits; the OS `.syx` has neither. What it adds, and what you lose without it:
 

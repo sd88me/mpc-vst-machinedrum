@@ -170,7 +170,7 @@ if [ $PUBLIC = 1 ]; then
   cp "$WORK/skin/recipe/art.bin" vst/build/payload/skin-recipe/art.bin
   printf 'Put your Machinedrum UW OS 1.63 file here, named Elektron_SPS1-1UW_OS1.63.syx (a free download from Elektron).\nThen load Machinemodule once (it makes its skin from that file) and restart MPC to see the skin.\nOptional: your Machinedrum UW flash image (the 8 MB .bin) here too gives you the ROM sample machines and the 16 factory kits:\nthe plugin makes them from it the first time you load it (about 2 minutes; it makes sound only after that).\nYour own kit dumps (.syx) go in kits/.\n' > vst/build/payload/machinedrum/PUT-OS-FILE-HERE.txt
   mkdir -p vst/build/payload/machinedrum/kits
-  EXTRAS=(--extra vst/build/payload/machinedrum:machinedrum --extra vst/build/payload/skin-recipe:skin-recipe --extra "$WORK/extract:extract" --user-data machinedrum)
+  EXTRAS=(--extra vst/build/payload/machinedrum:machinedrum --extra vst/build/payload/skin-recipe:skin-recipe --extra "$WORK/extract:extract" --user-data machinedrum --user-files release/userfiles.json)
   REQUIRES="Your own Machinedrum UW OS 1.63 file (a free download from Elektron), put in the plugin's machinedrum/ folder; MPC restarted once after the first load (the plugin makes its skin from that file). No ROM machines or factory kits unless you also put your flash image (.bin) there"
   ABOUT="Machinemodule: the Elektron Machinedrum UW sound engine as an MPC OS instrument (Gen2; runs your own OS file)"
 else
