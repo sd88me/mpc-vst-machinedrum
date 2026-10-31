@@ -23,6 +23,7 @@ include(cmake/dsp56300.cmake)
 add_library(mdcore STATIC
   engine/HostModel.cpp
   engine/MachineRunner.cpp
+  engine/MasterFx.cpp
   engine/Mixer.cpp
   engine/ParallelVoiceEngine.cpp
   engine/TrackFx.cpp
@@ -54,6 +55,9 @@ target_link_libraries(md-skin-gen PRIVATE mdcore)
 # mdcost: per-machine cost of one playing voice (instructions and wall time), for the Force
 add_executable(md-cost tools/mdcost/mdcost.cpp)
 target_link_libraries(md-cost PRIVATE mdcore pthread dl)
+# md-mastertest: engine/MasterFx (the master section on its own DSP, fed by the native mixer) against the whole mixer DSP
+add_executable(md-mastertest tools/mdmix/mdmastertest.cpp tools/mdmix/MixerRef.cpp)
+target_link_libraries(md-mastertest PRIVATE mdcore pthread dl)
 # mdhash: an audio hash of a fixed pattern, to compare builds
 add_executable(md-hash tools/mdhash/mdhash.cpp)
 target_link_libraries(md-hash PRIVATE mdcore pthread dl)
@@ -83,4 +87,7 @@ if(MPC_VST_DIR)
   add_executable(md-vst-smoke vst/smoke.cpp vst/engine.cpp)
   target_include_directories(md-vst-smoke PRIVATE "${MPC_VST_DIR}/wrapper" "${CMAKE_CURRENT_SOURCE_DIR}/vst/build" "${CMAKE_CURRENT_SOURCE_DIR}/vst" "${CMAKE_CURRENT_SOURCE_DIR}/tools/mdskin" "${CMAKE_CURRENT_SOURCE_DIR}/tools/mdkits")
   target_link_libraries(md-vst-smoke PRIVATE mdcore pthread)
+  add_executable(md-ctrtest vst/ctrtest.cpp vst/engine.cpp)
+  target_include_directories(md-ctrtest PRIVATE "${MPC_VST_DIR}/wrapper" "${CMAKE_CURRENT_SOURCE_DIR}/vst/build" "${CMAKE_CURRENT_SOURCE_DIR}/vst" "${CMAKE_CURRENT_SOURCE_DIR}/tools/mdskin" "${CMAKE_CURRENT_SOURCE_DIR}/tools/mdkits")
+  target_link_libraries(md-ctrtest PRIVATE mdcore pthread)
 endif()

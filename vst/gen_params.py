@@ -122,6 +122,25 @@ for lst, n_, label in (("bank", BANK_SLOTS, "Bank"), ("kit", KIT_SLOTS, "Kit")):
     params.append({"key": "%s_pgprev" % lst, "name": "%s Page Prev" % label, "min": 0, "max": 1, "momentary": True})
     params.append({"key": "%s_pgnext" % lst, "name": "%s Page Next" % label, "min": 0, "max": 1, "momentary": True})
     params.append({"key": "%s_page" % lst, "name": "%s Page" % label, "min": 0, "max": 0, "display": "string"})
+# The mixer page (ModuleDrum's): MUTE / SOLO per track (engine.cpp kSlotMute / kSlotSolo, saved with the instance), and a
+# meter the engine drives (the track's peak after VOL, 0-127 = -48..0 dBFS; vst.json HAS_DISPLAY_REV reports it). Appended last.
+for t in range(16):
+    params.append({"key": "track%d_mute" % t, "name": "T%d Mute" % (t + 1), "options": ["OFF", "ON"], "default": 0})
+    params.append({"key": "track%d_solo" % t, "name": "T%d Solo" % (t + 1), "options": ["OFF", "ON"], "default": 0})
+for t in range(16):
+    params.append({"key": "track%d_meter" % t, "name": "T%d Meter" % (t + 1), "min": 0, "max": 127, "default": 0, "display": "int"})
+
+# The master effects (engine/MasterFx: DSP1's own master section, Gen2 only; the kit's 4 x 8 master knobs): master_fx on/off (on by
+# default) then rv1-8 reverb (Gate Box), dl1-8 delay (Rhythm Echo), eq1-8, dx1-8 dynamix. Appended last. Defaults: engine.cpp kMasterDefaults.
+params.append({"key": "master_fx", "name": "Master FX", "options": ["OFF", "ON"], "default": 1})
+MASTER = [("rv", "REV", ["DVOL", "PRED", "DEC", "DAMP", "HP", "LP", "GATE", "LEV"], [0, 0, 64, 64, 0, 127, 127, 127]),
+          ("dl", "DEL", ["TIME", "MOD", "MFRQ", "FB", "FLTF", "FLTW", "MONO", "LEV"], [24, 0, 0, 32, 0, 127, 0, 127]),
+          ("eq", "EQ", ["LF", "LG", "HF", "HG", "PF", "PG", "PQ", "GAIN"], [64] * 8),
+          ("dx", "DYN", ["ATCK", "REL", "TRHD", "RTIO", "KNEE", "HP", "OUTG", "MIX"], [0, 64, 127, 0, 0, 0, 64, 0])]
+for pre, nm, labels, defs_ in MASTER:
+    for k in range(8):
+        params.append({"key": "%s%d" % (pre, k + 1), "name": "%s %s" % (nm, labels[k]), "min": 0, "max": 127, "default": defs_[k], "display": "int"})
+sections.append(("MASTER FX", ["master_fx"] + ["%s%d" % (m[0], k + 1) for m in MASTER for k in range(8)]))
 
 json.dump({"name": "Machinemodule", "params": params,
            "sections": [{"label": l, "keys": k} for l, k in sections]},

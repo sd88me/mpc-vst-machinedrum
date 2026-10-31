@@ -12,6 +12,7 @@
 #include <vector>
 #include "HostModel.h"
 #include "MachineRunner.h"
+#include "MasterFx.h"
 #include "Mixer.h"
 #include "ParallelVoiceEngine.h"
 #include "TrackFx.h"
@@ -35,7 +36,7 @@ namespace md::engine
 		// _osImage: the OS file's section 0 (the ColdFire OS), decompressed. Constructs TVoices with just the
 		// firmware (VoiceEngine's own constructor).
 		EngineT(const fw::Firmware& _fw, std::vector<uint8_t> _osImage)
-			: m_tables(_fw), m_mixer(m_tables)
+			: m_fw(&_fw), m_tables(_fw), m_mixer(m_tables)
 		{
 			m_os = std::make_unique<MachineRunner>(std::move(_osImage));
 			m_voices = std::make_unique<TVoices>(_fw);
@@ -46,7 +47,7 @@ namespace md::engine
 		// count). Only ever instantiated for a TVoices whose constructor actually takes (firmware, _voicesArg).
 		template<class TVoicesArg>
 		EngineT(const fw::Firmware& _fw, std::vector<uint8_t> _osImage, TVoicesArg _voicesArg)
-			: m_tables(_fw), m_mixer(m_tables)
+			: m_fw(&_fw), m_tables(_fw), m_mixer(m_tables)
 		{
 			m_os = std::make_unique<MachineRunner>(std::move(_osImage));
 			m_voices = std::make_unique<TVoices>(_fw, _voicesArg);
@@ -69,7 +70,38 @@ namespace md::engine
 		// are HostModel's (host().tickUs / dspUs).
 		uint32_t dryMute = 0;	// tracks kept out of the dry main mix (see Mixer::process); set by the caller between renders
 		bool timingOn = false;
-		double fxUs = 0, mixUs = 0;
+		double fxUs = 0, mixUs = 0, masterUs = 0;
+
+		// The master effects (reverb, delay, EQ, dynamix: MasterFx, DSP1's own section on the emulator) take the dry main mix
+		// and the two sends and give the hardware's main output. _knobs: the kit's 4 x 8 master knobs (0-127), converted by the
+		// OS's own code when they change. Built on first use (it boots a DSP: do it before the audio runs). False if it cannot
+		// run; then the plain mix is what render() gives.
+		bool setMasterFx(const bool _on, const std::array<std::array<uint8_t, 8>, 4>& _knobs)
+		{
+			m_masterOn = false;
+			if(!_on) return true;
+			if(m_masterFault) return false;
+			if(!m_master)
+			{
+				try { m_master = std::make_unique<MasterFx>(*m_fw); }
+				catch(const std::exception&) { m_masterFault = true; return false; }
+				m_masterKnobs = {};
+				m_masterKnown = false;
+			}
+			for(int fx = 0; fx < kNumMasterFx; ++fx)
+			{
+				const auto f = static_cast<size_t>(fx);
+				if(m_masterKnown && m_masterKnobs[f] == _knobs[f]) continue;
+				std::array<uint32_t, 16> words{};
+				if(!convertMasterFx(*m_os, static_cast<MasterFxId>(fx), _knobs[f].data(), words)) { m_masterFault = true; return false; }
+				m_master->setParams(static_cast<MasterFxId>(fx), words);
+				m_masterKnobs[f] = _knobs[f];
+			}
+			m_masterKnown = true;
+			m_masterOn = true;
+			return true;
+		}
+		bool masterFxOn() const { return m_masterOn; }
 
 		static constexpr bool kParallel = std::is_same_v<TVoices, ParallelVoiceEngine>;
 
@@ -110,12 +142,20 @@ namespace md::engine
 				in[t] = _out.tracks[t].data();
 				mix[t] = m_host->mixerInput(t).mix;
 			}
-			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); return true; }
+			const auto master = [this, &_out]
+			{
+				Mixer::Stereo res;
+				if(m_masterOn && m_master && m_master->process(_out.mix, res)) _out.mix.main = res;
+			};
+			if(!timingOn) { m_mixer.process(in.data(), mix.data(), _out.mix, dryMute); master(); return true; }
 			const auto tf1 = std::chrono::steady_clock::now();
 			m_mixer.process(in.data(), mix.data(), _out.mix, dryMute);
 			const auto tf2 = std::chrono::steady_clock::now();
+			master();
+			const auto tf3 = std::chrono::steady_clock::now();
 			fxUs += std::chrono::duration<double, std::micro>(tf1 - tf0).count();
 			mixUs += std::chrono::duration<double, std::micro>(tf2 - tf1).count();
+			masterUs += std::chrono::duration<double, std::micro>(tf3 - tf2).count();
 			return true;
 		}
 
@@ -144,6 +184,10 @@ namespace md::engine
 			}
 		}
 
+		const fw::Firmware* m_fw;
+		std::unique_ptr<MasterFx> m_master;
+		std::array<std::array<uint8_t, 8>, 4> m_masterKnobs{};
+		bool m_masterOn = false, m_masterFault = false, m_masterKnown = false;
 		std::unique_ptr<MachineRunner> m_os;
 		std::unique_ptr<TVoices> m_voices;
 		std::unique_ptr<HostModel<TVoices>> m_host;

@@ -1582,3 +1582,67 @@ still published with older zips (Tap title "TAP FX", VOICES 6, a ROM cell): dele
 7. **Live III driving tips** (192.168.2.217, `/nvme/Synths`, root ssh, BusyBox: no `head -N`, `unzip`, `join`, `timeout`): the remote addin (`:6720`, bound 0.0.0.0) takes `/tap?x=&y=`, MCP `drag`/`turn_knob`/`play_notes`.
    The plugin-picker dialog opens either as a Type or a Manufacturer tree (it alternates): take a screenshot before each tap. A stray tap can open Track Edit / Delete Track: cancel, never confirm. `systemctl restart acvs`
    drops the (scratch) project.
+
+## 2026-10-29: ModuleDrum adoption (mixer page, mute groups, master FX; v1.0.0 work)
+The state, decisions and commands are in [docs/HANDOFF-moduledrum-adoption.md](docs/HANDOFF-moduledrum-adoption.md); the log below is in the order it happened.
+
+**Current status (2026-10-30): read the linked file, it is the up-to-date one.** Branch `v1` (pushed) has the mixer page, mute groups, master effects, CTR machines, logos and the installer fix; `desktop-improvements` has the desktop counterparts. v1.0.0 with CTR is installed on the Live 3 and waits for the user's test; nothing is tagged, released or in a pull request. The entries below are the original log (in the order it happened) and are partly outdated, e.g. "not committed", "A/B", "CTR planned".
+
+- **2026-10-29: adopting ideas from ModuleDrum (github.com/K-X420/ModuleDrum, AGPL-3.0, a fork of Shnolk's Monomodule; branch `md-improvements`,
+  NOT committed).** Review: it emulates the whole DSP1 (79 M instr/s); we keep our bit-exact C++ track FX/mixer and add only DSP1's master section
+  (option A, user's choice). Done so far:
+  - **Mute groups** (kit byte 0x4a7: 7-bit trig groups 16 + mute groups 16, 0xff = off; master FX raw at 0x487, LFO block is 659 bytes):
+    `HostModel::setMuteGroup` (MainOS $20b3b0/$20b210: a trigger zeroes the target's mixer words until its own next trigger), `Kit::muteGroup`
+    + `Kit::masterFx` parsed, `Inst::muteGroup` saved in a **v2** state chunk (v1 still loads). md-hash unchanged (04ef1db4fe767721 on x86);
+    `MD_MUTEGROUP=1 md-hash` shows the target silent 3 blocks after the trigger, back on its own trigger.
+  - **Logos:** mdartdump/md_art.h now reads the OS's five family badges (E12 EFM P-I TRX UW, scanned as ModuleDrum's readRomBadges), cropped
+    17x9; `tools/mdskin/md_logos.py`; drawn at 2x in the machine bar and at LCD scale in the picker headers. build_skin.sh copies the badges
+    into Monomodule's art.json when that is used. `skin_recipe.py make` check passes (real + random art), so the -P zip stays art-free.
+  - **Descriptions:** `tools/mdskin/md_machine_text.py` (ModuleDrum's words), two lines beside the machine block (in the mb_<id> images;
+    the picker tap field stays the block's width).
+  **Next:** (1) mixer page like ModuleDrum's (per track: name, pan, level, mute, solo, meter; meters as engine-driven params via
+  HAS_DISPLAY_REV, new params appended after the locked ones); (2) master FX = DSP1 `$342-$970` only, params via ModuleDrum's
+  `ControlCpu::convertMasterFx` (MainOS 0x20B440..0x20BAB2), Gen2 only, off by default; (3) compare their idle-strip skip with our silence
+  release; (4) A/B build under a temporary different plugin name/uid. Credit ModuleDrum in README/THIRD_PARTY when committing.
+- **2026-10-29 (later): ModuleDrum-style mixer page on the GLOBAL tab (uncommitted, branch `md-improvements`; not yet on a device).** Per track: number, PAN bar
+  (`track%d_pan`), LEV fader (`track%d_level`) with a meter beside it, M and S buttons. New params appended after `rom_enabled` (params.lock keeps the
+  old indices): `track%d_mute`, `track%d_solo` (engine slots kSlotMute/kSlotSolo, saved in the state chunk; old states still load) and `track%d_meter`
+  (engine-driven peak after VOL, 0-127 = -48..0 dBFS, falls 24 dB/s; vst.json now has HAS_DISPLAY_REV + DISPLAY_REV_NO_UPDATE and the engine serves
+  `display_rev`). Solo = every track not soloed is muted via `HostModel::setMute`. The mixer starts level with the machine bar (the band above the pages
+  is free on this tab) and the MACHINEMODULE nameplate moved into its title bar. `skin_recipe.py make` check still passes.
+  **To verify on the device:** M/S taps, meter movement and CPU of the 10 Hz display_rev poll (meters only report when a value moves).
+- **2026-10-29 (later still): decisions + Q-Link outlines.** (1) **Master FX will be ON by default** (user's call; supersedes "off by default"
+  above), still Gen2-only since the armhf Force can't afford it; param to switch it off stays. (2) **Q-Link column outlines** in the skin
+  (`mk_skin.py` QL_GLOBAL / QL_TRACK -> each page's `qlinkBoundsData`, `hideQLinkBounds` False): one rectangle per Q-Link column (4 slots = a row of
+  four cells, or four mixer strips), so MPC outlines the controls the Q-Links currently drive. Drawn over the previews and checked; GLOBAL tab has no
+  skin_check findings. Interpretation of "q link bound overlay" = `qlink_bounds=column` of the shared skin generator; the generator is shared, so
+  the Gen2 recipe skin gets it too (recipe check passes). Not yet seen on a device (press the Q-Link button on a One/Live: the outline should step).
+- **2026-10-29 (night): A/B build + master FX (uncommitted, branch `md-improvements`; NOT yet on a device).**
+  - **A/B build:** `MD_VARIANT=b vst/build_so.sh - ~/mpc-vst-plugins aarch64` builds only the Module from `vst/vst_b.json` ("Machinemodule B", uid `MdOb`,
+    `machinedrum_b.so`; own obj dir). Skin: `tools/mdskin/mk_skin.py ... vst/build/skin-b name=Machinemodule_B`. Packaged with `mpc-vst-plugins/tools/release.py`
+    (no extras, --id machinemodule-b) -> `dist/Machinemodule-B-0.4.4-mpc-aarch64.zip`. **It has no data folder: after installing, symlink the real plugin's**
+    `ln -s "../sd88me - VST - Machinemodule/machinedrum" "/nvme/Synths/sd88me - VST - Machinemodule B/machinedrum"` (OS file, factory kits, ROM samples).
+    install.sh stops/restarts MPC (save the project first). Taps still attach to the normal plugin only (they dlopen machinedrum_one.so).
+  - **Master FX:** `engine/MasterFx.{h,cpp}`: DSP1's section $342-$9A8 on its own dsp56300 DSP (init as tools/mdmix/MixerRef), fed with the native Mixer's
+    dry main (X:$180), reverb send ($1c0), delay send ($600) and frames ($400); params Y:$150-$18c from `convertMasterFx` = the OS's own conversion
+    sections run on the 68k (`MachineRunner::runTo(entry, 0x20BA4C)`; addresses from ModuleDrum's MdControl.cpp). `EngineT::setMasterFx(on, knobs)` creates it
+    on first use (before `ready`), converts only changed effects; `render()` replaces `mix.main` with its output. **`md-mastertest`** (CMake target,
+    tools/mdmix/mdmastertest.cpp) compares it with MixerRef's full DSP1 (runMix + runMaster(0x9A8)): 25,600 words / 400 blocks, random inputs and knobs,
+    silent tails: **0 mismatches**, ~10,300 DSP instr/block (x86: about +4% of a core in md-vst-smoke). md-hash with it off is unchanged (04ef1db4fe767721).
+  - **Plugin:** slots kSlotMasterOn (default ON) + kSlotMasterFx (32); params `master_fx`, `rv1-8 dl1-8 eq1-8 dx1-8` (gen_params.py, appended); kit loading
+    copies the kit's master bytes (offset 0x487); state restore keeps current values for slots an older state lacks. Gen2 only
+    (`kMasterFxSupported` false on 32-bit ARM). **Level:** with it on the output is the hardware's own main level: ~x5.76 (+15 dB) over the dry mix
+    the plugin gave before (and still gives with `master_fx` off); the smoke kit clips at 16 bits (peak 32768 vs 14696 off). Not trimmed: the DSP saturates
+    internally, so a trim after it would only lower the ceiling. Lower the MPC track fader; consider a trim param if it is a problem.
+  - **Skin:** FX tab (after GLOBAL; tracks moved to fnKeyIndex/Tab +1): REVERB / DELAY / EQ / DYNAMIX quadrants, Q-Link sub-pages reverb+delay and EQ+dynamix with
+    column outlines; MST FX toggle in GLOBAL's spare cell. Recipe check passes (321 images).
+  **Open:** (1) listen on the Live 3 (A/B vs the normal plugin; level, clicks on knob changes: the conversion jumps, the OS's slew is not applied);
+  (2) real-time cost on the Live 3 (stats line: `mix=`... Engine::masterUs is timed but not yet printed); (3) taps with master on: they still carry the dry
+  sends; (4) mdextract/-P release and README/THIRD_PARTY credit for ModuleDrum before committing; (5) compare ModuleDrum's idle-voice skip with our silence release.
+  **Installed on the Live 3 (192.168.2.217) 2026-10-29:** `Machinemodule-B-0.4.4` via `sh install.sh -y -t /nvme/Synths` (the default /sdcard/Synths is read-only there),
+  MPC restarted by the installer, settings backup `/data/Settings/MPC/MPC.settings.bak-machinedrum_b-20261029-122355`; data symlink made by hand (see above);
+  .so md5 2777a0f6... = the build. Remove with `sh /tmp/Machinemodule-B-0.4.4/uninstall.sh` (then delete the symlink folder if it stays). Not yet listened to or opened in MPC.
+- **2026-10-30: ModuleDrum-adoption workstream is described in `docs/HANDOFF-moduledrum-adoption.md`** (state, device, open items, commands, and two new requests: the improvements for a VST3 version, and the skin improvements for the Gen1 build as a version of its own). Pan on Q-Links and the M/S double-press fix are built in the skin but not yet deployed (Live 3 was offline).
+- **2026-10-30:** user verified on the Live 3: M/S single toggle, PAN Q-Link page, meters. See docs/HANDOFF-moduledrum-adoption.md.
+- **2026-10-30:** bench: master FX costs ~45 us/block on the Live 3 (about 6% of the 725 us budget); md-hash got MD_MASTER / MD_TIME. See docs/HANDOFF-moduledrum-adoption.md.
+- **2026-10-30:** Gen1 skin option (mk_skin.py gen=1, release script armhf) and desktop mute groups (branch desktop-improvements in worktree ../mpc-vst-machinedrum-desktop, MmRender ALL OK). See docs/HANDOFF-moduledrum-adoption.md.

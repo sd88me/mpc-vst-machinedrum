@@ -16,7 +16,9 @@ ninja -C "$ROOT/build-vst-x86" mdmachine mdartdump >/dev/null
 "$ROOT/build-vst-x86/mdmachine" "$OS" > "$ROOT/vst/build/machines.txt" 2>/dev/null
 "$ROOT/build-vst-x86/mdartdump" "$OS" "$ROOT/vst/build/art.json"
 MNM_ART=${MNM_ART:-$ROOT/../mpc-vst-monomodule/vst/build/art.json}
-if [ -f "$MNM_ART" ]; then cp "$MNM_ART" "$ROOT/vst/build/art.json"; echo "skin art: $MNM_ART (Monomodule's)"; fi
+if [ -f "$MNM_ART" ]; then   # Monomodule's art, with the MD's own family badges (the Monomachine has none of these) kept in
+  python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); d=json.load(open(sys.argv[2])); m["bitmaps"]["familyBadge"]=d["bitmaps"]["familyBadge"]; json.dump(m,open(sys.argv[2],"w"))' "$MNM_ART" "$ROOT/vst/build/art.json"
+  echo "skin art: $MNM_ART (Monomodule's)"; fi
 rm -rf "$ROOT/vst/build/skin"
 # Pillow in a stock python image (no browser needed: this skin is drawn with Pillow only), so nothing has to be built or pulled from elsewhere
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e MPC_VST_TOOLS=/mv/tools -v "$ROOT":/r -v "$MV":/mv:ro -w /r python:3.11-slim sh -c \

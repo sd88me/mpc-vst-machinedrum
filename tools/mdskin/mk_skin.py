@@ -29,6 +29,8 @@ TOOLS = os.environ.get("MPC_VST_TOOLS") or os.path.join(os.path.expanduser("~"),
 sys.path.insert(0, TOOLS)
 import shadow_skin as ss  # noqa: E402  (TUI.json helpers shared with the other ports)
 ss.QLINK_COLUMNS = True   # native Q-Link outlines: one box per Q-Link column on each page (see qlink_boxes)
+import md_logos  # noqa: E402
+import md_machine_text  # noqa: E402
 
 args = dict(a.split("=", 1) for a in sys.argv[5:])
 PRESETS = {"default": ("000000", "ffffff"), "inverted": ("ffffff", "000000"), "lowcontrast": ("5c5c5c", "c4c4c4"),
@@ -247,7 +249,8 @@ FR_X, FR_Y, FR_W, FR_H = 1, CONTENT_Y, CW - 1, CELL - CONTENT_Y
 
 
 # ------------------------------------------------------------------ output ----------------------------------------
-NAME, VENDOR = "Machinemodule", "sd88me"
+GEN1 = args.get("gen") == "1"   # gen=1: the Gen1 skin (Force, MPC Live II / X / One: armhf): no master effects there, so no FX tab and no MST FX switch
+NAME, VENDOR = args.get("name", "Machinemodule").replace("_", " "), "sd88me"   # name=Machinemodule_B: the A/B build's own skin folder
 OUT = os.path.join(sys.argv[4], "%s - VST - %s" % (VENDOR, NAME))
 SKIN = os.path.join(OUT, "Plugin Skins")
 os.makedirs(SKIN, exist_ok=True)
@@ -282,7 +285,7 @@ def strip_image(p, cache={}):
 
 
 defs = {}
-TABK = [[] for _ in range(TRACKS + 1)]   # components per tab: one per track, then GLOBAL
+TABK = [[] for _ in range(TRACKS + 2)]   # components per tab: one per track, then GLOBAL, then FX (the master effects)
 PREVIEW = []   # (image file, x, y, w, h, condition, frame index or None, tab), in draw order, for the offline composite
 
 
@@ -383,7 +386,8 @@ MACHINES = parse_machines(sys.argv[2])
 # (a kit using one shows a blank bar and grid): MID/CTR (no audio), INP (no audio input), RAM (no sampling) and the
 # ROM slots the factory image leaves empty (ROM33-48).
 def drawn(m):
-    return m["group"] not in ("MID", "CTR", "INP", "RAM") and not (m["group"] == "ROM" and int(m["short"]) > 32)
+    # the control machines (CTR: CTR-AL, CTR-8P, CTR-RE / GB / EQ / DX) are offered except in the Gen 1 skin (its memory is tight; they act in the plugin on any device)
+    return m["group"] not in (("MID", "INP", "RAM") if not GEN1 else ("MID", "CTR", "INP", "RAM")) and not (m["group"] == "ROM" and int(m["short"]) > 32)
 
 
 ALL_DRAWN = [m for m in MACHINES if drawn(m)]
@@ -392,16 +396,36 @@ GROUP_TITLE = {"GND": "GND", "P-I": "P-I", "TRX": "TRX", "EFM": "EFM", "E12": "E
 BAR_H, LOGO_X, LOGO_GAP, ARROW_GAP, ARROW_W, PAD_R = 26, 4, 6, 4, 5, 4
 
 
-def machine_bar(m):
-    """Monomodule's machine_bar (upstream MachineBar::paint) with the group name in place of a group logo."""
+LOGO_SCALE = 2   # LCD px per logo pixel: a 9-row logo fills 18 of the bar's 26 rows (as Monomodule draws its group logos)
+
+
+DESC_GAP = 8   # LCD px between the machine block and its description
+
+
+def machine_bar(m, desc=True):
+    """Monomodule's machine_bar (upstream MachineBar::paint): the family's logo (md_logos; the group name where there is none),
+    the machine, the picker arrow. desc: then, on the paper, two lines about the machine and its family (md_machine_text)."""
     bold = F["bold8"]
     grp = GROUP_TITLE.get(m["group"], m["group"])
-    logo_w = text_width(bold, grp)
+    art_logo = md_logos.logo(m["group"], B)
+    logo_w = len(art_logo[0]) * LOGO_SCALE if art_logo else text_width(bold, grp)
     name_x = LOGO_X + logo_w + LOGO_GAP
     w = name_x + text_width(bold, m["short"]) + ARROW_GAP + ARROW_W + PAD_R
-    cv = Canvas(w, BAR_H)
+    small = F["small4x5"]
+    texts = md_machine_text.lines(m) if desc else ("", "")
+    full_w = w + DESC_GAP + max(text_width(small, t) for t in texts) if any(texts) else w
+    cv = Canvas(full_w, BAR_H)
     cv.fill(0, 0, w, BAR_H, True)
-    cv.text(bold, grp, LOGO_X, (BAR_H - bold.h) // 2, False)
+    for i, t in enumerate(texts):   # two lines, centred on the bar as a block
+        cv.text(small, t, w + DESC_GAP, (BAR_H - 2 * small.h - 3) // 2 + i * (small.h + 3), True)
+    if art_logo:
+        ly = (BAR_H - len(art_logo) * LOGO_SCALE) // 2
+        for r, row in enumerate(art_logo):
+            for c, ch in enumerate(row):
+                if ch == "#":
+                    cv.fill(LOGO_X + c * LOGO_SCALE, ly + r * LOGO_SCALE, LOGO_SCALE, LOGO_SCALE, False)
+    else:
+        cv.text(bold, grp, LOGO_X, (BAR_H - bold.h) // 2, False)
     cv.text(bold, m["short"], name_x, (BAR_H - bold.h) // 2, False)
     ax, ay = name_x + text_width(bold, m["short"]) + ARROW_GAP, BAR_H // 2 - 1
     for r in range(3):
@@ -550,7 +574,7 @@ def build_row(label, y, prev_key, next_key, name_key, open_key):
 
 build_row("BANK", strip_y0, "bank_prev", "bank_next", "bank_name", "bank_open")
 build_row("KIT", strip_y0 + (STRIP_H + STRIP_GAP) * S, "kit_prev", "kit_next", "kit_name", "kit_open")
-BAR_W_MAX = max(machine_bar(m).size[0] for m in MACHINES)   # the machine picker's tap field: the widest bar
+BAR_W_MAX = max(machine_bar(m, desc=False).size[0] for m in MACHINES)   # the machine picker's tap field: the widest bar
 # the nameplate, on the LCD in its own bold font, right-aligned with the pages, level with the machine bar
 _np = "MACHINEMODULE"
 px_text(TRACK_CHASSIS, F["bold8"], _np, OX + PAGES_X0 + PAGES_W - text_width(F["bold8"], _np) * 3,
@@ -635,6 +659,24 @@ def syn_overlay(m, cache={}):
     return cache[key]
 
 
+CTR_8P = next((m for m in DRAWN_MACHINES if m["name"] == "CTR8P"), None)
+
+
+def ctr8p_overlay(page, first):
+    """CTR-8P's targets: the track's AMP and ROUTE cells hold its eight (track, parameter) pairs (HostModel raw 8-23), so while the machine is CTR-8P the
+    two pages are drawn as TRK n / PRM n cells, transparent over their live dials as the SYN grid is (the title bar is covered too)."""
+    cells = []
+    for k in range(4):
+        cells += [P("TRK%d" % (first + k)), P("PRM%d" % (first + k))]
+    im = page_canvas(page, cells, "TARGETS %d-%d" % (first, first + 3)).image().convert("RGBA")
+    dr = ImageDraw.Draw(im)
+    for k in range(8):
+        x = ((k % 4) * CW + FR_X) * S
+        y = (GRID_Y + (k // 4) * CELL + FR_Y) * S
+        dr.rectangle([x, y, x + FR_W * S - 1, y + FR_H * S - 1], fill=(0, 0, 0, 0))
+    return save_png("ctr8p_%d" % first, im)
+
+
 defs["mdLfoParamText"] = ss._local("mdLfoParamText", [], [ss._value_label(0, 0, FR_W * S, (CONTENT_H + VALUE_H - 2) * S, 26.0,
                                                                          "%02x%02x%02x" % INK)])
 for t in range(TRACKS):
@@ -647,8 +689,14 @@ for t in range(TRACKS):
                    cond=enabling(tk("machine"), m["id"], NMACH))
     cell_touch("SYN", SYN_ANY, syn_keys, t)
     cell_dials("AMP", AMP_CELLS, [tk(k) for k in AMP_KEYS], t)
+    if CTR_8P:
+        ax, ay = page_origin("AMP")
+        image_comp("CTR-8P targets 1-4", ctr8p_overlay("AMP", 1), ax, ay, LCD_W * S, PAGE_LCD_H * S, t, cond=enabling(tk("machine"), CTR_8P["id"], NMACH))
     cell_touch("AMP", AMP_CELLS, [tk(k) for k in AMP_KEYS], t)
     cell_dials("ROUTE", ROUTE_CELLS, [tk(k) for k in ROUTE_KEYS], t)
+    if CTR_8P:
+        rx, ry = page_origin("ROUTE")
+        image_comp("CTR-8P targets 5-8", ctr8p_overlay("ROUTE", 5), rx, ry, LCD_W * S, PAGE_LCD_H * S, t, cond=enabling(tk("machine"), CTR_8P["id"], NMACH))
     cell_touch("ROUTE", ROUTE_CELLS, [tk(k) for k in ROUTE_KEYS], t)
     cell_dials("TRACK", LFO_CELLS, [tk(k) for k in LFO_KEYS], t)
     lx, ly = page_origin("TRACK")   # PARAM's text: MPC's own value label (the destination's live name, "dynamic_display")
@@ -703,8 +751,16 @@ for col in cols:
     hx, hy, hw = cx0 + BORDER, BORDER, col_w - 2 * BORDER
     pd.rectangle([hx, hy, hx + hw - 1, hy + HEADER_H - 1], fill=INK)
     title = GROUP_TITLE.get(col["group"], col["group"])
-    tw = text_width(F["bold8"], title) * S
-    px_text(panel, F["bold8"], title, hx + hw // 2 - tw // 2, hy + HEADER_H // 2 - F["bold8"].h * S // 2, S, PAPER)
+    hl = md_logos.logo(col["group"], B)   # the family's logo, at the LCD scale (9 rows: 27 of the header's 36 px)
+    if hl:
+        lx0, ly0 = hx + hw // 2 - len(hl[0]) * S // 2, hy + HEADER_H // 2 - len(hl) * S // 2
+        for r_, row_ in enumerate(hl):
+            for c_, ch_ in enumerate(row_):
+                if ch_ == "#":
+                    pd.rectangle([lx0 + c_ * S, ly0 + r_ * S, lx0 + c_ * S + S - 1, ly0 + r_ * S + S - 1], fill=PAPER)
+    else:
+        tw = text_width(F["bold8"], title) * S
+        px_text(panel, F["bold8"], title, hx + hw // 2 - tw // 2, hy + HEADER_H // 2 - F["bold8"].h * S // 2, S, PAPER)
     ry = hy + HEADER_H + 6
     dotted_h(pd, hx, hx + hw, ry - 1)
     for i, m in enumerate(col["ms"]):
@@ -742,27 +798,41 @@ for t in range(TRACKS):   # last, so the picker draws over everything on the tab
 GT = TRACKS
 MW = PAGES_W // S                      # the mixer page's width in LCD px
 MCW = (MW - 1) // TRACKS               # a channel column
-mcv = Canvas(MW, PAGE_LCD_H)
+# Each channel, ModuleDrum's mixer strip: the track number, PAN (a bar with its marker), LEV (the dotted fader) with the
+# track's meter beside it (track%d_meter, engine-driven), then MUTE and SOLO buttons.
+MBTN_H = 8                                          # the M / S buttons, LCD px
+mpy = GRID_Y + 9                                    # the pan bar: 5 rows
+mfx, mfy, mfw = 2, mpy + 8, 11                      # the fader's dotted frame
+mmx, mmw = mfx + mfw + 2, 5                         # the meter's
+# The mixer also takes the band above the pages (the track tabs' machine bar and nameplate), the nameplate moving into its title bar
+MY_EXTRA = (TOP - 8) // S                           # LCD rows gained: the mixer starts level with the machine bar
+MH = PAGE_LCD_H + MY_EXTRA
+mby = MH - 2 - 2 * MBTN_H - 1                       # the M button's top; S under it
+mfh = mby - 2 - mfy
+mcv = Canvas(MW, MH)
 mcv.fill(0, 0, MW, TITLE_H, True)
 mcv.text(F["bold8"], "MIXER", 2, 1, False)
-mfx, mfy, mfw = (MCW - 11) // 2, GRID_Y + 9, 11     # each channel's dotted bar frame
-mfh = PAGE_LCD_H - 2 - mfy
+mcv.text(F["bold8"], "MACHINEMODULE", MW - 2 - text_width(F["bold8"], "MACHINEMODULE"), 1, False)
 for c in range(TRACKS):
     x0 = c * MCW
-    mcv.dots_v(x0, GRID_Y, PAGE_LCD_H - 1)
+    mcv.dots_v(x0, GRID_Y, MH - 1)
     mcv.text_centred(F["tiny3x5"], str(c + 1), x0 + 1, MCW - 1, GRID_Y + LABEL_Y)
-    mcv.dots_h(x0 + mfx, x0 + mfx + mfw - 1, mfy); mcv.dots_h(x0 + mfx, x0 + mfx + mfw - 1, mfy + mfh - 1)
-    mcv.dots_v(x0 + mfx, mfy, mfy + mfh - 1); mcv.dots_v(x0 + mfx + mfw - 1, mfy, mfy + mfh - 1)
-mcv.dots_h(0, MW - 1, GRID_Y); mcv.dots_v(TRACKS * MCW, GRID_Y, PAGE_LCD_H - 1); mcv.dots_h(0, MW - 1, PAGE_LCD_H - 1)
+    for fx_, fw_ in ((mfx, mfw), (mmx, mmw)):
+        mcv.dots_h(x0 + fx_, x0 + fx_ + fw_ - 1, mfy); mcv.dots_h(x0 + fx_, x0 + fx_ + fw_ - 1, mfy + mfh - 1)
+        mcv.dots_v(x0 + fx_, mfy, mfy + mfh - 1); mcv.dots_v(x0 + fx_ + fw_ - 1, mfy, mfy + mfh - 1)
+mcv.dots_h(0, MW - 1, GRID_Y); mcv.dots_v(TRACKS * MCW, GRID_Y, MH - 1); mcv.dots_h(0, MW - 1, MH - 1)
 mx0, my0 = page_origin("SYN")
+my0 -= MY_EXTRA * S
 gbg = TRACK_CHASSIS.copy()
+_npw = text_width(F["bold8"], _np) * 3   # this tab has no nameplate up there: paper over it
+gbg.paste(Image.new("RGB", (_npw, BAR_ROWS * S), PAPER), (OX + PAGES_X0 + PAGES_W - _npw, OY + 8))
 gbg.paste(mcv.image(), (mx0, my0))
 ROM_SWITCH = args.get("rom", "1") != "0"   # rom=0 (the Gen2 download): no ROM cell; the JIT build gains nothing from switching ROM machines off
 GLOBAL_CELLS = [P("VOICES", default=127, fmt=lambda raw: str(1 + int(round(raw * 15 / 127.0)))),
-                P("ROM", "toggle", default=127) if ROM_SWITCH else P(""), P(""), P(""),
+                P("ROM", "toggle", default=127) if ROM_SWITCH else P(""), P("") if GEN1 else P("MST FX", "toggle", default=127), P(""),
                 P("RND ALL", "toggle"), P("RND 1-8", "toggle"), P("RND 9-16", "toggle"), P("RND KIT", "toggle")]
-# top row: VOICES and ROM (the settings); bottom row: the four randomise toggles
-GLOBAL_KEYS = ["max_voices", "rom_enabled" if ROM_SWITCH else None, None, None, "randomize_all", "randomize_1_8", "randomize_9_16", "randomize_kit"]
+# top row: VOICES, ROM and MASTER FX (the settings); bottom row: the four randomise toggles
+GLOBAL_KEYS = ["max_voices", "rom_enabled" if ROM_SWITCH else None, None if GEN1 else "master_fx", None, "randomize_all", "randomize_1_8", "randomize_9_16", "randomize_kit"]
 gcv = page_canvas("ROUTE", GLOBAL_CELLS, "GLOBAL")
 gbg.paste(gcv.image(), page_origin("ROUTE"))
 gbg.paste(KITS_IMG, (kits_x, kits_y))
@@ -771,29 +841,78 @@ for key_, pk_, x_, y_, w_, h_, img_ in KIT_ROWS:   # after the background: later
     place(key_, pk_, PIDX[pk_], x_, y_, w_, h_, GT, img=img_)
 for key_, ok_, x_, y_, w_, h_ in FIELD_ROWS:
     place(key_, ok_, PIDX[ok_], x_, y_, w_, h_, GT, focus="Yes")
-# the bars: Monomodule's LEV strips (bar rows 1..7 of a 9-wide strip), in segments to keep each image short
+# the bars, fader and meter: Monomodule's LEV strips (filled from the bottom), in segments to keep each image short
 m_inner_y0, m_seg_n = mfy + 2, 3
 m_seg_h = (mfh - 4) // m_seg_n
 m_inner_h = m_seg_h * m_seg_n
-mseg = []
-for sgm in range(m_seg_n):
-    st = Image.new("RGB", ((mfw - 2) * S, m_seg_h * S * FRAMES))
-    for raw in range(FRAMES):
-        cv = Canvas(mfw - 2, m_seg_h)
-        lvl = int(round(raw / 127.0 * m_inner_h))
-        for r in range(m_seg_h):
-            if m_inner_y0 + sgm * m_seg_h + r >= m_inner_y0 + m_inner_h - lvl:
-                for cc in range(1, mfw - 3):
-                    cv.set(cc, r)
-        st.paste(cv.image(), (0, raw * m_seg_h * S))
-    mseg.append(save_png("mix_%d" % sgm, st))
-mt_w, mt_h = (MCW - 2) * S, (PAGE_LCD_H - GRID_Y - 3) * S
+
+
+def bar_segments(name, inner_w):
+    out = []
+    for sgm in range(m_seg_n):
+        st = Image.new("RGB", (inner_w * S, m_seg_h * S * FRAMES))
+        for raw in range(FRAMES):
+            cv = Canvas(inner_w, m_seg_h)
+            lvl = int(round(raw / 127.0 * m_inner_h))
+            for r in range(m_seg_h):
+                if m_inner_y0 + sgm * m_seg_h + r >= m_inner_y0 + m_inner_h - lvl:
+                    for cc in range(1, inner_w - 1):
+                        cv.set(cc, r)
+            st.paste(cv.image(), (0, raw * m_seg_h * S))
+        out.append(save_png("%s_%d" % (name, sgm), st))
+    return out
+
+
+mseg, meterseg = bar_segments("mix", mfw - 2), bar_segments("meter", mmw - 2)
+# pan: a dotted line across the channel with a 3-wide marker, centre = 64
+mpw = MCW - 4
+pst = Image.new("RGB", (mpw * S, 5 * S * FRAMES))
+for raw in range(FRAMES):
+    cv = Canvas(mpw, 5)
+    cv.dots_h(0, mpw - 1, 2)
+    cv.set(mpw // 2, 0); cv.set(mpw // 2, 4)
+    px_ = int(round(raw / 127.0 * (mpw - 3)))
+    cv.fill(px_, 0, 3, 5, True)
+    pst.paste(cv.image(), (0, raw * 5 * S))
+fn_pan = save_png("mix_pan", pst)
+# M / S: a box with the letter, filled when on; a transparent button over it toggles the param
+mbw = MCW - 4
+btn_imgs = {}
+for letter in ("M", "S"):
+    for state in ("on", "off"):
+        cv = Canvas(mbw, MBTN_H)
+        if state == "on":
+            cv.fill(0, 0, mbw, MBTN_H, True)
+        else:
+            for xx in range(mbw):
+                cv.set(xx, 0); cv.set(xx, MBTN_H - 1)
+            for yy in range(MBTN_H):
+                cv.set(0, yy); cv.set(mbw - 1, yy)
+        cv.text_centred(F["small4x5"], letter, 0, mbw, (MBTN_H - 5) // 2, state == "off")
+        btn_imgs[(letter, state)] = save_png("mix_%s_%s" % (letter.lower(), state), cv.image())
+for letter in ("M", "S"):
+    defs["mdMixBtn%s" % letter] = ss._local("mdMixBtn%s" % letter, [], [ss._button(btn_imgs[(letter, "on")], btn_imgs[(letter, "off")], 1, 1, mbw * S, MBTN_H * S)])
+# Mouse Down selects the Q-Link, Enter Pressed toggles, as the ROM / randomise toggles (toggling on both fired twice per tap: the double press)
+defs["mdMixBtnTouch"] = ss._local("mdMixBtnTouch", [ss._action("Mouse Down", "Q-Link"), ss._action("Enter Pressed", "Toggle Switch")],
+                                  [ss._focus(mbw * S, MBTN_H * S), ss._button("clear.png", "clear.png", 1, 1, mbw * S, MBTN_H * S)])
 for c in range(TRACKS):
-    key = "track%d_level" % c
-    for sgm, fn in enumerate(mseg):
-        place(knob_def(fn, (mfw - 2) * S, m_seg_h * S, interactive=False), "MIX %d %d" % (c + 1, sgm + 1), PIDX[key],
-              mx0 + (c * MCW + mfx + 1) * S, my0 + (m_inner_y0 + sgm * m_seg_h) * S, (mfw - 2) * S, m_seg_h * S, GT, img=fn, raw=100)
-    place(knob_def(fn_t, mt_w, mt_h), "MIX %d touch" % (c + 1), PIDX[key], mx0 + (c * MCW + 1) * S, my0 + (GRID_Y + 1) * S, mt_w, mt_h, GT)
+    cx = mx0 + c * MCW * S
+    for sgm in range(m_seg_n):
+        sy = my0 + (m_inner_y0 + sgm * m_seg_h) * S
+        place(knob_def(mseg[sgm], (mfw - 2) * S, m_seg_h * S, interactive=False), "MIX %d %d" % (c + 1, sgm + 1), PIDX["track%d_level" % c],
+              cx + (mfx + 1) * S, sy, (mfw - 2) * S, m_seg_h * S, GT, img=mseg[sgm], raw=100)
+        place(knob_def(meterseg[sgm], (mmw - 2) * S, m_seg_h * S, interactive=False), "METER %d %d" % (c + 1, sgm + 1), PIDX["track%d_meter" % c],
+              cx + (mmx + 1) * S, sy, (mmw - 2) * S, m_seg_h * S, GT, img=meterseg[sgm], raw=0)
+    place(knob_def(fn_t, (mfw + mmw + 2) * S, mfh * S), "MIX %d touch" % (c + 1), PIDX["track%d_level" % c],
+          cx + mfx * S, my0 + mfy * S, (mfw + mmw + 2) * S, mfh * S, GT)
+    place(knob_def(fn_pan, mpw * S, 5 * S, interactive=False), "PAN %d" % (c + 1), PIDX["track%d_pan" % c],
+          cx + 2 * S, my0 + mpy * S, mpw * S, 5 * S, GT, img=fn_pan, raw=64)
+    place(knob_def(fn_t, mpw * S, 7 * S, orient="Horizontal"), "PAN %d touch" % (c + 1), PIDX["track%d_pan" % c],
+          cx + 2 * S, my0 + (mpy - 1) * S, mpw * S, 7 * S, GT)
+    for i_, (letter, key_) in enumerate((("M", "track%d_mute" % c), ("S", "track%d_solo" % c))):
+        by = my0 + (mby + i_ * (MBTN_H + 1)) * S
+        place("mdMixBtn%s" % letter, "%s %d" % (letter, c + 1), PIDX[key_], cx + 2 * S, by, mbw * S, MBTN_H * S, GT, img=btn_imgs[(letter, "off")])
+        place("mdMixBtnTouch", "%s %d touch" % (letter, c + 1), PIDX[key_], cx + 2 * S, by, mbw * S, MBTN_H * S, GT)
 cell_dials("ROUTE", GLOBAL_CELLS[:1], GLOBAL_KEYS[:1], GT)
 cell_touch("ROUTE", GLOBAL_CELLS[:1], GLOBAL_KEYS[:1], GT)
 # the randomise toggles: Monomodule's - a display-only two-state button (OFF/ON cell images) and a transparent button
@@ -803,7 +922,7 @@ tkey = "mdToggleTouch"
 defs[tkey] = ss._local(tkey, [ss._action("Mouse Down", "Q-Link"), ss._action("Enter Pressed", "Toggle Switch")],
                        [ss._focus(TOUCH_W, TOUCH_H), ss._button("clear.png", "clear.png", 1, 1, TOUCH_W, TOUCH_H)])
 gx0, gy0 = page_origin("ROUTE")
-for k_ in ((1, 4, 5, 6, 7) if ROM_SWITCH else (4, 5, 6, 7)):   # ROM on/off (the only one that stays set), then the four randomise toggles
+for k_ in [k for k in (1, 2, 4, 5, 6, 7) if (k != 1 or ROM_SWITCH) and (k != 2 or not GEN1)]:   # ROM and MASTER FX on/off (the ones that stay set), then the four randomise toggles
     p_, key_p = GLOBAL_CELLS[k_], GLOBAL_KEYS[k_]
     imgs = {}
     for state, raw in (("on", 127), ("off", 0)):
@@ -877,6 +996,28 @@ def list_panel(title, key, pick_key, slot_fmt, open_key, page_key, cols):
 
 list_panel("BANKS", "mdBank", "bank_pick", "bank_s%d", "bank_open", "bank", 3)
 list_panel("KITS", "mdKit", "kit_pick", "kit_s%d", "kit_open", "kit", 4)
+# ------------------------------------------------------------------ FX tab: the master effects ---------------------------------
+# The four effects of the Machinedrum's master section as the four quadrants of a track tab's layout (reverb = SYN's place, delay = AMP/EFX's,
+# EQ = ROUTE's, dynamix = the LFO's), eight knobs each: the kit's own 4 x 8 master bytes (engine/MasterFx runs the hardware's DSP code).
+FT = TRACKS + 1
+FX_SETS = [("SYN", "REVERB", "rv", ["DVOL", "PRED", "DEC", "DAMP", "HP", "LP", "GATE", "LEV"], [0, 0, 64, 64, 0, 127, 127, 127], ()),
+           ("AMP", "DELAY", "dl", ["TIME", "MOD", "MFRQ", "FB", "FLTF", "FLTW", "MONO", "LEV"], [24, 0, 0, 32, 0, 127, 0, 127], ()),
+           ("ROUTE", "EQ", "eq", ["LF", "LG", "HF", "HG", "PF", "PG", "PQ", "GAIN"], [64] * 8, (1, 3, 5)),
+           ("TRACK", "DYNAMIX", "dx", ["ATCK", "REL", "TRHD", "RTIO", "KNEE", "HP", "OUTG", "MIX"], [0, 64, 127, 0, 0, 0, 64, 0], ())]
+FX_CELLS = {}
+if not GEN1:
+    fbg = TRACK_CHASSIS.copy()
+    _title = "MASTER FX"
+    px_text(fbg, F["bold8"], _title, OX + PAGES_X0, OY + 8 + (BAR_ROWS * S - F["bold8"].h * 3) // 2, 3, INK)
+    for page_, title_, pre_, labels_, defs__, bip_ in FX_SETS:
+        cells_ = [P(l, "bipolar" if k in bip_ else "numeric", default=defs__[k]) for k, l in enumerate(labels_)]
+        FX_CELLS[page_] = (cells_, ["%s%d" % (pre_, k + 1) for k in range(8)])
+        fbg.paste(page_canvas(page_, cells_, title_).image(), page_origin(page_))
+    image_comp("Background", save_png("bg_fx", fbg), 0, 0, SKIN_W, SKIN_H, tab=FT)
+    for page_, (cells_, keys_) in FX_CELLS.items():
+        cell_dials(page_, cells_, keys_, FT)
+        cell_touch(page_, cells_, keys_, FT)
+
 
 # ------------------------------------------------------------------ assemble ----------------------------------------
 
@@ -888,7 +1029,9 @@ def qlink_boxes(slots):
     for c in range(4):
         cs = []
         for sl in slots[c * 4:c * 4 + 4]:
-            if sl:
+            if sl and len(sl) == 4:   # a rectangle (the mixer's strips)
+                cs.append(tuple(sl))
+            elif sl:
                 x0, y0 = page_origin(sl[0])
                 k = sl[1]
                 cs.append((x0 + (k % 4) * CW * S, y0 + (GRID_Y + (k // 4) * CELL) * S, CW * S, CELL * S))
@@ -903,22 +1046,47 @@ def qlink_boxes(slots):
     return rects or ["0 0 0 0"]
 
 
+# what each Q-Link slot of a sub-page drives, for the outlines: (page, cell) or a rectangle. The mixer: four strips a column (LEV, then PAN).
+def _strip(c, y0, h): return (mx0 + c * MCW * S, y0, MCW * S, h)
+
+
+GLOBAL_SLOTS = [[_strip(c, my0 + GRID_Y * S, (MH - GRID_Y) * S) for c in range(16)],
+                [_strip(c, my0 + (mpy - 1) * S, 7 * S) for c in range(16)],
+                [("ROUTE", k) if k < 8 and GLOBAL_KEYS[k] else None for k in range(16)]]
+FX_SLOTS = [[("SYN", k) for k in range(8)] + [("AMP", k) for k in range(8)], [("ROUTE", k) for k in range(8)] + [("TRACK", k) for k in range(8)]]
+
+
 pages, qmap = [], []
 comp_bg = {"version": 1, "colour": "ff%02x%02x%02x" % PAPER, "image": ""}
-gsets = [("MIXER", ["track%d_level" % c for c in range(TRACKS)]),
+gsets = [("MIXER LEV", ["track%d_level" % c for c in range(TRACKS)]),
+         ("MIXER PAN", ["track%d_pan" % c for c in range(TRACKS)]),
          ("GLOBAL", GLOBAL_KEYS)]   # Q-Links in the same places as the cells
 for sp, (title, keys) in enumerate(gsets):   # GLOBAL is the first tab
     ql = {"Q-Link %d" % (q + 1): -1 for q in range(16)}
     for s_, k in enumerate(keys):
         if k:
             ql["Q-Link %d" % ss.qlink_for_slot(s_)] = PIDX[k]
-    pages.append({"version": 3, "tabName": "GLOBAL", "fnKeyIndex": 0, "fnKeySubIndex": sp,
-                  "qlinkBoundsData": qlink_boxes([("ROUTE", k) if k < 8 and keys[k] else None for k in range(16)] if title == "GLOBAL" else [None] * 16),
+    pages.append({"version": 3, "tabName": "GLOBAL", "fnKeyIndex": 0, "fnKeySubIndex": sp, "qlinkBoundsData": qlink_boxes(GLOBAL_SLOTS[sp]),
                   "componentName": "MACHINEDRUM|GLOBAL", "initialSize": "0 0 %d %d" % (SKIN_W, SKIN_H), "scale": 1.0})
     qmap.append({"Tab": 1, "SubTab": sp + 1, "Bank Direction": "Column", "Q-Links": ql})
 defs["MACHINEDRUM|GLOBAL"] = {"key": "MACHINEDRUM|GLOBAL", "value": {"version": 4, "actions": [], "backgroundData": {"version": 1, "focussed": comp_bg, "unfocussed": comp_bg},
                                                                   "ignoreMousePresses": False, "disableCoarseDataWheel": False, "repeats": 1,
                                                                   "hideQLinkBounds": False, "componentsData": TABK[GT]}}
+TAB0 = 2 if GEN1 else 3   # the first track tab's Q-Link tab number (GLOBAL is 1, then FX is 2 unless Gen1)
+FN0 = 1 if GEN1 else 2   # and its fnKeyIndex
+if not GEN1:
+    # the FX tab, next to GLOBAL: reverb + delay on the first Q-Link sub-page, EQ + dynamix on the second
+    fx_sets = [("REVERB / DELAY", FX_CELLS["SYN"][1] + FX_CELLS["AMP"][1]), ("EQ / DYNAMIX", FX_CELLS["ROUTE"][1] + FX_CELLS["TRACK"][1])]
+    for sp, (title, keys) in enumerate(fx_sets):
+        ql = {"Q-Link %d" % (q + 1): -1 for q in range(16)}
+        for s_, k in enumerate(keys):
+            ql["Q-Link %d" % ss.qlink_for_slot(s_)] = PIDX[k]
+        pages.append({"version": 3, "tabName": "FX", "fnKeyIndex": 1, "fnKeySubIndex": sp, "qlinkBoundsData": qlink_boxes(FX_SLOTS[sp]),
+                      "componentName": "MACHINEDRUM|FX", "initialSize": "0 0 %d %d" % (SKIN_W, SKIN_H), "scale": 1.0})
+        qmap.append({"Tab": 2, "SubTab": sp + 1, "Bank Direction": "Column", "Q-Links": ql})
+    defs["MACHINEDRUM|FX"] = {"key": "MACHINEDRUM|FX", "value": {"version": 4, "actions": [], "backgroundData": {"version": 1, "focussed": comp_bg, "unfocussed": comp_bg},
+                                                                "ignoreMousePresses": False, "disableCoarseDataWheel": False, "repeats": 1,
+                                                                "hideQLinkBounds": False, "componentsData": TABK[FT]}}
 for t in range(TRACKS):
     tk = lambda k: "track%d_%s" % (t, k)
     sets = [("T%d SYN / EFX" % (t + 1), [tk("syn%d" % (k + 1)) for k in range(8)] + [tk(k) for k in AMP_KEYS]),
@@ -930,9 +1098,9 @@ for t in range(TRACKS):
             ql["Q-Link %d" % ss.qlink_for_slot(s_)] = PIDX[k]
         cells = ([("SYN", k) for k in range(8)] + [("AMP", k) for k in range(8)] if sp == 0 else
                  [("ROUTE", k) for k in range(8)] + [("TRACK", k) for k in range(5)] + [None] * 3)   # then LEV and the machine
-        pages.append({"version": 3, "tabName": "TRACK %d" % (t + 1), "fnKeyIndex": t + 1, "fnKeySubIndex": sp, "qlinkBoundsData": qlink_boxes(cells),
+        pages.append({"version": 3, "tabName": "TRACK %d" % (t + 1), "fnKeyIndex": t + FN0, "fnKeySubIndex": sp, "qlinkBoundsData": qlink_boxes(cells),
                       "componentName": comp, "initialSize": "0 0 %d %d" % (SKIN_W, SKIN_H), "scale": 1.0})
-        qmap.append({"Tab": t + 2, "SubTab": sp + 1, "Bank Direction": "Column", "Q-Links": ql})
+        qmap.append({"Tab": t + TAB0, "SubTab": sp + 1, "Bank Direction": "Column", "Q-Links": ql})
     defs[comp] = {"key": comp, "value": {"version": 4, "actions": [], "backgroundData": {"version": 1, "focussed": comp_bg, "unfocussed": comp_bg},
                                          "ignoreMousePresses": False, "disableCoarseDataWheel": False, "repeats": 1,
                                          "hideQLinkBounds": False, "componentsData": TABK[t]}}
@@ -973,4 +1141,8 @@ preview({"track0_machine": PREVIEW_MACHINE}, os.path.join(sys.argv[4], "preview_
 preview({"track1_machine": 20}, os.path.join(sys.argv[4], "preview_track2_rs.png"), 1)
 preview({}, os.path.join(sys.argv[4], "preview_track3_new.png"), 2)
 preview({}, os.path.join(sys.argv[4], "preview_global.png"), GT)
+if not GEN1:
+    preview({}, os.path.join(sys.argv[4], "preview_fx.png"), FT)
 preview({"track0_machine": PREVIEW_MACHINE, "track0_machine__open": 1}, os.path.join(sys.argv[4], "preview_open.png"), 0)
+if CTR_8P:
+    preview({"track0_machine": CTR_8P["id"]}, os.path.join(sys.argv[4], "preview_ctr8p.png"), 0)

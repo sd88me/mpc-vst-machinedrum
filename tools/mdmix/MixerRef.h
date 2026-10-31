@@ -36,8 +36,9 @@ namespace md::mixref
 		bool runMix(const Block* _tracks, const uint32_t (*_mix)[5]);
 
 		// The master effects (P:$342-$970: rhythm echo, gate box, EQ, dynamix), run on what runMix() left in X memory,
-		// their parameters at Y:$150-$18c. Stops at the output stage ($971).
-		bool runMaster();
+		// their parameters at Y:$150-$18c. Stops at the output stage ($971) by default, or at _stop ($9A8: the end of the block,
+		// the main outputs then in the frame buffer, X:$400 + 6 x frame + 2 and 5).
+		bool runMaster(uint32_t _stop = 0x971);
 
 		uint32_t peekX(uint32_t _a) const;
 		uint32_t peekY(uint32_t _a) const;
