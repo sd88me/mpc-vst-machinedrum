@@ -15,7 +15,7 @@ from one plugin instance, using the Machinedrum's own DSP code and its own machi
 
 **v1.0.0.** It plays, saves and reloads with the project. Gen 1 devices (the Force) are built by you from your own Machinedrum firmware
 with one script (see [Building](#building); tested on a real Force with MPC OS 3.9.1, v0.3.4). Gen 2 devices (the MPC Live III) have a download
-that needs only your own OS file (the Gen2 download, see [Building](#building); tested on a Live III, v0.5.0). See [New in v1](#new-in-v1) for what this version adds.
+that needs only your own OS file (the Gen2 download, see [Building](#building); tested on a Live III, v1.0.0: mixer solo and mute, master effects, CTR-AL and 16-track CPU checked by hand). See [New in v1](#new-in-v1) for what this version adds.
 On Gen 1 devices the Machinedrum's master effects are not built in: the reverb and delay sends come out through the taps instead (see [Taps](#taps-each-track-or-send-on-its-own-mpc-track)).
 
 Not affiliated with Elektron. Nothing of Elektron's is in this repository or distributed from it; the plugin
