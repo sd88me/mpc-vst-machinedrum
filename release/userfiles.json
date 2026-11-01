@@ -1,0 +1,22 @@
+[
+  {
+    "path": "machinedrum",
+    "label": "Machinedrum OS and flash image",
+    "description": "Machinemodule runs your own Machinedrum UW OS 1.63 file (a free download from Elektron). Your Machinedrum UW flash image (8 MB) is optional: it adds the ROM sample machines and the 16 factory kits.",
+    "hint": "After adding the OS file, load Machinemodule once and restart MPC: it makes its skin from that file. With a flash image the first load takes about 2 minutes.",
+    "rules": [
+      {"label": "Machinedrum UW OS 1.63", "ext": [".syx"], "size": 1644582, "header_hex": "f000203c02007e", "save_as": "Elektron_SPS1-1UW_OS1.63.syx"},
+      {"label": "Machinedrum UW flash image", "ext": [".bin"], "size": 8388608, "unverified": true,
+       "note": "The right size for a Machinedrum UW flash image. The plugin reads it on its first load and makes the ROM samples and factory kits from it."}
+    ]
+  },
+  {
+    "path": "machinedrum/kits",
+    "label": "Your kits (optional)",
+    "description": "Machinedrum kit dumps (.syx). Each file appears as a bank of kits.",
+    "rules": [
+      {"label": "Kit dump", "ext": [".syx"], "size_min": 16, "size_max": 8388608, "header_hex": "f000203c0200", "unverified": true,
+       "note": "An Elektron SysEx file. Its kits appear if it holds Machinedrum kits."}
+    ]
+  }
+]
