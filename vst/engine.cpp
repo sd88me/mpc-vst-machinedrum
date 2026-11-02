@@ -13,6 +13,7 @@
 // docs/FIRMWARE.md), the AMP/EFX and ROUTE pages' params and SYN1-8 (see the slot layout below). Plus two
 // globals: tempo (for LFO/E12 timing) and max_voices (HostModel::setMaxActiveVoices - a voice cap safety
 // valve, see HANDOFF.md "adjustable voice cap").
+#include "fast_cores.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -116,6 +117,13 @@ std::vector<int> rankCores()
 	std::sort(load.begin(), load.end());
 	std::vector<int> cores;
 	for(const auto& l : load) cores.push_back(l.second);
+	// Gen2 big.LITTLE (Live III: A55 0-3, A76 4-7): MPC keeps the fast cores busy, so "least busy" chose the A55s, where the
+	// engine costs ~3x more (measured 2026-11-03, mpc-vst-plugins docs/EMULATOR_PORTS.md: voice threads 76% -> 27% of a core,
+	// audio-thread p99 120% -> 35%). The fast cores minus MPC's Audio Processing core go first, least busy first among them.
+	// Same-speed CPUs (Force): unchanged.
+	const auto fast = fastcores::usable();
+	if(!fast.empty())
+		std::stable_partition(cores.begin(), cores.end(), [&](int c) { return std::find(fast.begin(), fast.end(), c) != fast.end(); });
 	return cores;
 }
 
