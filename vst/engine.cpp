@@ -438,6 +438,12 @@ struct Inst
 	std::string bankName;
 	int kitIdx = -1;
 	std::chrono::steady_clock::time_point born = std::chrono::steady_clock::now();
+	// MPC's plugin host sets parameter 0 (T1 Machine) to its maximum and straight back on every Stop. Applied, that
+	// machine change resets track 1's SYN values (and retriggers the machine): a held jump to the maximum is only applied
+	// if nothing sets the parameter again within kHoldMs.
+	static constexpr int kHoldMs = 150;
+	bool heldMachine = false;
+	std::chrono::steady_clock::time_point heldAt;
 	bool defaultKitDone = false;
 	int snap[kNumSlots] = {};	// the loaded kit's values, to show "modified"
 
@@ -1359,6 +1365,16 @@ void eSet(void* p, const char* key, const char* val)
 	const int slot = slotOf(key);
 	if(slot < 0) return;
 	const int v = std::atoi(val);
+	if(slot == kSlotTrack)
+	{
+		if(v == 191 && in->param[slot].load(std::memory_order_relaxed) != 191)
+		{
+			in->heldMachine = true;
+			in->heldAt = std::chrono::steady_clock::now();
+			return;
+		}
+		in->heldMachine = false;
+	}
 	const int t = (slot - kSlotTrack) / kSlotsPerTrack, s = (slot - kSlotTrack) % kSlotsPerTrack;
 	if(slot >= kSlotTempo)
 		in->param[slot].store(v, std::memory_order_relaxed);
@@ -1456,6 +1472,11 @@ int eGet(void* p, const char* key, char* buf, int bufLen)
 void eRender(void* p, int16_t* out, int frames)
 {
 	auto* in = static_cast<Inst*>(p);
+	if(in->heldMachine && std::chrono::steady_clock::now() - in->heldAt > std::chrono::milliseconds(Inst::kHoldMs))
+	{
+		in->heldMachine = false;
+		in->setMachine(0, 191);
+	}
 	if(!in->ready.load(std::memory_order_acquire) || frames != kFrames)
 	{
 		std::memset(out, 0, sizeof(int16_t) * static_cast<size_t>(frames) * 2);
