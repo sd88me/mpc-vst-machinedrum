@@ -946,6 +946,13 @@ void Inst::run()
 				pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp);
 			}
 			ranked = rankCores();
+			if(std::FILE* cf = std::fopen("/tmp/md-cores", "r"))	// A/B on the device: "0 1 2" = engine on 0, voice group g on the g-th listed core
+			{
+				std::vector<int> list; int c = 0;
+				while(std::fscanf(cf, "%d", &c) == 1) list.push_back(c);
+				std::fclose(cf);
+				if(!list.empty()) ranked = list;
+			}
 			const int c = std::getenv("MD_CPU") ? std::atoi(std::getenv("MD_CPU")) : ranked.empty() ? chooseCore() : ranked[0];
 			if(c >= 0)
 			{
