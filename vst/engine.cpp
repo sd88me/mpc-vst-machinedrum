@@ -447,6 +447,12 @@ struct Inst
 	static constexpr int kHoldMs = 150;
 	bool heldMachine = false;
 	std::chrono::steady_clock::time_point heldAt;
+	// MPC also jumps parameter 0 to the maximum while it loads a project, without the jump back (issue #30): ROM48 then
+	// silences track 1. A jump to 191 is ignored for kLoadMs after the instance is created or a saved state restored,
+	// and always when ROM48 could not sound anyway (ROM off or its sample slot empty, e.g. the public Gen2 download).
+	static constexpr int kLoadMs = 3000;
+	std::chrono::steady_clock::time_point restoredAt = born;
+	bool rom48Sounds() const { return romAvail && romSlot[47] && param[kSlotRomEnabled].load(std::memory_order_relaxed); }
 	bool defaultKitDone = false;
 	int snap[kNumSlots] = {};	// the loaded kit's values, to show "modified"
 
@@ -1364,7 +1370,7 @@ void eSet(void* p, const char* key, const char* val)
 		if(on && !list.empty()) in->loadKit(std::rand() % static_cast<int>(list.size()));
 		return;
 	}
-	if(!std::strcmp(key, "state")) { in->loadState(val); return; }
+	if(!std::strcmp(key, "state")) { in->loadState(val); in->restoredAt = std::chrono::steady_clock::now(); return; }
 	const int slot = slotOf(key);
 	if(slot < 0) return;
 	const int v = std::atoi(val);
@@ -1372,6 +1378,9 @@ void eSet(void* p, const char* key, const char* val)
 	{
 		if(v == 191 && in->param[slot].load(std::memory_order_relaxed) != 191)
 		{
+			const auto now = std::chrono::steady_clock::now();
+			if(!in->rom48Sounds() || now - in->restoredAt < std::chrono::milliseconds(Inst::kLoadMs)
+				|| now - in->born < std::chrono::milliseconds(Inst::kLoadMs)) return;
 			in->heldMachine = true;
 			in->heldAt = std::chrono::steady_clock::now();
 			return;
