@@ -1054,6 +1054,7 @@ void Inst::run()
 			masterFxActive.store(eng.masterFxOn(), std::memory_order_relaxed);
 		};
 		applyMasterFx();	// builds its DSP now, before the audio runs
+		const bool noMeterRev = access("/tmp/md-nometer", F_OK) == 0;	// A/B on the device: meters stop bumping display_rev
 		ready.store(true);
 
 		while(!stop.load(std::memory_order_acquire))
@@ -1228,7 +1229,7 @@ void Inst::run()
 					const int v = std::clamp(static_cast<int>(std::lround((meterDb[t] + 48.f) * 127.f / 48.f)), 0, 127);
 					if(v != meter[t].load(std::memory_order_relaxed)) { meter[t].store(v, std::memory_order_relaxed); moved = true; }
 				}
-				if(moved) displayRev.fetch_add(1, std::memory_order_relaxed);
+				if(moved && !noMeterRev) displayRev.fetch_add(1, std::memory_order_relaxed);
 			}
 			if(tapOwner) g_tap.written.store(w + 1, std::memory_order_release);
 			rWrite.store(w + 1, std::memory_order_release);
