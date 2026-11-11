@@ -422,6 +422,9 @@ struct Inst
 	MachineTable machines;
 	std::atomic<bool> stop{false}, ready{false};
 	std::atomic<uint32_t> underruns{0}, blocks{0}, dutyNaps{0};
+	// host callback timing (stats only): calls more than 5 ms after the previous one, and the worst gap since the last stats line
+	std::atomic<uint32_t> hostLate{0}, hostWorstGapUs{0};
+	int64_t hostLastUs = 0;	// audio thread only
 	std::atomic<int> core{-1};
 
 	NoteEv notes[256];
@@ -1253,7 +1256,7 @@ void Inst::run()
 					statT = t1;
 					if(FILE* f = std::fopen(("/tmp/md-stats." + std::to_string(getpid())).c_str(), "a"))
 					{
-						std::fprintf(f, "underruns=%u released=%u naps=%u worst_us=%.0f mean_us=%.0f worst_gap_us=%.0f active=%d rom=%d budget=%d tick=%.0f dsp=%.0f fx=%.0f mix=%.0f\n", underruns.load(), h.silenceReleases(), dutyNaps.load(), worstUs, sumUs / std::max(1, nUs), worstGap, maxActive, param[kSlotRomEnabled].load(), param[kSlotMaxVoices].load(), (h.tickUs - pTick) / std::max(1, nUs), (h.dspUs - pDsp) / std::max(1, nUs), (eng.fxUs - pFx) / std::max(1, nUs), (eng.mixUs - pMix) / std::max(1, nUs));
+						std::fprintf(f, "underruns=%u released=%u naps=%u worst_us=%.0f mean_us=%.0f worst_gap_us=%.0f host_late=%u host_worst_gap_us=%u active=%d rom=%d budget=%d tick=%.0f dsp=%.0f fx=%.0f mix=%.0f\n", underruns.load(), h.silenceReleases(), dutyNaps.load(), worstUs, sumUs / std::max(1, nUs), worstGap, hostLate.load(), hostWorstGapUs.exchange(0), maxActive, param[kSlotRomEnabled].load(), param[kSlotMaxVoices].load(), (h.tickUs - pTick) / std::max(1, nUs), (h.dspUs - pDsp) / std::max(1, nUs), (eng.fxUs - pFx) / std::max(1, nUs), (eng.mixUs - pMix) / std::max(1, nUs));
 						auto& vg = eng.voices();
 						std::fprintf(f, "  groups:");
 						for(int g = 0; g < vg.groupCount(); ++g)
@@ -1481,6 +1484,16 @@ void eRender(void* p, int16_t* out, int frames)
 	{
 		std::memset(out, 0, sizeof(int16_t) * static_cast<size_t>(frames) * 2);
 		return;
+	}
+	{
+		const int64_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		if(in->hostLastUs)
+		{
+			const auto gap = static_cast<uint32_t>(now - in->hostLastUs);
+			if(gap > 5000) in->hostLate.fetch_add(1, std::memory_order_relaxed);
+			if(gap > in->hostWorstGapUs.load(std::memory_order_relaxed)) in->hostWorstGapUs.store(gap, std::memory_order_relaxed);
+		}
+		in->hostLastUs = now;
 	}
 	const uint32_t r = in->rRead.load(std::memory_order_relaxed);
 	if(int32_t(in->rWrite.load(std::memory_order_acquire) - r) > 0)
