@@ -12,5 +12,6 @@
   {"version": "0.5.1", "device": "MPC Live III (Gen2)", "firmware": "MPC OS 3.x", "date": "2026-10-27"},
   {"version": "1.0.0", "device": "MPC Live III (Gen2)", "firmware": "MPC OS 3.x", "date": "2026-10-31"},
   {"version": "1.0.3", "device": "MPC Live III (Gen2)", "firmware": "MPC OS 3.10.1", "date": "2026-11-05"},
-  {"version": "1.0.4", "device": "MPC Live III (Gen2)", "firmware": "MPC OS 3.10.1", "date": "2026-11-11"}
+  {"version": "1.0.4", "device": "MPC Live III (Gen2)", "firmware": "MPC OS 3.10.1", "date": "2026-11-11"},
+  {"version": "1.0.5", "device": "MPC Live III (Gen2)", "firmware": "MPC OS 3.10.1", "date": "2026-11-12"}
 ]
