@@ -156,7 +156,7 @@ offers is checked to make sound as part of the build.### Known limits
 
 - An MPC OS standalone device (developed on a Force; other MPC OS devices use the same plugin host).
 - **Your own Machinedrum OS 1.63 `.syx`** (`Elektron_SPS1-1UW_OS1.63.syx`). This is the sound engine. It is still a free download from Elektron's website (the Machinedrum support/downloads page), so it is the easy one to get; the flash image below has to come from your own unit.
-  The installer app's **Your ROMs and files** step can do this for you: it checks each file before copying it into the right folder and saves it as `Elektron_SPS1-1UW_OS1.63.syx` (rules: `release/userfiles.json`).
+  For the Gen 1 build-it-yourself zips the build puts it in for you. For the Gen2 download you add it to the plugin's `machinedrum/` folder after installing: the OpenMPC Plugin Manager's **Your ROMs and files** step can do this for you (it checks each file before copying it into the right folder and saves it as `Elektron_SPS1-1UW_OS1.63.syx`; rules: `release/userfiles.json`), or copy it there by hand.
 - **Your own full flash image** of a Machinedrum UW (8 MB `.bin`), used once at build time. It holds the ROM machines'
   samples and the source of the factory kits; the OS `.syx` has neither. What it adds, and what you lose without it:
 
@@ -235,8 +235,10 @@ Put both file paths in quotes. Watch for the `== 3/7 ...` step headings; at the 
 
 **Gen2 MPCs, ready-made download:** the Gen2 installers are on the [Releases](../../releases) page, with nothing of
 Elektron's in them: install `Machinemodule-<version>-mpc-aarch64.zip` (and `Machinemodule-Tap-<version>-mpc-aarch64.zip` if you want
-the tap), put your own `Elektron_SPS1-1UW_OS1.63.syx` in the plugin's `machinedrum/` folder (on a Live III
-`/nvme/Synths/sd88me - VST - Machinemodule/machinedrum/`), load Machinemodule on a track once (it makes its LCD skin from your OS file),
+the tap) with the OpenMPC Plugin Manager or by hand with each zip's `install.sh`. These are older-format zips (plugins listed in
+`MPC.settings`); there is no SDK-format zip for copying into `VST2 Plugins`. Then put your own `Elektron_SPS1-1UW_OS1.63.syx` in the
+plugin's `machinedrum/` folder (on a Live III `/nvme/Synths/sd88me - VST - Machinemodule/machinedrum/`): with the Plugin Manager's
+**Your ROMs and files** step, or by hand with `scp` or the MPC's file browser. Load Machinemodule on a track once (it makes its LCD skin from your OS file),
 then restart MPC to see the skin. **Optional:** put your Machinedrum UW flash image (the 8 MB `.bin`) there too and the plugin makes the
 ROM sample machines and the 16 factory kits from it the first time you load it (about 2 minutes; it makes sound only after that, and
 you reload the plugin once afterwards). Without the `.bin` those stay silent / absent. Release builds of it:
@@ -269,7 +271,7 @@ release/build_release.sh "/path/to/Elektron_SPS1-1UW_OS1.63.syx" "/path/to/flash
 1. **Save your project on the device.** Installing stops and restarts MPC, once per zip, and the device should be idle.
 2. Either re-run the build with `-d <device-ip>` (finished work is reused, so this is quick) to copy all three zips over and
    run their installers, or install a zip yourself: copy it to the device, unzip it there and run `install.sh` as root, or
-   drop it into the [installer app](https://sd88me.github.io/mpc-vst-plugins/install.html).
+   drop it into the OpenMPC Plugin Manager ([how to set it up](https://sd88me.github.io/mpc-vst-plugins/install.html)).
 3. On the device, add **Machinemodule** on a track from the plugin browser. Save and reload a project once to check.
 
 ### Options
